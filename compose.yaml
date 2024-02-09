@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    env_file:
+      - ./.env
+    volumes:
+      - orta-pg-data:/data/postgres
+  pgAdmin:
+    image: dpage/pgadmin4
+    container_name: pgAdmin
+    env_file:
+      - ./.env
+    ports:
+      - "5050:80"
+    volumes:
+      - orta-pgadmin-data:/var/lib/pgadmin
+  # nextapp:
+  #   container_name: orta_next_frontend
+  #   image: 4ry1337/nextapp:1.0.0
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: next.dockerfile
+  #   ports:
+  #     - 3000:3000
+  #   environment:
+  #     - NEXT_PUBLIC_API_URL=http://localhost:8080
+  #   depends_on:
+  #     - rustapp
+  #
+  # rustapp:
+  #   container_name: orta_rust_backend
+  #   image: rakhat/orta_rust_backend:1.0.0
+  #   build:
+  #     context: ./backend
+  #     dockerfile: rust.dockerfile
+  #     args:
+  #       DATABASE_URL:
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - neo4j
+  # grafana:
+  #   container_name: grafana
+  #   image: grafana/grafana
+  #   restart: unless-stopped
+  #   enviroment:
+  #     GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+  #     GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+  #   ports:
+  #     - 3000:3000
+  #   volumes:
+  #     - ./grafana:/etc/grafana/provisioning/datasources
+  #     - grafana/data:/var/lib/grafana
+  #
+  # prometheus:
+  #   container_name: prometheus
+  #   image: prom/prometheus
+  #   restart: unless-stopped
+  #   command:
+  #     - "--config.file=/etc/prometheus/prometheus.yml"
+  #   ports:
+  #     - 9090:9090
+  #   volumes:
+  #     - ./prometheus:/etc/prometheus
+  #     - prom/data:/prometheus
+
+volumes:
+  orta-pg-data:
+  orta-pgadmin-data:
+  # - prom:
+  # - grafana:
