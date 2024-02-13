@@ -24,6 +24,7 @@ export type Article = {
   like_count: number;
   comment_count: number;
   tag_list: string[];
+  published_at: Date;
   created_at: Date;
   updated_at: Date;
 };
@@ -39,4 +40,3 @@ export type Comment = {
   likes_count: number;
   created_at: Date;
 };
-

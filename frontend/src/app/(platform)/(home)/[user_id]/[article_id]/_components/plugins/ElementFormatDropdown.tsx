@@ -47,6 +47,7 @@ const ElementFormatSelect = ({
       required={true}
       name='Formatting Options'
       value={value}
+      defaultValue='left'
       onValueChange={(
         value: ElementFormatType | 'indent' | 'outdent'
       ) => {

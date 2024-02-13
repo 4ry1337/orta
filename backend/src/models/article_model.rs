@@ -13,6 +13,7 @@ pub struct Article {
     pub reference: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub published_at: Option<DateTime<Utc>>,
 }
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]

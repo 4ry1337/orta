@@ -92,6 +92,7 @@ create table articles (
   comment_count integer not null default 0,
   reference text[] not null default array[]::text[],
   tag_list text[] not null default array[]::text[],
+  published_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

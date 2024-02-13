@@ -38,7 +38,6 @@ pub async fn get_articles_by_users(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<GetArticleByUsers>,
 ) -> impl IntoResponse {
-    println!("{:?}", payload.users);
     let db_response = state.repository.article.get_by_users(&payload.users).await;
     match db_response {
         Ok(articles) => (StatusCode::OK, Json(json!(articles))),
