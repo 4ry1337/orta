@@ -49,7 +49,7 @@ const MainLayout = async ({
     },
   ];
   return (
-    <div className='flex w-full grow flex-row '>
+    <div className='flex h-full w-full flex-row '>
       <div className='flex grow flex-col'>{children}</div>
       <Separator
         orientation='vertical'

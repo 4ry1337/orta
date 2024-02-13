@@ -14,3 +14,29 @@ export type ActionState<TInput, TOutput> = {
 export type Action<TInput, TOutput> = (
   data: TInput
 ) => Promise<ActionState<TInput, TOutput>>;
+
+export type Article = {
+  id: number;
+  title: string;
+  publisher_id: number;
+  user_ids: number[];
+  reference: string[];
+  like_count: number;
+  comment_count: number;
+  tag_list: string[];
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type Comment = {
+  id: number;
+  author: {
+    id: number;
+    image: string;
+    name: string;
+  };
+  content: string;
+  likes_count: number;
+  created_at: Date;
+};
+

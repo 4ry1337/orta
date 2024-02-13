@@ -26,7 +26,7 @@ use routes::{
     auth::{signin, signup},
 };
 use sqlx::postgres::PgPoolOptions;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 
 #[macro_use]
 extern crate dotenv_codegen;
@@ -64,7 +64,10 @@ async fn main() {
 
     let config = Config::init();
 
-    let cors = CorsLayer::new().allow_origin(["http://localhost:3000".parse().unwrap()]);
+    let cors = CorsLayer::new()
+        .allow_methods(Any)
+        .allow_headers(Any)
+        .allow_origin(["http://localhost:3000".parse().unwrap()]);
 
     let pool = match PgPoolOptions::new()
         .max_connections(10)
@@ -147,7 +150,7 @@ async fn main() {
                 .nest(
                     "/article",
                     Router::new()
-                        .route("/", get(get_articles_by_users))
+                        .route("/search", post(get_articles_by_users))
                         .route("/:article_id", get(get_article)),
                 )
                 .route("/healthchecker", get(health_checker_handler))

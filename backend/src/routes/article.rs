@@ -8,8 +8,12 @@ use axum::{
 use axum_core::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
+use tracing::debug;
 
-use crate::{repository::article_repository::ArticleRepository, AppState};
+use crate::{
+    repository::{article_repository::ArticleRepository, repository::QueryParamsImpl},
+    AppState,
+};
 
 pub async fn get_article(
     State(state): State<Arc<AppState>>,
@@ -34,6 +38,7 @@ pub async fn get_articles_by_users(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<GetArticleByUsers>,
 ) -> impl IntoResponse {
+    println!("{:?}", payload.users);
     let db_response = state.repository.article.get_by_users(&payload.users).await;
     match db_response {
         Ok(articles) => (StatusCode::OK, Json(json!(articles))),

@@ -14,7 +14,7 @@ const pool = new Pool({
   password: process.env.POSTGRES_PASSWORD as string,
 });
 
-const authOptions: AuthOptions = {
+export const authOptions: AuthOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
