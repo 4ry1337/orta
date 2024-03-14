@@ -18,7 +18,7 @@ const ArticleList = ({
   return (
     <ScrollArea className={cn('pr-4', className)}>
       <div className='flex flex-col gap-2'>
-        {articles.map((article: Article) => (
+        {articles?.map((article: Article) => (
           <ArticleItem
             key={article.id}
             article={article}

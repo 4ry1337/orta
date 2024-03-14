@@ -81,7 +81,7 @@ const ActionsPlugin = ({
     useState(false);
   const [connected, setConnected] = useState(false);
   const [isEditorEmpty, setIsEditorEmpty] = useState(true);
-  const { isCollabActive } = useCollaborationContext();
+  // const { isCollabActive } = useCollaborationContext();
 
   useEffect(() => {
     return mergeRegister(
@@ -148,8 +148,7 @@ const ActionsPlugin = ({
           setIsSpeechToText(!isSpeechToText);
         }}
         className={
-          'action-button action-button-mic ' +
-          (isSpeechToText ? 'active' : '')
+           cn(isSpeechToText ? 'active' : '')
         }
         title='Speech To Text'
         aria-label={`${

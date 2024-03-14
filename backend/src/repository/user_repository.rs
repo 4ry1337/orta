@@ -1,30 +1,21 @@
 use crate::models::user_model::*;
 use axum::async_trait;
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{Error, PgPool};
 
 #[async_trait]
 pub trait UserRepository<T, E> {
     fn set(db: T) -> Self;
-    async fn create(&self, new_user: CreateUser) -> Result<User, E>;
-    async fn delete(&self, user_id: i32) -> Result<(), E>;
     async fn get_user_by_id(&self, user_id: i32) -> Result<Option<User>, E>;
     async fn get_user_by_email(&self, user_email: String) -> Result<Option<User>, E>;
-    #[allow(non_snake_case)]
-    async fn get_user_by_account(
-        &self,
-        provider: String,
-        providerAccountId: String,
-    ) -> Result<Option<User>, E>;
-    async fn create_session(&self, new_session: CreateSession) -> Result<Session, E>;
-    #[allow(non_snake_case)]
-    async fn get_session_and_user(
-        &self,
-        sessionToken: String,
-    ) -> Result<Option<(Session, User)>, Error>;
-    #[allow(non_snake_case)]
-    async fn delete_session(&self, sessionToken: String) -> Result<(), Error>;
+    async fn create_user(&self, new_user: CreateUser) -> Result<User, E>;
+    async fn update_user(&self, update_user: UpdateUser) -> Result<User, E>;
+    async fn verify_user(&self, user_id: i32) -> Result<(), E>;
+    async fn approve_user(&self, user_id: i32) -> Result<(), E>;
+    async fn unapprove_user(&self, user_id: i32) -> Result<(), E>;
+    async fn soft_delete_user(&self, user_id: i32) -> Result<(), E>;
+    async fn delete_user(&self, user_id: i32) -> Result<(), E>;
 }
 
 #[derive(Debug, Clone)]
@@ -32,22 +23,20 @@ pub struct PgUserRepository {
     db: PgPool,
 }
 
-#[derive(Deserialize)]
-#[allow(non_snake_case)]
+#[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
 pub struct CreateUser {
-    pub name: String,
+    pub username: String,
     pub email: String,
-    pub emailVerified: Option<DateTime<Utc>>,
+    pub email_verified: Option<DateTime<Utc>>,
     pub image: Option<String>,
     pub password: Option<String>,
 }
 
-#[derive(Deserialize)]
-#[allow(non_snake_case)]
-pub struct CreateSession {
-    pub sessionToken: String,
-    pub userId: i32,
-    pub expires: DateTime<Utc>,
+#[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
+pub struct UpdateUser {
+    pub id: i32,
+    pub username: Option<String>,
+    pub image: Option<String>,
 }
 
 #[async_trait]
@@ -56,32 +45,25 @@ impl UserRepository<PgPool, Error> for PgUserRepository {
         Self { db }
     }
 
-    async fn create(&self, new_user: CreateUser) -> Result<User, Error> {
+    async fn get_user_by_id(&self, user_id: i32) -> Result<Option<User>, Error> {
         sqlx::query_as!(
             User,
-            r#"INSERT INTO users (name, email, "emailVerified", image, password) 
-            VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email,
-            "emailVerified", image, password, role AS "role: Role", 
-            approved, bio, created_at, updated_at, followers_count,
-            following_count, deleted, urls"#n,
-            new_user.name,
-            new_user.email,
-            new_user.emailVerified,
-            new_user.image,
-            new_user.password,
-        )
-        .fetch_one(&self.db)
-        .await
-    }
-
-    async fn get_user_by_id(&self, userId: i32) -> Result<Option<User>, Error> {
-        sqlx::query_as!(
-            User,
-            r#"select id, name, email, "emailVerified", image, password,
-            role AS "role: Role", approved, bio, created_at, updated_at, 
-            followers_count, following_count, deleted, urls 
-            from users where id = $1"#n,
-            userId
+            r#"
+            SELECT
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
+            FROM users
+            WHERE id = $1"#n,
+            user_id
         )
         .fetch_optional(&self.db)
         .await
@@ -90,119 +72,198 @@ impl UserRepository<PgPool, Error> for PgUserRepository {
     async fn get_user_by_email(&self, user_email: String) -> Result<Option<User>, Error> {
         sqlx::query_as!(
             User,
-            r#"select id, name, email, "emailVerified", image, password,
-            role AS "role: Role", approved, bio, created_at, updated_at, 
-            followers_count, following_count, deleted, urls 
-            from users where email = $1"#n,
+            r#"
+            SELECT
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
+            FROM users
+            WHERE email = $1
+            "#n,
             user_email
         )
         .fetch_optional(&self.db)
         .await
     }
 
-    async fn get_user_by_account(
-        &self,
-        provider: String,
-        providerAccountId: String,
-    ) -> Result<Option<User>, Error> {
+    async fn create_user(&self, new_user: CreateUser) -> Result<User, Error> {
         sqlx::query_as!(
             User,
-            r#"select u.id, u.name, u.email, u."emailVerified", u.image, u.password,
-            u.role AS "role: Role", u.approved, u.bio, u.created_at, u.updated_at, 
-            u.followers_count, u.following_count, deleted, u.urls 
-            from users u join accounts a on u.id = a."userId"
-            where a.provider = $1 and a."providerAccountId" = $2"#n,
-            provider,
-            providerAccountId
+            r#"
+            INSERT INTO users (username, email, email_verified, image, password)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
+            "#n,
+            new_user.username,
+            new_user.email,
+            new_user.email_verified,
+            new_user.image,
+            new_user.password,
         )
-        .fetch_optional(&self.db)
+        .fetch_one(&self.db)
         .await
     }
 
-    async fn create_session(&self, new_session: CreateSession) -> Result<Session, Error> {
+    async fn update_user(&self, update_user: UpdateUser) -> Result<User, Error> {
         sqlx::query_as!(
-            Session,
-            r#"insert into sessions ("userId", expires, "sessionToken")
-            values ($1, $2, $3)
-            RETURNING id, "sessionToken", "userId", expires"#n,
-            new_session.userId,
-            new_session.expires,
-            new_session.sessionToken
+            User,
+            r#"
+            UPDATE users
+            SET
+                username = coalesce($2, users.username),
+                image = coalesce($3, users.image)
+            WHERE 
+                id = $1
+            RETURNING 
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
+            "#n,
+            update_user.id,
+            update_user.username,
+            update_user.image
         )
         .fetch_one(&self.db)
         .await
     }
 
-    async fn get_session_and_user(
-        &self,
-        sessionToken: String,
-    ) -> Result<Option<(Session, User)>, Error> {
-        let session = sqlx::query_as!(
-            Session,
-            r#"select * from sessions where "sessionToken" = $1"#n,
-            sessionToken
+    async fn verify_user(&self, user_id: i32) -> Result<(), Error> {
+        let _ = sqlx::query!(
+            r#"
+            UPDATE users
+            SET
+                email_verified = now()
+            WHERE 
+                id = $1
+            RETURNING 
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
+            "#n,
+            user_id
         )
         .fetch_one(&self.db)
-        .await;
-
-        match session {
-            Ok(s) => {
-                let user = sqlx::query_as!(
-                    User,
-                    r#"select id, name, email, "emailVerified", image, password,
-                    role AS "role: Role", approved, bio, created_at, updated_at, 
-                    followers_count, following_count, deleted, urls 
-                    from users where id = $1"#n,
-                    s.userId
-                )
-                .fetch_one(&self.db)
-                .await;
-                match user {
-                    Ok(u) => Ok(Some((s, u))),
-                    Err(_e) => Ok(None),
-                }
-            }
-            Err(_e) => Ok(None),
-        }
-    }
-
-    // async fn updateSession() {}
-
-    async fn delete_session(&self, sessionToken: String) -> Result<(), Error> {
-        let _ = sqlx::query!(
-            r#"delete from sessions where "sessionToken" = $1"#n,
-            sessionToken
-        )
-        .execute(&self.db)
         .await;
         Ok(())
     }
 
-    // async fn unlink_account(
-    //     &self,
-    //     provider: String,
-    //     provider_account_id: String,
-    // ) -> Result<(), Error> {
-    //     let _ = sqlx::query!(
-    //         "delete from accounts where provider = $1 and provider_account_id = $2",
-    //         provider,
-    //         provider_account_id
-    //     )
-    //     .execute(&self.db)
-    //     .await;
-    //     Ok(())
-    // }
+    async fn approve_user(&self, user_id: i32) -> Result<(), Error> {
+        let _ = sqlx::query!(
+            r#"
+            UPDATE users
+            SET
+                approved_at = now()
+            WHERE 
+                id = $1
+            RETURNING 
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
+            "#n,
+            user_id
+        )
+        .fetch_one(&self.db)
+        .await;
+        Ok(())
+    }
 
-    async fn delete(&self, userId: i32) -> Result<(), Error> {
-        let _ = sqlx::query!("delete from users where id = $1", userId)
-            .execute(&self.db)
-            .await;
-        let _ = sqlx::query!(r#"delete from sessions where "userId" = $1"#n, userId)
-            .execute(&self.db)
-            .await;
-        let _ = sqlx::query!(r#"delete from accounts where "userId" = $1"#n, userId)
-            .execute(&self.db)
-            .await;
+    async fn unapprove_user(&self, user_id: i32) -> Result<(), Error> {
+        let _ = sqlx::query!(
+            r#"
+            UPDATE users
+            SET
+                approved_at = null
+            WHERE 
+                id = $1
+            RETURNING 
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
+            "#n,
+            user_id
+        )
+        .fetch_one(&self.db)
+        .await;
+        Ok(())
+    }
+
+    async fn soft_delete_user(&self, user_id: i32) -> Result<(), Error> {
+        let _ = sqlx::query!(
+            r#"
+            UPDATE users
+            SET
+                deleted_at = now()
+            WHERE 
+                id = $1
+            "#n,
+            user_id
+        )
+        .fetch_one(&self.db)
+        .await;
+        Ok(())
+    }
+
+    async fn delete_user(&self, user_id: i32) -> Result<(), Error> {
+        let _ = sqlx::query!(
+            r#"
+            DELETE FROM users
+            WHERE id = $1
+            "#n,
+            user_id
+        )
+        .execute(&self.db)
+        .await;
         Ok(())
     }
 }

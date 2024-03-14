@@ -1,122 +1,111 @@
-create table accounts (
-  id serial primary key,
-  "userId" integer not null,
-  type text not null,
-  provider text not null,
-  "providerAccountId" text not null,
-  refresh_token text,
-  access_token text,
-  expires_at bigint,
-  token_type text,
-  scope text,
-  id_token text,
-  session_state text
-);
+CREATE TYPE Role AS ENUM ('USER', 'ADMIN', 'MANAGER');
 
-create table sessions (
-  id serial primary key,
-  "userId" integer not null,
-  expires timestamptz not null,
-  "sessionToken" text not null
+CREATE TYPE TagStatus AS ENUM ('APPROVED', 'BANNED', 'WAITING');
+
+CREATE TABLE Users (
+    id SERIAL NOT NULL PRIMARY KEY,
+    username TEXT,
+    email TEXT UNIQUE NOT NULL,
+    email_verified TIMESTAMPTZ,
+    password TEXT,
+    image TEXT,
+    role Role NOT NULL DEFAULT 'USER',
+    follower_count INTEGER NOT NULL DEFAULT 0,
+    following_count INTEGER NOT NULL DEFAULT 0,
+    approved_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ
 );
 
 
-create type role as enum (
-  'admin',
-  'user',
-  'manager'
+CREATE TABLE Accounts (
+    id SERIAL NOT NULL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    type TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    provider_account_id TEXT NOT NULL,
+    refresh_token TEXT,
+    access_token TEXT,
+    expires_at INTEGER,
+    token_type TEXT,
+    scope TEXT,
+    id_token TEXT,
+    session_state TEXT
 );
 
-create table users
-(
-  id serial primary key ,
-  name text collate "case_insensitive" not null,
-  email text collate "case_insensitive" unique not null,
-  "emailVerified" timestamptz,
-  image text,
-  approved timestamptz,
-  password text,
-  bio text not null default '',
-  urls text[] not null default array[]::text[],
-  role role not null default 'user',
-  deleted boolean not null default false,
-  followers_count integer not null default 0,
-  following_count integer not null default 0,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+CREATE UNIQUE INDEX Account_provider_provider_account_id_key ON Accounts(provider, provider_account_id);
+
+CREATE TABLE Profiles (
+    id SERIAL NOT NULL PRIMARY KEY,
+    bio TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    urls TEXT[],
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ
 );
 
-select trigger_updated_at('users');
+SELECT trigger_updated_at('Profiles');
 
-create table follow
-(
-  follower_id  integer not null references "users" (id) on delete cascade,
-  following_id integer not null references "users" (id) on delete cascade,
-  created_at timestamptz not null default now(),
-  primary key (following_id, follower_id)
+CREATE TABLE Tags (
+    id SERIAL NOT NULL PRIMARY KEY,
+    label TEXT NOT NULL UNIQUE,
+    article_count INTEGER NOT NULL DEFAULT 0,
+    tag_status TagStatus NOT NULL DEFAULT 'WAITING',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ
 );
 
-create table interests (
-  user_id integer not null ,
-  tag_id integer not null,
-  primary key (user_id, tag_id)
+SELECT trigger_updated_at('Tags');
+
+CREATE TABLE Interests (
+  profile_id INTEGER NOT NULL REFERENCES Profiles(id),
+  tag_id INTEGER NOT NULL REFERENCES Tags(id),
+  PRIMARY KEY (profile_id, tag_id)
 );
 
-create type tag_status as enum (
-  'approved',
-  'banned',
-  'waiting'
+CREATE TABLE Devices (
+    id SERIAL NOT NULL PRIMARY KEY,
+    user_id INTEGER REFERENCES Users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    context TEXT,
+    last_logged TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table tags (
-  id serial primary key,
-  label text unique not null,
-  tag_status tag_status not null default 'waiting',  
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+CREATE TABLE Articles (
+    id SERIAL NOT NULL PRIMARY KEY,
+    title TEXT,
+    like_count INTEGER NOT NULL DEFAULT 0,
+    comment_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    published_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
 );
 
-create table device (
-  id serial primary key,
-  user_id integer references "users" (id) on delete cascade,
-  context text not null,
-  last_logged_in_at timestamptz not null default now()
+SELECT trigger_updated_at('Articles');
+
+CREATE TABLE Authors (
+  author_id INTEGER REFERENCES Users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  article_id INTEGER REFERENCES Articles(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  PRIMARY KEY (author_id, article_id)
 );
 
-create table articles (
-  id serial primary key,
-  publisher_id integer,
-  user_ids integer[] not null default array[]::integer[],
-  title text,
-  like_count integer not null default 0,
-  comment_count integer not null default 0,
-  reference text[] not null default array[]::text[],
-  tag_list text[] not null default array[]::text[],
-  published_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+CREATE TABLE ArticleTags (
+  article_id INTEGER REFERENCES Articles(id),
+  tag_id INTEGER REFERENCES Tags(id),
+  PRIMARY KEY (article_id, tag_id)
 );
 
-create table article_version (
-  id serial primary key,
-  article_id integer references articles (id) on delete cascade,
-  device_id integer references device (id) on delete set null,
-  version_numebr integer not null default 0,
-  updated_at timestamptz not null default now()
+CREATE TABLE ArticleVersions (
+    id SERIAL NOT NULL PRIMARY KEY,
+    article_id INTEGER NOT NULL REFERENCES Articles(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    device_id INTEGER NOT NULL REFERENCES Devices(id),
+    version_number INTEGER NOT NULL DEFAULT 0,
+    content TEXT,
+    updated_at TIMESTAMPTZ
 );
 
+SELECT trigger_updated_at('ArticleVersions');
 
-create type block_type as enum (
-  'text',
-  'image',
-  'video',
-  'file'
-);
-
-create table article_block (
-  id serial primary key,
-  article_version_id integer references article_version (id) on delete cascade,
-  block_order integer,
-  block_type BLOCK_TYPE not null default 'text',
-  content text not null default ''
+CREATE TABLE Comments (
+    id SERIAL NOT NULL PRIMARY KEY,
+    content TEXT,
+    article_id INTEGER REFERENCES Articles(id) ON DELETE CASCADE ON UPDATE CASCADE
 );

@@ -22,8 +22,8 @@ use config::Config;
 use dotenv::dotenv;
 use repository::repository::PgRepository;
 use routes::{
-    article::{create_article, get_article, get_articles_by_users},
-    auth::{signin, signup},
+    article::{create_article, delete_article, get_article, update_article},
+    user::{create_user, delete_user, get_user, update_user},
 };
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::{Any, CorsLayer};
@@ -75,11 +75,11 @@ async fn main() {
         .await
     {
         Ok(pool) => {
-            println!("✅ Connection to the database is successful!");
+            println!("Connection to the database is successful!");
             pool
         }
         Err(err) => {
-            println!("🔥 Failed to connect to the database: {:?}", err);
+            println!("Failed to connect to the database: {:?}", err);
             std::process::exit(1);
         }
     };
@@ -101,60 +101,66 @@ async fn main() {
         .nest(
             "/api",
             Router::new()
-                .nest(
-                    "/auth",
-                    Router::new()
-                        .route("/signup", post(signup))
-                        .route("/signin", post(signin))
-                        .nest(
-                            "/session",
-                            Router::new()
-                                .route(
-                                    "/",
-                                    post(StatusCode::NOT_IMPLEMENTED)
-                                        .patch(StatusCode::NOT_IMPLEMENTED),
-                                )
-                                .route(
-                                    "/:session_token",
-                                    get(StatusCode::NOT_IMPLEMENTED)
-                                        .delete(StatusCode::NOT_IMPLEMENTED),
-                                ),
-                        )
-                        .nest(
-                            "/user",
-                            Router::new()
-                                .route(
-                                    "/:idoremail",
-                                    get(StatusCode::NOT_IMPLEMENTED)
-                                        .delete(StatusCode::NOT_IMPLEMENTED)
-                                        .patch(StatusCode::NOT_IMPLEMENTED),
-                                )
-                                .nest(
-                                    "/account",
-                                    Router::new()
-                                        .route(
-                                            "/:provider/:provider_account_id",
-                                            delete(StatusCode::NOT_IMPLEMENTED)
-                                                .get(StatusCode::NOT_IMPLEMENTED),
-                                        )
-                                        .route("/", post(StatusCode::NOT_IMPLEMENTED)),
-                                ),
-                        ),
-                )
+                // .nest(
+                //     "/auth",
+                //     Router::new()
+                //         .route("/signup", post(signup))
+                //         .route("/signin", post(signin))
+                //         .nest(
+                //             "/session",
+                //             Router::new()
+                //                 .route(
+                //                     "/",
+                //                     post(StatusCode::NOT_IMPLEMENTED)
+                //                         .patch(StatusCode::NOT_IMPLEMENTED),
+                //                 )
+                //                 .route(
+                //                     "/:session_token",
+                //                     get(StatusCode::NOT_IMPLEMENTED)
+                //                         .delete(StatusCode::NOT_IMPLEMENTED),
+                //                 ),
+                //         )
+                //         .nest(
+                //             "/user",
+                //             Router::new()
+                //                 .route(
+                //                     "/:idoremail",
+                //                     get(StatusCode::NOT_IMPLEMENTED)
+                //                         .delete(StatusCode::NOT_IMPLEMENTED)
+                //                         .patch(StatusCode::NOT_IMPLEMENTED),
+                //                 )
+                //                 .nest(
+                //                     "/account",
+                //                     Router::new()
+                //                         .route(
+                //                             "/:provider/:provider_account_id",
+                //                             delete(StatusCode::NOT_IMPLEMENTED)
+                //                                 .get(StatusCode::NOT_IMPLEMENTED),
+                //                         )
+                //                         .route("/", post(StatusCode::NOT_IMPLEMENTED)),
+                //                 ),
+                //         ),
+                // )
+                .route("/healthchecker", get(health_checker_handler))
+                .route("/metrics", get(|| async move { metric_handle.render() }))
                 .nest(
                     "/user",
-                    Router::new()
-                        .route("/", get(StatusCode::NOT_IMPLEMENTED))
-                        .route("/:user_id/article", post(create_article)),
+                    Router::new().route("/", post(create_user)).route(
+                        "/:user_id",
+                        get(get_user).patch(update_user).delete(delete_user),
+                    ),
                 )
+                .route("/users", get(StatusCode::NOT_IMPLEMENTED))
                 .nest(
-                    "/article",
-                    Router::new()
-                        .route("/search", post(get_articles_by_users))
-                        .route("/:article_id", get(get_article)),
+                    "/aritlce",
+                    Router::new().route("/", post(create_article)).route(
+                        "/:article_id",
+                        get(get_article)
+                            .patch(update_article)
+                            .delete(delete_article),
+                    ),
                 )
-                .route("/healthchecker", get(health_checker_handler))
-                .route("/metrics", get(|| async move { metric_handle.render() })),
+                .route("/articles", get(StatusCode::NOT_IMPLEMENTED)),
         )
         .with_state(appstate.clone())
         .layer(cors)

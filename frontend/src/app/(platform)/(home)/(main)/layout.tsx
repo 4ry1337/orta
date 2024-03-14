@@ -6,6 +6,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import db from '@/lib/prismadb';
 import Link from 'next/link';
 
 const MainLayout = async ({
@@ -13,23 +14,19 @@ const MainLayout = async ({
 }: {
   children: React.ReactNode;
 }) => {
-  const tags = [
-    'dev',
-    'design',
-    'ui/ux',
-    '3D',
-    'blender',
-    'music',
-    'audio',
-  ];
-  const top_authors = [
-    {
-      id: 1,
-      image: null,
-      initials: 'RY',
-      name: 'Rakhat Yskak',
+  const tags = await db.tag.findMany({
+    orderBy: {
+      article_count: 'desc',
     },
-  ];
+    take: 10,
+  })
+
+  const top_authors = await db.user.findMany({
+    orderBy: {
+      follower_count: 'desc'
+    },
+    take: 10,
+  })
   const marketing = [
     {
       href: '/tos',

@@ -1,35 +1,31 @@
 'use server';
 
 import { createSafeAction } from '@/lib/create-safe-action';
-import { revalidatePath } from 'next/cache';
 import { createArticleSchema } from './schema';
 import { InputType, ReturnType } from './type';
+import { revalidatePath } from 'next/cache';
+import db from '@/lib/prismadb';
+import { Article } from '@prisma/client';
 
 const handler = async (
   input: InputType
 ): Promise<ReturnType> => {
-  const res = await fetch(
-    `http://127.0.0.1:5000/api/user/${input.user_id}/article`,
-    {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-      },
+  const article = await db.article.create({
+    data: {
+      userIds: [input.user_id],
     }
-  );
-  let data: string = await res.json();
-  if (res.ok) {
-    revalidatePath('/write');
+  }).catch(e => {
     return {
-      data,
-    };
-  }
+      error: {
+        message: 'Creation Failed',
+        status: '400'
+      }
+    }
+  })
+  revalidatePath(`/write`);
   return {
-    error: {
-      message: data,
-      status: String(res.status),
-    },
-  };
+    data: article as Article,
+  }
 };
 
 export const createarticle = createSafeAction(

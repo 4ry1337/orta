@@ -1,35 +1,46 @@
+'use server'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import ArticleList from '@/components/articles/ArticleList';
-import { Article } from '@/types';
 import { getServerSession } from 'next-auth';
 import CreateArticleButton from './_components/CreateArticleButton';
+import { toast } from 'sonner';
+import db from '@/lib/prismadb';
+import { Article } from '@prisma/client';
 
-async function getArticles(id: number): Promise<Article[]> {
+async function getArticles(id: string): Promise<Article[]> {
   // TODO: change url
-  return fetch(`http://localhost:5000/api/article/search`, {
-    next: {
-      tags: [],
-    },
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      users: [id],
-    }),
-  }).then(async (res) => {
-    const response = await res.json();
-    return response;
-  });
+  // return fetch(`http://localhost:5000/api/article/search`, {
+  //   cache: 'no-store',
+  //   next: {
+  //     tags: ["article", id.toString()],
+  //   },
+  //   method: 'POST',
+  //   headers: {
+  //     Accept: 'application/json',
+  //     'Content-Type': 'application/json',
+  //   },
+  //   body: JSON.stringify({
+  //     users: [id],
+  //   }),
+  // }).then(async (res) => {
+  //   const response = await res.json();
+  //   return response;
+  // }).catch(error => {
+  //   console.log(error);
+  // })
+  //
+  return await db.article.findMany({
+    where: {
+      userIds: {
+        has: id
+      }
+    }
+  })
 }
 
 const WritePage = async () => {
   const session = await getServerSession(authOptions);
-  const articles = await getArticles(
-    Number(session!.user.id)
-  );
-  console.log(articles);
+  const articles = await getArticles(session!.user.id);
   return (
     <div className='flex h-full flex-col gap-4 px-4'>
       <div className='flex flex-row items-center pt-4'>

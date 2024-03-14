@@ -2,16 +2,23 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { getServerSession } from 'next-auth';
 import Header from '../_components/Header';
+import db from '@/lib/prismadb';
+
+const getInterests = async (id: string) => {
+  return (await db.profile.findFirst({
+    where: {
+      userId: id,
+    },
+    select: {
+      interests: true
+    }
+  }))?.interests
+}
 
 const HomePage = async () => {
-  const user = await getServerSession();
-  const tag_filter = [
-    'dev',
-    'design',
-    '3d',
-    'ui/ux',
-    'system design',
-  ];
+  const session = await getServerSession();
+
+  const interests = await getInterests(session!.user.id);
   return (
     <>
       <Header className=''>
@@ -22,19 +29,21 @@ const HomePage = async () => {
           <Plus />
         </Button>
         <div className='inline-flex flex-row gap-4'>
-          {tag_filter.map((tag) => {
+          {interests?.map((interest) => {
             return (
               <h3
                 className=''
-                key={tag}
+                key={interest}
               >
-                {tag}
+                {interest}
               </h3>
             );
           })}
         </div>
       </Header>
-      <div className='grow'>Home Page</div>
+      <div className='grow'>
+        <div>Not implemented</div>
+      </div>
     </>
   );
 };

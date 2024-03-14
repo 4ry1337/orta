@@ -1,5 +1,3 @@
-create extension if not exists "uuid-ossp";
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE OR REPLACE FUNCTION set_updated_at()

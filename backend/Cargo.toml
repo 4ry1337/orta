@@ -16,7 +16,7 @@ tower = { version = "0.4.13", features = ["util", "timeout"] }
 tower-http = { version = "0.5.1", features = ["cors", "fs", "trace"] }
 
 # Database:
-sqlx = { version = "0.7.3", features = [ "runtime-tokio", "macros", "uuid", "json", "chrono", "migrate", "postgres" ] }
+sqlx = { version = "0.7.3", features = ["runtime-tokio", "macros", "uuid", "json", "chrono", "migrate", "postgres"] }
 
 # Async Runtime:
 tokio = { version = "1.21.2", features = ["full"] }
@@ -50,6 +50,7 @@ serde_json = "1.0.113"
 bcrypt = "0.15.0"
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
+cargo-watch = "8.5.2"
 
 [dev-dependencies]
 sqlx-cli = "0.7.3"

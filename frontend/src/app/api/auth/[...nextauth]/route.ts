@@ -1,6 +1,7 @@
 import PostgresAdapter from '@auth/pg-adapter';
 import NextAuth, { AuthOptions } from 'next-auth';
 import { Adapter } from 'next-auth/adapters';
+import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GitHubProvider from 'next-auth/providers/github';
 import GoogleProvider from 'next-auth/providers/google';
@@ -25,35 +26,35 @@ export const authOptions: AuthOptions = {
       clientId: process.env.GITHUB_ID as string,
       clientSecret: process.env.GITHUB_SECRET as string,
     }),
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'email', type: 'email' },
-        password: { label: 'password', type: 'password' },
-      },
-      async authorize(credentials) {
-        const { email, password } = credentials as any;
-        const res = await fetch(
-          'http://localhost:5000/api/auth/signin',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              email,
-              password,
-            }),
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        const user = await res.json();
-        if (res.ok && user) {
-          console.log(user);
-          return user;
-        }
-        return null;
-      },
-    }),
+    // CredentialsProvider({
+    //   name: 'credentials',
+    //   credentials: {
+    //     email: { label: 'email', type: 'email' },
+    //     password: { label: 'password', type: 'password' },
+    //   },
+    //   async authorize(credentials) {
+    //     const { email, password } = credentials as any;
+    //     const res = await fetch(
+    //       'http://localhost:5000/api/auth/signin',
+    //       {
+    //         method: 'POST',
+    //         body: JSON.stringify({
+    //           email,
+    //           password,
+    //         }),
+    //         headers: {
+    //           'Content-Type': 'application/json',
+    //         },
+    //       }
+    //     );
+    //     const user = await res.json();
+    //     if (res.ok && user) {
+    //       console.log(user);
+    //       return user;
+    //     }
+    //     return null;
+    //   },
+    // }),
   ],
   callbacks: {
     async session({ session, token, user }) {
@@ -65,7 +66,8 @@ export const authOptions: AuthOptions = {
       return session;
     },
   },
-  adapter: PostgresAdapter(pool) as Adapter,
+  // adapter: PostgresAdapter(pool) as Adapter,
+  adapter: PrismaAdapter(db) as Adapter,
   debug: true,
   session: {
     strategy: 'jwt',
@@ -150,6 +152,7 @@ import type {
 } from 'next';
 import type { NextAuthOptions } from 'next-auth';
 import { getServerSession } from 'next-auth';
+import db from '@/lib/prismadb';
 
 // You'll need to import and pass this
 // to `NextAuth` in `app/api/auth/[...nextauth]/route.ts`
@@ -161,9 +164,9 @@ export const config = {
 export function auth(
   ...args:
     | [
-        GetServerSidePropsContext['req'],
-        GetServerSidePropsContext['res'],
-      ]
+      GetServerSidePropsContext['req'],
+      GetServerSidePropsContext['res'],
+    ]
     | [NextApiRequest, NextApiResponse]
     | []
 ) {

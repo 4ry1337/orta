@@ -1,3 +1,4 @@
+'use client'
 import { useToast } from '@/components/ui/use-toast';
 import { CAN_USE_DOM, cn } from '@/lib/utils';
 import { CheckListPlugin } from '@lexical/react/LexicalCheckListPlugin';
@@ -9,7 +10,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { HorizontalRulePlugin } from '@lexical/react/LexicalHorizontalRulePlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
-import { HTMLAttributes, useEffect, useState } from 'react';
+import { HTMLAttributes, useEffect, useRef, useState } from 'react';
 import editor_theme from './EditorTheme';
 import nodes from './nodes/nodes';
 import ActionsPlugin from './plugins/ActionPlugin';
@@ -20,18 +21,19 @@ import LinkPlugin from './plugins/LinkPlugin';
 import ListMaxIndentLevelPlugin from './plugins/ListMaxIndentLevelPlugin';
 import MarkdownShortcutPlugin from './plugins/MarkdownShortcutPlugin';
 import ToolbarPlugin from './plugins/ToolbarPlugin';
+import { ArticleVersion } from '@prisma/client';
+
 
 interface EditorProps
-  extends HTMLAttributes<HTMLDivElement> {}
+  extends HTMLAttributes<HTMLDivElement> {
+  article_version: ArticleVersion;
+}
 
-const Editor = ({ className, ...props }: EditorProps) => {
+const Editor = ({ className, article_version, ...props }: EditorProps) => {
   const { toast } = useToast();
 
   const initialConfig = {
-    // NOTE: This is critical for collaboration plugin to set editor state to null. It
-    // would indicate that the editor should not try to set any default state
-    // (not even empty one), and let collaboration plugin do it instead
-    editorState: null,
+    editorState: article_version.content,
     namespace: 'Article',
     nodes: [...nodes],
     onError: (error: Error) => {

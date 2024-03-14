@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
+import { toast, useToast } from '@/components/ui/use-toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
@@ -63,7 +63,6 @@ const SignInForm = () => {
       })
       .finally(() => setIsLoading(false));
   }
-  const { toast } = useToast();
 
   return (
     <Card>
