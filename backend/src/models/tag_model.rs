@@ -1,29 +1,8 @@
-use std::error::Error;
-use std::str::FromStr;
-
-use chrono::prelude::*;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Postgres;
 
-#[derive(sqlx::Type, Serialize, Deserialize, Debug)]
-#[sqlx(type_name = "TagStatus")]
-pub enum TagStatus {
-    Approved,
-    Banned,
-    Waiting,
-}
-
-impl FromStr for TagStatus {
-    type Err = Box<dyn Error>;
-    fn from_str(input: &str) -> Result<TagStatus, Self::Err> {
-        match input {
-            "Approved" => Ok(TagStatus::Approved),
-            "Banned" => Ok(TagStatus::Banned),
-            "Waiting" => Ok(TagStatus::Waiting),
-            _ => Err(format!("Can not parse {} into Tag Status Enum", input).into()),
-        }
-    }
-}
+use super::enums::TagStatus;
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
 pub struct Tag {
@@ -61,4 +40,19 @@ impl<'r> sqlx::Decode<'r, Postgres> for Tag {
             updated_at,
         })
     }
+}
+
+pub struct CreateTag {
+    pub label: String,
+}
+
+pub struct UpdateTag {
+    pub id: i32,
+    pub label: Option<String>,
+    pub article_count: Option<i32>,
+    pub tag_status: Option<TagStatus>,
+}
+
+pub struct GetTags {
+    pub tag_status: Option<TagStatus>,
 }

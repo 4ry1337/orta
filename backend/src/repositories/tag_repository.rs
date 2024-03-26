@@ -1,29 +1,18 @@
 use axum::async_trait;
 use sqlx::{Error, PgPool};
 
-use crate::models::tag_model::{Tag, TagStatus};
+use crate::models::{
+    enums::TagStatus,
+    tag_model::{CreateTag, GetTags, Tag, UpdateTag},
+};
 
 #[async_trait]
-pub trait TagRepository<T, E> {
-    fn set(db: T) -> Self;
-    async fn get_tags(&self, get_tags: GetTags) -> Result<Vec<Tag>, E>;
-    async fn create_tag(&self, new_tag: CreateTag) -> Result<Tag, E>;
-    async fn update_tag(&self, update_tag: UpdateTag) -> Result<Tag, E>;
-}
-
-pub struct CreateTag {
-    label: String,
-}
-
-pub struct UpdateTag {
-    id: i32,
-    label: Option<String>,
-    article_count: Option<i32>,
-    tag_status: Option<TagStatus>,
-}
-
-pub struct GetTags {
-    tag_status: Option<TagStatus>,
+pub trait TagRepository<E> {
+    async fn find_all(&self, get_tags: GetTags) -> Result<Vec<Tag>, E>;
+    async fn find(&self, tag_id: i32) -> Result<Tag, E>;
+    async fn create(&self, create_tag: &CreateTag) -> Result<Tag, E>;
+    async fn update(&self, update_tag: &UpdateTag) -> Result<Tag, E>;
+    async fn delete(&self, tag_id: i32) -> Result<(), E>;
 }
 
 #[derive(Debug, Clone)]
@@ -31,13 +20,15 @@ pub struct PgTagRepository {
     db: PgPool,
 }
 
-#[async_trait]
-impl TagRepository<PgPool, Error> for PgTagRepository {
-    fn set(db: PgPool) -> PgTagRepository {
+impl PgTagRepository {
+    pub fn new(db: PgPool) -> PgTagRepository {
         Self { db }
     }
+}
 
-    async fn get_tags(&self, get_tags: GetTags) -> Result<Vec<Tag>, Error> {
+#[async_trait]
+impl TagRepository<Error> for PgTagRepository {
+    async fn find_all(&self, get_tags: GetTags) -> Result<Vec<Tag>, Error> {
         match get_tags.tag_status {
             Some(tag_status) => {
                 sqlx::query_as!(
@@ -78,7 +69,27 @@ impl TagRepository<PgPool, Error> for PgTagRepository {
         }
     }
 
-    async fn create_tag(&self, new_tag: CreateTag) -> Result<Tag, Error> {
+    async fn find(&self, tag_id: i32) -> Result<Tag, Error> {
+        sqlx::query_as!(
+            Tag,
+            r#"
+            SELECT
+                id,
+                label,
+                article_count,
+                tag_status AS "tag_status: TagStatus",
+                created_at,
+                updated_at
+            FROM tags
+            WHERE id = $1
+            "#n,
+            tag_id
+        )
+        .fetch_one(&self.db)
+        .await
+    }
+
+    async fn create(&self, create_tag: &CreateTag) -> Result<Tag, Error> {
         sqlx::query_as!(
             Tag,
             r#"
@@ -92,13 +103,13 @@ impl TagRepository<PgPool, Error> for PgTagRepository {
                 created_at,
                 updated_at
             "#n,
-            new_tag.label
+            create_tag.label
         )
         .fetch_one(&self.db)
         .await
     }
 
-    async fn update_tag(&self, update_tag: UpdateTag) -> Result<Tag, Error> {
+    async fn update(&self, update_tag: &UpdateTag) -> Result<Tag, Error> {
         sqlx::query_as!(
             Tag,
             r#"
@@ -123,5 +134,18 @@ impl TagRepository<PgPool, Error> for PgTagRepository {
         )
         .fetch_one(&self.db)
         .await
+    }
+
+    async fn delete(&self, tag_id: i32) -> Result<(), Error> {
+        let _ = sqlx::query!(
+            r#"
+            DELETE FROM tags
+            WHERE id = $1
+            "#n,
+            tag_id
+        )
+        .execute(&self.db)
+        .await;
+        Ok(())
     }
 }

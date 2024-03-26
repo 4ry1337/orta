@@ -1,4 +1,6 @@
 pub mod article_model;
+pub mod comment_model;
+pub mod enums;
 pub mod list_model;
 pub mod series_model;
 pub mod tag_model;

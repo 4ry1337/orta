@@ -1,6 +1,4 @@
-use std::error::Error;
-use std::str::FromStr;
-
+use super::enums::Role;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Postgres;
@@ -20,26 +18,6 @@ use sqlx::Postgres;
 //     pub id_token: String,
 //     pub session_state: String,
 // }
-
-#[derive(sqlx::Type, Serialize, Deserialize, Debug)]
-#[sqlx(type_name = "role", rename_all = "lowercase")]
-pub enum Role {
-    Admin,
-    User,
-    Manager,
-}
-
-impl FromStr for Role {
-    type Err = Box<dyn Error>;
-    fn from_str(input: &str) -> Result<Role, Self::Err> {
-        match input {
-            "Admin" => Ok(Role::Admin),
-            "User" => Ok(Role::User),
-            "Manager" => Ok(Role::Manager),
-            _ => Err(format!("Can not parse {} into Role Enum", input).into()),
-        }
-    }
-}
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
 pub struct User {
@@ -94,9 +72,18 @@ impl<'r> sqlx::Decode<'r, Postgres> for User {
     }
 }
 
-// #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
-// pub struct Device {
-//     pub id: Option<String>,
-//     pub last_logged: DateTime<Utc>,
-//     pub device_data: String,
-// }
+#[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
+pub struct CreateUser {
+    pub username: String,
+    pub email: String,
+    pub email_verified: Option<DateTime<Utc>>,
+    pub image: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
+pub struct UpdateUser {
+    pub id: i32,
+    pub username: Option<String>,
+    pub image: Option<String>,
+}

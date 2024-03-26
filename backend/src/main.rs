@@ -1,6 +1,6 @@
 mod config;
 mod models;
-mod repository;
+mod repositories;
 mod routes;
 mod utils;
 
@@ -12,18 +12,31 @@ use std::{
 use anyhow::Context;
 use axum::{
     http::StatusCode,
-    routing::{delete, get, patch, post},
-    Json, Router,
+    response::Response,
+    routing::{get, patch, post},
+    Router,
 };
 use axum_core::{extract::FromRef, response::IntoResponse};
 use axum_extra::extract::cookie::Key;
 use axum_prometheus::PrometheusMetricLayer;
 use config::Config;
 use dotenv::dotenv;
-use repository::repository::PgRepository;
+use repositories::PgRepository;
 use routes::{
-    article::{create_article, delete_article, get_article, update_article},
-    user::{create_user, delete_user, get_user, update_user},
+    article::{
+        delete_article, delete_author, get_article, get_articles, get_articles_by_user,
+        get_authors, patch_article, post_article, post_author,
+    },
+    comment::{delete_comment, get_comments, patch_comment, post_comment},
+    list::{
+        delete_list, delete_list_article, get_list_articles, get_list_by_user, get_lists,
+        patch_list, post_list, post_list_article,
+    },
+    series::{
+        delete_series, delete_series_article, get_series, get_series_articles, get_series_by_user,
+        patch_series, post_series, post_series_article,
+    },
+    user::{delete_user, get_user, get_users, patch_user, post_user},
 };
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::{Any, CorsLayer};
@@ -89,7 +102,7 @@ async fn main() {
         .await
         .expect("Failed migrations :(");
 
-    let repository = PgRepository::set(pool);
+    let repository = PgRepository::new(&pool);
 
     let appstate = Arc::new(AppState {
         key: Key::generate(),
@@ -97,70 +110,90 @@ async fn main() {
         repository,
     });
 
+    //TODO: refactor to routes
     let app = Router::new()
         .nest(
             "/api",
             Router::new()
-                // .nest(
-                //     "/auth",
-                //     Router::new()
-                //         .route("/signup", post(signup))
-                //         .route("/signin", post(signin))
-                //         .nest(
-                //             "/session",
-                //             Router::new()
-                //                 .route(
-                //                     "/",
-                //                     post(StatusCode::NOT_IMPLEMENTED)
-                //                         .patch(StatusCode::NOT_IMPLEMENTED),
-                //                 )
-                //                 .route(
-                //                     "/:session_token",
-                //                     get(StatusCode::NOT_IMPLEMENTED)
-                //                         .delete(StatusCode::NOT_IMPLEMENTED),
-                //                 ),
-                //         )
-                //         .nest(
-                //             "/user",
-                //             Router::new()
-                //                 .route(
-                //                     "/:idoremail",
-                //                     get(StatusCode::NOT_IMPLEMENTED)
-                //                         .delete(StatusCode::NOT_IMPLEMENTED)
-                //                         .patch(StatusCode::NOT_IMPLEMENTED),
-                //                 )
-                //                 .nest(
-                //                     "/account",
-                //                     Router::new()
-                //                         .route(
-                //                             "/:provider/:provider_account_id",
-                //                             delete(StatusCode::NOT_IMPLEMENTED)
-                //                                 .get(StatusCode::NOT_IMPLEMENTED),
-                //                         )
-                //                         .route("/", post(StatusCode::NOT_IMPLEMENTED)),
-                //                 ),
-                //         ),
-                // )
                 .route("/healthchecker", get(health_checker_handler))
                 .route("/metrics", get(|| async move { metric_handle.render() }))
                 .nest(
-                    "/user",
-                    Router::new().route("/", post(create_user)).route(
-                        "/:user_id",
-                        get(get_user).patch(update_user).delete(delete_user),
-                    ),
+                    "/admin",
+                    Router::new().route("/tag", get(StatusCode::NOT_IMPLEMENTED)),
                 )
-                .route("/users", get(StatusCode::NOT_IMPLEMENTED))
                 .nest(
-                    "/aritlce",
-                    Router::new().route("/", post(create_article)).route(
-                        "/:article_id",
-                        get(get_article)
-                            .patch(update_article)
-                            .delete(delete_article),
-                    ),
+                    "/users",
+                    Router::new()
+                        .route("/", get(get_users).post(post_user))
+                        .nest(
+                            "/:user_id",
+                            Router::new()
+                                .route("/", get(get_user).patch(patch_user).delete(delete_user))
+                                .route("/articles", get(get_articles_by_user))
+                                .route("/lists", get(get_list_by_user))
+                                .route("/series", get(get_series_by_user)),
+                        ),
                 )
-                .route("/articles", get(StatusCode::NOT_IMPLEMENTED)),
+                .nest(
+                    "/articles",
+                    Router::new()
+                        .route("/", get(get_articles).post(post_article))
+                        .nest(
+                            "/:article_id",
+                            Router::new()
+                                .route(
+                                    "/",
+                                    get(get_article).patch(patch_article).delete(delete_article),
+                                )
+                                .route(
+                                    "/authors",
+                                    get(get_authors).post(post_author).delete(delete_author),
+                                )
+                                .nest(
+                                    "/comments",
+                                    Router::new()
+                                        .route("/", post(post_comment).get(get_comments))
+                                        .route(
+                                            "/:comment_id",
+                                            patch(patch_comment).delete(delete_comment),
+                                        ),
+                                ),
+                        ),
+                )
+                .nest(
+                    "/lists",
+                    Router::new()
+                        .route("/", get(get_lists).post(post_list))
+                        .nest(
+                            "/:list_id",
+                            Router::new()
+                                .route("/", patch(patch_list).delete(delete_list))
+                                .nest(
+                                    "/articles",
+                                    Router::new().route("/", get(get_list_articles)).route(
+                                        "/:article_id",
+                                        post(post_list_article).delete(delete_list_article),
+                                    ),
+                                ),
+                        ),
+                )
+                .nest(
+                    "/series",
+                    Router::new()
+                        .route("/", get(get_series).post(post_series))
+                        .nest(
+                            "/:series_id",
+                            Router::new()
+                                .route("/", patch(patch_series).delete(delete_series))
+                                .nest(
+                                    "/articles",
+                                    Router::new().route("/", get(get_series_articles)).route(
+                                        "/:article_id",
+                                        post(post_series_article).delete(delete_series_article),
+                                    ),
+                                ),
+                        ),
+                ),
         )
         .with_state(appstate.clone())
         .layer(cors)
@@ -176,13 +209,6 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn health_checker_handler() -> impl IntoResponse {
-    const MESSAGE: &str = "Orta is running";
-
-    let json_response = serde_json::json!({
-        "status": "success",
-        "message": MESSAGE
-    });
-
-    Json(json_response)
+async fn health_checker_handler() -> Response {
+    (StatusCode::OK, "Orta is running").into_response()
 }
