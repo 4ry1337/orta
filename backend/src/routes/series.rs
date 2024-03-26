@@ -28,6 +28,21 @@ pub async fn get_series(State(state): State<Arc<AppState>>) -> Response {
     }
 }
 
+pub async fn get_series_by_user(
+    State(state): State<Arc<AppState>>,
+    Path(user_id): Path<i32>,
+) -> Response {
+    let response = state.repository.series.find_by_user(user_id).await;
+    match response {
+        Ok(series) => (StatusCode::OK, Json(json!(series))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!(e.to_string())),
+        )
+            .into_response(),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct PostSeriesRequestBody {
     pub user_id: i32,
