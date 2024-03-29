@@ -11,13 +11,15 @@ SELECT
   trigger_updated_at ('Tags');
 
 CREATE TABLE Interests (
-  profile_id INTEGER NOT NULL REFERENCES Profiles (id),
-  tag_id INTEGER NOT NULL REFERENCES Tags (id),
+  profile_id INTEGER NOT NULL REFERENCES Profiles (id) ON UPDATE CASCADE ON DELETE CASCADE,
+  tag_id INTEGER NOT NULL REFERENCES Tags (id) ON UPDATE CASCADE ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   PRIMARY KEY (profile_id, tag_id)
 );
 
 CREATE TABLE ArticleTags (
-  article_id INTEGER REFERENCES Articles (id),
-  tag_id INTEGER REFERENCES Tags (id),
+  article_id INTEGER REFERENCES Articles (id) ON UPDATE CASCADE ON DELETE CASCADE,
+  tag_id INTEGER REFERENCES Tags (id) ON UPDATE CASCADE ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   PRIMARY KEY (article_id, tag_id)
 );

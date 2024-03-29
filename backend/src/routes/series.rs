@@ -127,14 +127,14 @@ pub async fn get_series_articles(
     }
 }
 
-pub async fn post_series_article(
+pub async fn put_series_article(
     State(state): State<Arc<AppState>>,
     Path(series_id): Path<i32>,
     Path(article_id): Path<i32>,
 ) -> Response {
     let response = state
         .repository
-        .list
+        .lists
         .add_article(series_id, article_id)
         .await;
     match response {
@@ -158,7 +158,7 @@ pub async fn delete_series_article(
 ) -> Response {
     let response = state
         .repository
-        .list
+        .lists
         .remove_article(series_id, article_id)
         .await;
     match response {

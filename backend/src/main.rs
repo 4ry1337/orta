@@ -4,16 +4,11 @@ mod repositories;
 mod routes;
 mod utils;
 
-use std::{
-    net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
-};
-
 use anyhow::Context;
 use axum::{
     http::StatusCode,
     response::Response,
-    routing::{get, patch, post},
+    routing::{get, patch, post, put},
     Router,
 };
 use axum_core::{extract::FromRef, response::IntoResponse};
@@ -25,20 +20,25 @@ use repositories::PgRepository;
 use routes::{
     article::{
         delete_article, delete_author, get_article, get_articles, get_articles_by_user,
-        get_authors, patch_article, post_article, post_author,
+        get_authors, patch_article, post_article, put_author,
     },
     comment::{delete_comment, get_comments, patch_comment, post_comment},
     list::{
-        delete_list, delete_list_article, get_list_articles, get_list_by_user, get_lists,
-        patch_list, post_list, post_list_article,
+        delete_list, delete_list_article, get_list, get_list_articles, get_list_by_user, get_lists,
+        patch_list, post_list, put_list_article,
     },
     series::{
         delete_series, delete_series_article, get_series, get_series_articles, get_series_by_user,
-        patch_series, post_series, post_series_article,
+        patch_series, post_series, put_series_article,
     },
+    tags::{delete_tag, get_tag, get_tags, patch_tag, post_tag},
     user::{delete_user, get_user, get_users, patch_user, post_user},
 };
 use sqlx::postgres::PgPoolOptions;
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 use tower_http::cors::{Any, CorsLayer};
 
 #[macro_use]
@@ -116,10 +116,18 @@ async fn main() {
             "/api",
             Router::new()
                 .route("/healthchecker", get(health_checker_handler))
-                .route("/metrics", get(|| async move { metric_handle.render() }))
                 .nest(
                     "/admin",
-                    Router::new().route("/tag", get(StatusCode::NOT_IMPLEMENTED)),
+                    Router::new()
+                        .route("/metrics", get(|| async move { metric_handle.render() }))
+                        .nest(
+                            "/tags",
+                            Router::new().route("/", get(get_tags).post(post_tag)).nest(
+                                "/:tag_id",
+                                Router::new()
+                                    .route("/", get(get_tag).patch(patch_tag).delete(delete_tag)),
+                            ),
+                        ),
                 )
                 .nest(
                     "/users",
@@ -141,14 +149,9 @@ async fn main() {
                         .nest(
                             "/:article_id",
                             Router::new()
-                                .route(
-                                    "/",
-                                    get(get_article).patch(patch_article).delete(delete_article),
-                                )
-                                .route(
-                                    "/authors",
-                                    get(get_authors).post(post_author).delete(delete_author),
-                                )
+                                .route("/", get(get_article))
+                                .route("/authors", get(get_authors))
+                                .route("/tags", get(get_tags))
                                 .nest(
                                     "/comments",
                                     Router::new()
@@ -156,6 +159,20 @@ async fn main() {
                                         .route(
                                             "/:comment_id",
                                             patch(patch_comment).delete(delete_comment),
+                                        ),
+                                )
+                                .nest(
+                                    "/edit",
+                                    Router::new()
+                                        .route("/", patch(patch_article).delete(delete_article))
+                                        .route(
+                                            "/authors/:user_id",
+                                            put(put_author).delete(delete_author),
+                                        )
+                                        .route(
+                                            "/tags",
+                                            put(StatusCode::NOT_IMPLEMENTED)
+                                                .delete(StatusCode::NOT_IMPLEMENTED),
                                         ),
                                 ),
                         ),
@@ -167,12 +184,12 @@ async fn main() {
                         .nest(
                             "/:list_id",
                             Router::new()
-                                .route("/", patch(patch_list).delete(delete_list))
+                                .route("/", get(get_list).patch(patch_list).delete(delete_list))
                                 .nest(
                                     "/articles",
                                     Router::new().route("/", get(get_list_articles)).route(
                                         "/:article_id",
-                                        post(post_list_article).delete(delete_list_article),
+                                        put(put_list_article).delete(delete_list_article),
                                     ),
                                 ),
                         ),
@@ -189,7 +206,7 @@ async fn main() {
                                     "/articles",
                                     Router::new().route("/", get(get_series_articles)).route(
                                         "/:article_id",
-                                        post(post_series_article).delete(delete_series_article),
+                                        put(put_series_article).delete(delete_series_article),
                                     ),
                                 ),
                         ),

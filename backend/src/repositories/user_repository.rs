@@ -10,14 +10,15 @@ use crate::models::{
 pub trait UserRepository<E> {
     async fn find_all(&self) -> Result<Vec<User>, E>;
     async fn find_by_id(&self, user_id: i32) -> Result<User, E>;
-    async fn find_by_email(&self, user_email: String) -> Result<Option<User>, E>;
+    async fn find_by_email(&self, user_email: &str) -> Result<User, E>;
+    async fn find_by_username(&self, username: &str) -> Result<User, E>;
     async fn create(&self, new_user: &CreateUser) -> Result<User, E>;
     async fn update(&self, update_user: &UpdateUser) -> Result<User, E>;
-    async fn verify(&self, user_id: i32) -> Result<(), E>;
-    async fn approve(&self, user_id: i32) -> Result<(), E>;
-    async fn unapprove(&self, user_id: i32) -> Result<(), E>;
-    async fn soft_delete(&self, user_id: i32) -> Result<(), E>;
-    async fn delete(&self, user_id: i32) -> Result<(), E>;
+    async fn verify(&self, user_id: i32) -> Result<User, E>;
+    async fn approve(&self, user_id: i32) -> Result<User, E>;
+    async fn unapprove(&self, user_id: i32) -> Result<User, E>;
+    async fn soft_delete(&self, user_id: i32) -> Result<User, E>;
+    async fn delete(&self, user_id: i32) -> Result<User, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -80,7 +81,7 @@ impl UserRepository<Error> for PgUserRepository {
         .await
     }
 
-    async fn find_by_email(&self, user_email: String) -> Result<Option<User>, Error> {
+    async fn find_by_email(&self, user_email: &str) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -101,7 +102,32 @@ impl UserRepository<Error> for PgUserRepository {
             "#n,
             user_email
         )
-        .fetch_optional(&self.db)
+        .fetch_one(&self.db)
+        .await
+    }
+
+    async fn find_by_username(&self, username: &str) -> Result<User, Error> {
+        sqlx::query_as!(
+            User,
+            r#"
+            SELECT
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
+            FROM users
+            WHERE username = $1
+            "#n,
+            username
+        )
+        .fetch_one(&self.db)
         .await
     }
 
@@ -165,80 +191,140 @@ impl UserRepository<Error> for PgUserRepository {
         .await
     }
 
-    async fn verify(&self, user_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn verify(&self, user_id: i32) -> Result<User, Error> {
+        sqlx::query_as!(
+            User,
             r#"
             UPDATE users
             SET
                 email_verified = now()
             WHERE 
                 id = $1
+            RETURNING
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
             "#n,
             user_id
         )
-        .execute(&self.db)
-        .await;
-        Ok(())
+        .fetch_one(&self.db)
+        .await
     }
 
-    async fn approve(&self, user_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn approve(&self, user_id: i32) -> Result<User, Error> {
+        sqlx::query_as!(
+            User,
             r#"
             UPDATE users
             SET
                 approved_at = now()
             WHERE 
                 id = $1
+            RETURNING
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
             "#n,
             user_id
         )
-        .execute(&self.db)
-        .await;
-        Ok(())
+        .fetch_one(&self.db)
+        .await
     }
 
-    async fn unapprove(&self, user_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn unapprove(&self, user_id: i32) -> Result<User, Error> {
+        sqlx::query_as!(
+            User,
             r#"
             UPDATE users
             SET
                 approved_at = null
             WHERE 
                 id = $1
+            RETURNING
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
             "#n,
             user_id
         )
-        .execute(&self.db)
-        .await;
-        Ok(())
+        .fetch_one(&self.db)
+        .await
     }
 
-    async fn soft_delete(&self, user_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn soft_delete(&self, user_id: i32) -> Result<User, Error> {
+        sqlx::query_as!(
+            User,
             r#"
             UPDATE users
             SET
                 deleted_at = now()
             WHERE 
                 id = $1
+            RETURNING 
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
             "#n,
             user_id
         )
-        .execute(&self.db)
-        .await;
-        Ok(())
+        .fetch_one(&self.db)
+        .await
     }
 
-    async fn delete(&self, user_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn delete(&self, user_id: i32) -> Result<User, Error> {
+        sqlx::query_as!(
+            User,
             r#"
             DELETE FROM users
             WHERE id = $1
+            RETURNING 
+                id,
+                username,
+                email,
+                email_verified,
+                image,
+                password,
+                role AS "role: Role",
+                follower_count,
+                following_count,
+                approved_at,
+                deleted_at
             "#n,
             user_id
         )
-        .execute(&self.db)
-        .await;
-        Ok(())
+        .fetch_one(&self.db)
+        .await
     }
 }

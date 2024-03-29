@@ -20,14 +20,31 @@ use crate::{
 };
 
 pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {
-    let response = state.repository.list.find_all().await;
+    let response = state.repository.lists.find_all().await;
     match response {
         Ok(lists) => (StatusCode::OK, Json(json!(lists))).into_response(),
-        Err(e) => (
+        Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
+            Json(json!(error.to_string())),
         )
             .into_response(),
+    }
+}
+
+pub async fn get_list(State(state): State<Arc<AppState>>, Path(list_id): Path<i32>) -> Response {
+    let response = state.repository.lists.find(list_id).await;
+    match response {
+        Ok(list) => (StatusCode::OK, Json(json!(list))).into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "List not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -49,7 +66,7 @@ pub async fn post_list(
         image: payload.image,
         visibility: payload.visibility,
     };
-    let response = state.repository.list.create(&create_list).await;
+    let response = state.repository.lists.create(&create_list).await;
     match response {
         Ok(lists) => (StatusCode::OK, Json(json!(lists))).into_response(),
         Err(e) => (
@@ -78,26 +95,36 @@ pub async fn patch_list(
         image: payload.image,
         visibility: payload.visibility,
     };
-    let response = state.repository.list.update(&update_list).await;
+    let response = state.repository.lists.update(&update_list).await;
     match response {
         Ok(lists) => (StatusCode::OK, Json(json!(lists))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "List not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
 pub async fn delete_list(State(state): State<Arc<AppState>>, Path(list_id): Path<i32>) -> Response {
-    let response = state.repository.list.delete(list_id).await;
+    let response = state.repository.lists.delete(list_id).await;
     match response {
         Ok(()) => (StatusCode::OK, format!("Deleted article: {list_id}")).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "List not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -105,14 +132,19 @@ pub async fn get_list_by_user(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.list.find_by_user(user_id).await;
+    let response = state.repository.lists.find_by_user(user_id).await;
     match response {
         Ok(lists) => (StatusCode::OK, Json(json!(lists))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "List not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -120,34 +152,48 @@ pub async fn get_list_articles(
     State(state): State<Arc<AppState>>,
     Path(list_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.list.find_articles(list_id).await;
+    let response = state.repository.lists.find_articles(list_id).await;
     match response {
         Ok(articles) => (StatusCode::OK, Json(json!(articles))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "List not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
-pub async fn post_list_article(
+pub async fn put_list_article(
     State(state): State<Arc<AppState>>,
     Path(list_id): Path<i32>,
     Path(article_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.list.add_article(list_id, article_id).await;
+    let response = state
+        .repository
+        .lists
+        .add_article(list_id, article_id)
+        .await;
     match response {
         Ok(()) => (
             StatusCode::OK,
             format!("Article {} added to List {}", article_id, list_id),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "List not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -158,7 +204,7 @@ pub async fn delete_list_article(
 ) -> Response {
     let response = state
         .repository
-        .list
+        .lists
         .remove_article(list_id, article_id)
         .await;
     match response {
@@ -167,10 +213,15 @@ pub async fn delete_list_article(
             format!("Article {} deleted to List {}", article_id, list_id),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "List not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }

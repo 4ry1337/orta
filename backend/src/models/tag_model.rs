@@ -44,12 +44,12 @@ impl<'r> sqlx::Decode<'r, Postgres> for Tag {
 
 pub struct CreateTag {
     pub label: String,
+    pub tag_status: TagStatus,
 }
 
 pub struct UpdateTag {
     pub id: i32,
     pub label: Option<String>,
-    pub article_count: Option<i32>,
     pub tag_status: Option<TagStatus>,
 }
 

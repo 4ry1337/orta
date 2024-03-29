@@ -15,22 +15,22 @@ pub mod user_repository;
 
 #[derive(Debug, Clone)]
 pub struct PgRepository {
-    pub user: PgUserRepository,
-    pub article: PgArticleRepository,
-    pub comment: PgCommentRepository,
-    pub list: PgListRepository,
+    pub users: PgUserRepository,
+    pub articles: PgArticleRepository,
+    pub comments: PgCommentRepository,
+    pub lists: PgListRepository,
     pub series: PgSeriesRepository,
-    pub tag: PgTagRepository,
+    pub tags: PgTagRepository,
 }
 
 impl PgRepository {
     pub fn new(db: &PgPool) -> PgRepository {
         Self {
-            user: PgUserRepository::new(db.clone()),
-            article: PgArticleRepository::new(db.clone()),
-            comment: PgCommentRepository::new(db.clone()),
-            list: PgListRepository::new(db.clone()),
-            tag: PgTagRepository::new(db.clone()),
+            users: PgUserRepository::new(db.clone()),
+            articles: PgArticleRepository::new(db.clone()),
+            comments: PgCommentRepository::new(db.clone()),
+            lists: PgListRepository::new(db.clone()),
+            tags: PgTagRepository::new(db.clone()),
             series: PgSeriesRepository::new(db.clone()),
         }
     }

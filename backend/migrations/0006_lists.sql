@@ -1,6 +1,6 @@
 CREATE TABLE Lists (
   id SERIAL NOT NULL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES Users (id),
+  user_id INTEGER NOT NULL REFERENCES Users (id) ON UPDATE CASCADE ON DELETE CASCADE,
   slug TEXT UNIQUE NOT NULL,
   label TEXT NOT NULL,
   image TEXT,
@@ -13,8 +13,8 @@ SELECT
   trigger_updated_at ('Lists');
 
 CREATE TABLE ListArticle (
-  list_id INTEGER NOT NULL REFERENCES Lists (id),
-  article_id INTEGER NOT NULL REFERENCES Articles (id),
+  list_id INTEGER NOT NULL REFERENCES Lists (id) ON UPDATE CASCADE ON DELETE CASCADE,
+  article_id INTEGER NOT NULL REFERENCES Articles (id) ON UPDATE CASCADE ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   PRIMARY KEY (list_id, article_id)
 );

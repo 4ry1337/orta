@@ -13,10 +13,10 @@ pub enum Role {
 impl FromStr for Role {
     type Err = Box<dyn Error>;
     fn from_str(input: &str) -> Result<Role, Self::Err> {
-        match input {
-            "Admin" => Ok(Role::Admin),
-            "User" => Ok(Role::User),
-            "Manager" => Ok(Role::Manager),
+        match input.to_lowercase().trim() {
+            "admin" => Ok(Role::Admin),
+            "user" => Ok(Role::User),
+            "manager" => Ok(Role::Manager),
             _ => Err(format!("Can not parse {} into Role Enum", input).into()),
         }
     }
@@ -33,10 +33,10 @@ pub enum TagStatus {
 impl FromStr for TagStatus {
     type Err = Box<dyn Error>;
     fn from_str(input: &str) -> Result<TagStatus, Self::Err> {
-        match input {
-            "Approved" => Ok(TagStatus::Approved),
-            "Banned" => Ok(TagStatus::Banned),
-            "Waiting" => Ok(TagStatus::Waiting),
+        match input.to_lowercase().trim() {
+            "approved" => Ok(TagStatus::Approved),
+            "banned" => Ok(TagStatus::Banned),
+            "waiting" => Ok(TagStatus::Waiting),
             _ => Err(format!("Can not parse {} into Tag Status Enum", input).into()),
         }
     }
@@ -53,10 +53,10 @@ pub enum Visibility {
 impl FromStr for Visibility {
     type Err = Box<dyn Error>;
     fn from_str(input: &str) -> Result<Visibility, Self::Err> {
-        match input {
-            "Private" => Ok(Visibility::Private),
-            "Public" => Ok(Visibility::Public),
-            "Bulink" => Ok(Visibility::Bulink),
+        match input.to_lowercase().trim() {
+            "private" => Ok(Visibility::Private),
+            "public" => Ok(Visibility::Public),
+            "bulink" => Ok(Visibility::Bulink),
             _ => Err(format!("Can not parse {} into Visibility Enum", input).into()),
         }
     }

@@ -17,7 +17,7 @@ use crate::{
 };
 
 pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
-    let db_response = state.repository.user.find_all().await;
+    let db_response = state.repository.users.find_all().await;
     match db_response {
         Ok(user) => (StatusCode::OK, Json(json!(user))).into_response(),
         Err(e) => (
@@ -29,14 +29,19 @@ pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
 }
 
 pub async fn get_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i32>) -> Response {
-    let db_response = state.repository.user.find_by_id(user_id).await;
+    let db_response = state.repository.users.find_by_id(user_id).await;
     match db_response {
         Ok(user) => (StatusCode::OK, Json(json!(user))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "User not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -76,14 +81,27 @@ pub async fn post_user(
         email_verified: payload.email_verified,
         password: hashed_password,
     };
-    let db_response = state.repository.user.create(&create_user).await;
+    let db_response = state.repository.users.create(&create_user).await;
     match db_response {
         Ok(article) => (StatusCode::CREATED, Json(json!(article))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let Some(database_error) = error.as_database_error() {
+                if let Some(constraint) = database_error.constraint() {
+                    if constraint == "users_email_key" {
+                        return (StatusCode::BAD_REQUEST, "Email is not available").into_response();
+                    }
+                    if constraint == "users_username_key" {
+                        return (StatusCode::BAD_REQUEST, "Username is not available")
+                            .into_response();
+                    }
+                }
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -103,21 +121,44 @@ pub async fn patch_user(
         username: payload.username,
         image: payload.image,
     };
-    let db_response = state.repository.user.update(&update_user).await;
+    let db_response = state.repository.users.update(&update_user).await;
     match db_response {
         Ok(user) => (StatusCode::OK, Json(json!(user))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "User not found").into_response();
+            }
+            if let Some(database_error) = error.as_database_error() {
+                if let Some(constraint) = database_error.constraint() {
+                    if constraint == "users_username_key" {
+                        return (StatusCode::BAD_REQUEST, "Username is not available")
+                            .into_response();
+                    }
+                }
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
 pub async fn delete_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i32>) -> Response {
-    let db_response = state.repository.user.delete(user_id).await;
+    let db_response = state.repository.users.delete(user_id).await;
+    println!("{:?}", db_response);
     match db_response {
-        Ok(()) => (StatusCode::OK, format!("Deleted user: {user_id}")).into_response(),
-        Err(e) => (StatusCode::OK, Json(json!(e.to_string()))).into_response(),
+        Ok(_) => (StatusCode::OK, format!("Deleted user: {}", user_id)).into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "User not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }

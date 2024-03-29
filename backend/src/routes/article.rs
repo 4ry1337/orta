@@ -12,12 +12,12 @@ use serde_json::json;
 
 use crate::{
     models::article_model::{AddAuthor, CreateArticle, DeleteAuthor, UpdateArticle},
-    repositories::article_repository::ArticleRepository,
+    repositories::{article_repository::ArticleRepository, user_repository::UserRepository},
     AppState,
 };
 
 pub async fn get_articles(State(state): State<Arc<AppState>>) -> Response {
-    let response = state.repository.article.find_all().await;
+    let response = state.repository.articles.find_all().await;
     match response {
         Ok(article) => (StatusCode::OK, Json(json!(article))).into_response(),
         Err(e) => (
@@ -32,7 +32,7 @@ pub async fn get_articles_by_user(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.article.find_by_authors(&[user_id]).await;
+    let response = state.repository.articles.find_by_authors(&[user_id]).await;
     match response {
         Ok(articles) => (StatusCode::OK, Json(json!(articles))).into_response(),
         Err(e) => (
@@ -47,14 +47,19 @@ pub async fn get_article(
     State(state): State<Arc<AppState>>,
     Path(article_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.article.find_by_id(article_id).await;
+    let response = state.repository.articles.find_by_id(article_id).await;
     match response {
         Ok(article) => (StatusCode::OK, Json(json!(article))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "Article not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -72,14 +77,26 @@ pub async fn post_article(
         title: payload.title,
         user_id: payload.user_id,
     };
-    let response = state.repository.article.create(&create_article).await;
+    let response = state.repository.articles.create(&create_article).await;
     match response {
         Ok(article) => (StatusCode::CREATED, Json(json!(article))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let Some(database_error) = error.as_database_error() {
+                if let Some(constraint) = database_error.constraint() {
+                    if constraint == "authors_author_id_fkey" {
+                        return (StatusCode::BAD_REQUEST, "User not found").into_response();
+                    }
+                    if constraint == "articles_slug_key" {
+                        return (StatusCode::BAD_REQUEST, "Retry").into_response();
+                    }
+                }
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -97,14 +114,26 @@ pub async fn patch_article(
         id: article_id,
         title: payload.title,
     };
-    let response = state.repository.article.update(&udpate_article).await;
+    let response = state.repository.articles.update(&udpate_article).await;
     match response {
         Ok(article) => (StatusCode::OK, Json(json!(article))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "Article not found").into_response();
+            }
+            if let Some(database_error) = error.as_database_error() {
+                if let Some(constraint) = database_error.constraint() {
+                    if constraint == "articles_slug_key" {
+                        return (StatusCode::BAD_REQUEST, "Retry").into_response();
+                    }
+                }
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -112,14 +141,19 @@ pub async fn delete_article(
     State(state): State<Arc<AppState>>,
     Path(article_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.article.delete(article_id).await;
+    let response = state.repository.articles.delete(article_id).await;
     match response {
-        Ok(()) => (StatusCode::OK, format!("Deleted article: {article_id}")).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Ok(_) => (StatusCode::OK, format!("Deleted article: {article_id}")).into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "Article not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -127,65 +161,136 @@ pub async fn get_authors(
     State(state): State<Arc<AppState>>,
     Path(article_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.article.get_authors(article_id).await;
+    let response = state.repository.articles.find_by_id(article_id).await;
+
+    if let Err(error) = response {
+        if let sqlx::error::Error::RowNotFound = error {
+            return (StatusCode::NOT_FOUND, "Article not found").into_response();
+        }
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!(error.to_string())),
+        )
+            .into_response();
+    }
+
+    let response = state.repository.articles.get_authors(article_id).await;
+
     match response {
         Ok(users) => (StatusCode::OK, Json(json!(users))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "Article not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct PostAuthorRequestBody {
-    user_id: i32,
-}
-
-pub async fn post_author(
-    Path(article_id): Path<i32>,
+pub async fn put_author(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<PostAuthorRequestBody>,
+    Path((article_id, user_id)): Path<(i32, i32)>,
 ) -> Response {
+    let response = state.repository.articles.find_by_id(article_id).await;
+
+    if let Err(error) = response {
+        if let sqlx::error::Error::RowNotFound = error {
+            return (StatusCode::NOT_FOUND, "Article not found").into_response();
+        }
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!(error.to_string())),
+        )
+            .into_response();
+    }
+
+    let response = state.repository.users.find_by_id(user_id).await;
+
+    if let Err(error) = response {
+        if let sqlx::error::Error::RowNotFound = error {
+            return (StatusCode::NOT_FOUND, "User not found").into_response();
+        }
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!(error.to_string())),
+        )
+            .into_response();
+    }
+
     let add_author = AddAuthor {
-        user_id: payload.user_id,
+        user_id,
         article_id,
     };
-    let response = state.repository.article.add_author(&add_author).await;
-    match response {
-        Ok(()) => (
-            StatusCode::OK,
-            format!("Author {} added to {}", payload.user_id, article_id),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
-    }
-}
 
-#[derive(Debug, Deserialize)]
-pub struct DeleteAuthorRequestBody {
-    user_id: i32,
+    let response = state.repository.articles.add_author(&add_author).await;
+
+    match response {
+        Ok(_) => (
+            StatusCode::OK,
+            format!("Author {} added to {}", user_id, article_id),
+        )
+            .into_response(),
+        Err(error) => {
+            if let sqlx::error::Error::RowNotFound = error {
+                return (StatusCode::NOT_FOUND, "Article not found").into_response();
+            }
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
+            )
+                .into_response()
+        }
+    }
 }
 
 pub async fn delete_author(
-    Path(article_id): Path<i32>,
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<DeleteAuthorRequestBody>,
+    Path((article_id, user_id)): Path<(i32, i32)>,
 ) -> Response {
+    let response = state.repository.articles.find_by_id(article_id).await;
+
+    if let Err(error) = response {
+        if let sqlx::error::Error::RowNotFound = error {
+            return (StatusCode::NOT_FOUND, "Article not found").into_response();
+        }
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!(error.to_string())),
+        )
+            .into_response();
+    }
+
+    let response = state.repository.users.find_by_id(user_id).await;
+
+    if let Err(error) = response {
+        if let sqlx::error::Error::RowNotFound = error {
+            return (StatusCode::NOT_FOUND, "User not found").into_response();
+        }
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!(error.to_string())),
+        )
+            .into_response();
+    }
+
     let delete_author = DeleteAuthor {
-        user_id: payload.user_id,
+        user_id,
         article_id,
     };
-    let response = state.repository.article.delete_author(&delete_author).await;
+
+    let response = state
+        .repository
+        .articles
+        .delete_author(&delete_author)
+        .await;
     match response {
-        Ok(()) => (
+        Ok(_) => (
             StatusCode::OK,
-            format!("Author {} deleted to {}", payload.user_id, article_id),
+            format!("Author {} deleted to {}", user_id, article_id),
         )
             .into_response(),
         Err(e) => (

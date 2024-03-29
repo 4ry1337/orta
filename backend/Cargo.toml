@@ -51,6 +51,8 @@ bcrypt = "0.15.0"
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
 cargo-watch = "8.5.2"
+slug = "0.1.5"
+futures = "0.3.30"
 
 [dev-dependencies]
 sqlx-cli = "0.7.3"

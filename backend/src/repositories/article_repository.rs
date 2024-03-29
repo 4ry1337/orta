@@ -1,10 +1,14 @@
 use axum::async_trait;
-use sqlx::{Error, PgPool};
+use slug::slugify;
+use sqlx::{postgres::PgQueryResult, Error, PgPool};
 
-use crate::models::{
-    article_model::{AddAuthor, Article, CreateArticle, DeleteAuthor, UpdateArticle},
-    enums::Role,
-    user_model::User,
+use crate::{
+    models::{
+        article_model::{AddAuthor, Article, CreateArticle, DeleteAuthor, UpdateArticle},
+        enums::Role,
+        user_model::User,
+    },
+    utils::random_string::generate,
 };
 
 #[async_trait]
@@ -14,10 +18,10 @@ pub trait ArticleRepository<E> {
     async fn find_by_id(&self, article_id: i32) -> Result<Article, E>;
     async fn find_by_authors(&self, users: &[i32]) -> Result<Vec<Article>, E>;
     async fn update(&self, update_article: &UpdateArticle) -> Result<Article, E>;
-    async fn delete(&self, article_id: i32) -> Result<(), E>;
+    async fn delete(&self, article_id: i32) -> Result<PgQueryResult, Error>;
     async fn get_authors(&self, article_id: i32) -> Result<Vec<User>, E>;
-    async fn add_author(&self, add_author: &AddAuthor) -> Result<(), E>;
-    async fn delete_author(&self, delete_author: &DeleteAuthor) -> Result<(), E>;
+    async fn add_author(&self, add_author: &AddAuthor) -> Result<PgQueryResult, E>;
+    async fn delete_author(&self, delete_author: &DeleteAuthor) -> Result<PgQueryResult, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -91,7 +95,7 @@ impl ArticleRepository<Error> for PgArticleRepository {
             FROM article;
             "#n,
             create_article.user_id,
-            create_article.title.trim().replace(" ", "-"),
+            slugify(format!("{} {}", create_article.title, generate(12))),
             create_article.title.trim()
         )
         .fetch_one(&self.db)
@@ -99,6 +103,10 @@ impl ArticleRepository<Error> for PgArticleRepository {
     }
 
     async fn update(&self, update_article: &UpdateArticle) -> Result<Article, Error> {
+        let title = match &update_article.title {
+            Some(title) => Some(slugify(format!("{}", title))),
+            None => None,
+        };
         sqlx::query_as!(
             Article,
             r#"
@@ -108,14 +116,14 @@ impl ArticleRepository<Error> for PgArticleRepository {
             RETURNING *
             "#n,
             update_article.id,
-            update_article.title,
+            title,
         )
         .fetch_one(&self.db)
         .await
     }
 
-    async fn delete(&self, article_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn delete(&self, article_id: i32) -> Result<PgQueryResult, Error> {
+        sqlx::query!(
             r#"
             DELETE FROM articles
             WHERE id = $1
@@ -123,8 +131,7 @@ impl ArticleRepository<Error> for PgArticleRepository {
             article_id
         )
         .execute(&self.db)
-        .await;
-        Ok(())
+        .await
     }
 
     async fn get_authors(&self, article_id: i32) -> Result<Vec<User>, Error> {
@@ -153,8 +160,8 @@ impl ArticleRepository<Error> for PgArticleRepository {
         .await
     }
 
-    async fn add_author(&self, add_author: &AddAuthor) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn add_author(&self, add_author: &AddAuthor) -> Result<PgQueryResult, Error> {
+        sqlx::query!(
             r#"
             INSERT INTO authors (author_id, article_id)
             VALUES ($1, $2)
@@ -163,12 +170,11 @@ impl ArticleRepository<Error> for PgArticleRepository {
             add_author.article_id
         )
         .execute(&self.db)
-        .await;
-        Ok(())
+        .await
     }
 
-    async fn delete_author(&self, delete_author: &DeleteAuthor) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn delete_author(&self, delete_author: &DeleteAuthor) -> Result<PgQueryResult, Error> {
+        sqlx::query!(
             r#"
             DELETE FROM authors
             WHERE author_id = $1 AND article_id = $2
@@ -177,7 +183,6 @@ impl ArticleRepository<Error> for PgArticleRepository {
             delete_author.article_id
         )
         .execute(&self.db)
-        .await;
-        Ok(())
+        .await
     }
 }
