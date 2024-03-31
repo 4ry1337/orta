@@ -1,11 +1,13 @@
 use sqlx::PgPool;
 
 use self::{
-    article_repository::PgArticleRepository, comment_repository::PgCommentRepository,
-    list_repository::PgListRepository, series_repository::PgSeriesRepository,
-    tag_repository::PgTagRepository, user_repository::PgUserRepository,
+    account_repository::PgAccountRepository, article_repository::PgArticleRepository,
+    comment_repository::PgCommentRepository, list_repository::PgListRepository,
+    series_repository::PgSeriesRepository, tag_repository::PgTagRepository,
+    user_repository::PgUserRepository,
 };
 
+pub mod account_repository;
 pub mod article_repository;
 pub mod comment_repository;
 pub mod list_repository;
@@ -15,6 +17,7 @@ pub mod user_repository;
 
 #[derive(Debug, Clone)]
 pub struct PgRepository {
+    pub account: PgAccountRepository,
     pub users: PgUserRepository,
     pub articles: PgArticleRepository,
     pub comments: PgCommentRepository,
@@ -26,6 +29,7 @@ pub struct PgRepository {
 impl PgRepository {
     pub fn new(db: &PgPool) -> PgRepository {
         Self {
+            account: PgAccountRepository::new(db.clone()),
             users: PgUserRepository::new(db.clone()),
             articles: PgArticleRepository::new(db.clone()),
             comments: PgCommentRepository::new(db.clone()),

@@ -3,26 +3,10 @@ use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Postgres;
 
-// #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
-// pub struct Account {
-//     pub id: Option<i32>,
-//     pub user_id: i32,
-//     pub r#type: String,
-//     pub provider: String,
-//     pub provider_account_id: String,
-//     pub refresh_token: String,
-//     pub access_token: String,
-//     pub expires_at: i64,
-//     pub token_type: String,
-//     pub scope: String,
-//     pub id_token: String,
-//     pub session_state: String,
-// }
-
-#[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
+#[derive(sqlx::FromRow, Debug)]
 pub struct User {
     pub id: i32,
-    pub username: Option<String>,
+    pub username: String,
     pub email: String,
     pub email_verified: Option<DateTime<Utc>>,
     pub password: Option<String>,
@@ -72,7 +56,6 @@ impl<'r> sqlx::Decode<'r, Postgres> for User {
     }
 }
 
-#[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
 pub struct CreateUser {
     pub username: String,
     pub email: String,
@@ -81,9 +64,39 @@ pub struct CreateUser {
     pub password: Option<String>,
 }
 
-#[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
 pub struct UpdateUser {
     pub id: i32,
     pub username: Option<String>,
     pub image: Option<String>,
+}
+
+#[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
+pub struct UserDTO {
+    pub id: i32,
+    pub username: String,
+    pub email: String,
+    pub email_verified: Option<DateTime<Utc>>,
+    pub image: Option<String>,
+    pub role: Role,
+    pub follower_count: i32,
+    pub following_count: i32,
+    pub approved_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+impl UserDTO {
+    pub fn set(user: User) -> Self {
+        Self {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            email_verified: user.email_verified,
+            image: user.image,
+            role: user.role,
+            follower_count: user.follower_count,
+            following_count: user.following_count,
+            approved_at: user.approved_at,
+            deleted_at: user.deleted_at,
+        }
+    }
 }

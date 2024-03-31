@@ -3,6 +3,7 @@ pub struct Config {
     pub client_origin: String,
     pub database_url: String,
     pub port: u16,
+    pub jwt_secret: String,
 }
 
 impl Config {
@@ -12,11 +13,13 @@ impl Config {
         let port = dotenv!("PORT")
             .parse::<u16>()
             .expect("PORT must be a number");
+        let jwt_secret = dotenv!("JWT_SECRET").to_string();
 
         Config {
             client_origin,
             database_url,
             port,
+            jwt_secret,
         }
     }
 }

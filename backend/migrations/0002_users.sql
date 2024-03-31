@@ -6,7 +6,7 @@ CREATE TYPE Visibility AS ENUM ('PRIVATE', 'PUBLIC', 'BYLINK');
 
 CREATE TABLE Users (
   id SERIAL NOT NULL PRIMARY KEY,
-  username TEXT UNIQUE,
+  username TEXT UNIQUE NOT NULL,
   email TEXT UNIQUE NOT NULL,
   email_verified TIMESTAMPTZ,
   password TEXT,

@@ -11,7 +11,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    models::user_model::{CreateUser, UpdateUser},
+    models::user_model::{CreateUser, UpdateUser, UserDTO},
     repositories::user_repository::UserRepository,
     AppState,
 };
@@ -19,10 +19,10 @@ use crate::{
 pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
     let db_response = state.repository.users.find_all().await;
     match db_response {
-        Ok(user) => (StatusCode::OK, Json(json!(user))).into_response(),
-        Err(e) => (
+        Ok(users) => (StatusCode::OK, Json(json!(users))).into_response(),
+        Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
+            Json(json!(error.to_string())),
         )
             .into_response(),
     }
@@ -31,7 +31,7 @@ pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
 pub async fn get_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i32>) -> Response {
     let db_response = state.repository.users.find_by_id(user_id).await;
     match db_response {
-        Ok(user) => (StatusCode::OK, Json(json!(user))).into_response(),
+        Ok(user) => (StatusCode::OK, Json(json!(UserDTO::set(user)))).into_response(),
         Err(error) => {
             if let sqlx::error::Error::RowNotFound = error {
                 return (StatusCode::NOT_FOUND, "User not found").into_response();
@@ -81,9 +81,9 @@ pub async fn post_user(
         email_verified: payload.email_verified,
         password: hashed_password,
     };
-    let db_response = state.repository.users.create(&create_user).await;
-    match db_response {
-        Ok(article) => (StatusCode::CREATED, Json(json!(article))).into_response(),
+    let response = state.repository.users.create(&create_user).await;
+    match response {
+        Ok(user) => (StatusCode::CREATED, Json(json!(UserDTO::set(user)))).into_response(),
         Err(error) => {
             if let Some(database_error) = error.as_database_error() {
                 if let Some(constraint) = database_error.constraint() {
@@ -121,9 +121,9 @@ pub async fn patch_user(
         username: payload.username,
         image: payload.image,
     };
-    let db_response = state.repository.users.update(&update_user).await;
-    match db_response {
-        Ok(user) => (StatusCode::OK, Json(json!(user))).into_response(),
+    let response = state.repository.users.update(&update_user).await;
+    match response {
+        Ok(user) => (StatusCode::OK, Json(json!(UserDTO::set(user)))).into_response(),
         Err(error) => {
             if let sqlx::error::Error::RowNotFound = error {
                 return (StatusCode::NOT_FOUND, "User not found").into_response();
@@ -146,9 +146,8 @@ pub async fn patch_user(
 }
 
 pub async fn delete_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i32>) -> Response {
-    let db_response = state.repository.users.delete(user_id).await;
-    println!("{:?}", db_response);
-    match db_response {
+    let response = state.repository.users.delete(user_id).await;
+    match response {
         Ok(_) => (StatusCode::OK, format!("Deleted user: {}", user_id)).into_response(),
         Err(error) => {
             if let sqlx::error::Error::RowNotFound = error {

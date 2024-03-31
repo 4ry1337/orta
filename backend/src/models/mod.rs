@@ -1,3 +1,4 @@
+pub mod account_model;
 pub mod article_model;
 pub mod comment_model;
 pub mod enums;

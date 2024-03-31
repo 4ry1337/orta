@@ -3,12 +3,12 @@ use sqlx::{Error, PgPool};
 
 use crate::models::{
     enums::Role,
-    user_model::{CreateUser, UpdateUser, User},
+    user_model::{CreateUser, UpdateUser, User, UserDTO},
 };
 
 #[async_trait]
 pub trait UserRepository<E> {
-    async fn find_all(&self) -> Result<Vec<User>, E>;
+    async fn find_all(&self) -> Result<Vec<UserDTO>, E>;
     async fn find_by_id(&self, user_id: i32) -> Result<User, E>;
     async fn find_by_email(&self, user_email: &str) -> Result<User, E>;
     async fn find_by_username(&self, username: &str) -> Result<User, E>;
@@ -34,9 +34,9 @@ impl PgUserRepository {
 
 #[async_trait]
 impl UserRepository<Error> for PgUserRepository {
-    async fn find_all(&self) -> Result<Vec<User>, Error> {
+    async fn find_all(&self) -> Result<Vec<UserDTO>, Error> {
         sqlx::query_as!(
-            User,
+            UserDTO,
             r#"
             SELECT
                 id,
@@ -44,7 +44,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
