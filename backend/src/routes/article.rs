@@ -1,3 +1,4 @@
+use axum::async_trait;
 use std::sync::Arc;
 
 use axum::{

@@ -6,7 +6,7 @@ use crate::{
     models::{
         article_model::{AddAuthor, Article, CreateArticle, DeleteAuthor, UpdateArticle},
         enums::Role,
-        user_model::{User, UserDTO},
+        user_model::User,
     },
     utils::random_string::generate,
 };
@@ -19,7 +19,7 @@ pub trait ArticleRepository<E> {
     async fn find_by_authors(&self, users: &[i32]) -> Result<Vec<Article>, E>;
     async fn update(&self, update_article: &UpdateArticle) -> Result<Article, E>;
     async fn delete(&self, article_id: i32) -> Result<PgQueryResult, Error>;
-    async fn get_authors(&self, article_id: i32) -> Result<Vec<UserDTO>, E>;
+    async fn get_authors(&self, article_id: i32) -> Result<Vec<User>, E>;
     async fn add_author(&self, add_author: &AddAuthor) -> Result<PgQueryResult, E>;
     async fn delete_author(&self, delete_author: &DeleteAuthor) -> Result<PgQueryResult, E>;
 }
@@ -134,9 +134,9 @@ impl ArticleRepository<Error> for PgArticleRepository {
         .await
     }
 
-    async fn get_authors(&self, article_id: i32) -> Result<Vec<UserDTO>, Error> {
+    async fn get_authors(&self, article_id: i32) -> Result<Vec<User>, Error> {
         sqlx::query_as!(
-            UserDTO,
+            User,
             r#"
             SELECT
                 u.id,

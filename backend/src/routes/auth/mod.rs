@@ -1,17 +1,32 @@
-use oauth2::basic::BasicClient;
+use std::sync::Arc;
+
+use axum::{
+    async_trait,
+    extract::{Query, State},
+    response::Response,
+};
+use axum_extra::extract::CookieJar;
+
+use crate::AppState;
 
 pub mod credential;
 pub mod github;
 pub mod google;
 
-pub struct OAuthProperties {
-    pub client_id: String,
-    pub client_secret: String,
-    pub auth_url: String,
-    pub token_url: String,
-    pub redirect_url: Option<String>,
+#[async_trait]
+pub trait OAuthClient {
+    fn build(&self) -> Self;
+    async fn login(&self, State(state): State<Arc<AppState>>) -> Response;
+    async fn callback(
+        &self,
+        State(state): State<Arc<AppState>>,
+        Query(query): Query<AuthRequest>,
+        cookies: CookieJar,
+    ) -> Response;
 }
 
-pub trait OAuthClient {
-    fn build(properties: OAuthProperties) -> BasicClient;
+#[derive(Debug, serde::Deserialize)]
+pub struct AuthRequest {
+    code: String,
+    state: String,
 }

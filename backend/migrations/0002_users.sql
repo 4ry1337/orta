@@ -6,16 +6,23 @@ CREATE TYPE Visibility AS ENUM ('PRIVATE', 'PUBLIC', 'BYLINK');
 
 CREATE TABLE Users (
   id SERIAL NOT NULL PRIMARY KEY,
-  username TEXT UNIQUE NOT NULL,
+  username TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   email_verified TIMESTAMPTZ,
-  password TEXT,
   image TEXT,
   role Role NOT NULL DEFAULT 'USER',
+  bio TEXT NOT NULL,
+  urls TEXT[],
   follower_count INTEGER NOT NULL DEFAULT 0,
   following_count INTEGER NOT NULL DEFAULT 0,
   approved_at TIMESTAMPTZ,
   deleted_at TIMESTAMPTZ
+);
+
+CREATE TABLE Passwords (
+  id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  password TEXT NOT NULL,
+  salt TEXT NOT NULL
 );
 
 CREATE TABLE Accounts (
@@ -26,7 +33,7 @@ CREATE TABLE Accounts (
   provider_account_id TEXT NOT NULL,
   refresh_token TEXT,
   access_token TEXT,
-  expires_at INTEGER,
+  expires_at BIGINT,
   token_type TEXT,
   scope TEXT,
   id_token TEXT,
@@ -34,14 +41,3 @@ CREATE TABLE Accounts (
 );
 
 CREATE UNIQUE INDEX Account_provider_provider_account_id_key ON Accounts(provider, provider_account_id);
-
-CREATE TABLE Profiles (
-  id SERIAL NOT NULL PRIMARY KEY,
-  bio TEXT NOT NULL,
-  user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-  urls TEXT[],
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ
-);
-
-SELECT trigger_updated_at('Profiles');

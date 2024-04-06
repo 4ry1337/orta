@@ -1,25 +1,34 @@
-#[derive(Debug, Clone)]
-pub struct Config {
-    pub client_origin: String,
-    pub database_url: String,
-    pub port: u16,
-    pub jwt_secret: String,
+use axum::extract::FromRef;
+use axum_extra::extract::cookie::Key;
+
+use crate::repositories::PgRepository;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub key: Key,
+    pub repository: PgRepository,
 }
 
-impl Config {
-    pub fn init() -> Config {
-        let client_origin = dotenv!("CLIENT_ORIGIN").to_string();
-        let database_url = dotenv!("DATABASE_URL").to_string();
-        let port = dotenv!("PORT")
-            .parse::<u16>()
-            .expect("PORT must be a number");
-        let jwt_secret = dotenv!("JWT_SECRET").to_string();
-
-        Config {
-            client_origin,
-            database_url,
-            port,
-            jwt_secret,
-        }
+impl FromRef<AppState> for Key {
+    fn from_ref(state: &AppState) -> Self {
+        state.key.clone()
     }
 }
+
+impl FromRef<AppState> for PgRepository {
+    fn from_ref(state: &AppState) -> Self {
+        state.repository.clone()
+    }
+}
+
+pub const HOST: &str = dotenv!("HOST");
+pub const DATABASE_URL: &str = dotenv!("DATABASE_URL");
+pub const PORT: &str = dotenv!("PORT");
+pub const JWT_SECRET: &str = dotenv!("JWT_SECRET");
+pub const GITHUB_CLIENT_ID: &str = dotenv!("GITHUB_CLIENT_ID");
+pub const GITHUB_CLIENT_SECRET: &str = dotenv!("GITHUB_CLIENT_SECRET");
+
+pub const COOKIE_AUTH_CSRF_STATE: &str = "auth_csrf_state";
+pub const COOKIE_AUTH_CODE_VERIFIER: &str = "auth_code_verifier";
+pub const COOKIE_THEME: &str = "theme";
+pub const COOKIE_SALT: &str = "__Secure.orta";

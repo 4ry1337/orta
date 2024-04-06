@@ -12,8 +12,9 @@ use serde_json::json;
 use validator::Validate;
 
 use crate::{
+    config::JWT_SECRET,
     models::user_model::CreateUser,
-    repositories::user_repository::UserRepository,
+    repositories::{password_repository::PasswordRepository, user_repository::UserRepository},
     utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
     AppState,
 };
@@ -32,27 +33,29 @@ pub async fn signup(
     Json(payload): Json<SignUpRequest>,
     jar: CookieJar,
 ) -> Response {
-    let hashed_password = match bcrypt::hash(payload.password, 10) {
-        Ok(pass) => pass,
-        Err(_error) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Server Error cant hash the password",
-            )
-                .into_response();
-        }
-    };
-
     let create_user = CreateUser {
         username: payload.username,
         email: payload.email,
         image: None,
         email_verified: None,
-        password: Some(hashed_password),
     };
 
     let user = match state.repository.users.create(&create_user).await {
-        Ok(user) => user,
+        Ok(user) => {
+            if let Err(_error) = state
+                .repository
+                .users
+                .password
+                .create(user.id, &payload.password)
+                .await
+            {
+                if let Err(_error) = state.repository.users.delete(user.id).await {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong")
+                        .into_response();
+                }
+            }
+            user
+        }
         Err(error) => {
             if let Some(database_error) = error.as_database_error() {
                 if let Some(constraint) = database_error.constraint() {
@@ -81,41 +84,39 @@ pub async fn signup(
         role: user.role,
     };
 
-    let access_token =
-        match AccessToken::generate("orta", access_token_payload, &state.config.jwt_secret) {
-            Ok(token) => token,
-            Err(error) => {
-                println!("{:?}", error);
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Unable to generate tokens",
-                )
-                    .into_response();
-            }
-        };
+    let access_token = match AccessToken::generate("orta", access_token_payload, JWT_SECRET) {
+        Ok(token) => token,
+        Err(error) => {
+            println!("{:?}", error);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Unable to generate tokens",
+            )
+                .into_response();
+        }
+    };
 
     let refresh_token_payload = RefreshTokenPayload {
         user_id: user.id,
         role: user.role,
         access_token: access_token.clone(),
     };
-    let refresh_token =
-        match RefreshToken::generate("orta", refresh_token_payload, &state.config.jwt_secret) {
-            Ok(token) => token,
-            Err(error) => {
-                println!("{:?}", error);
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Unable to generate tokens",
-                )
-                    .into_response();
-            }
-        };
+
+    let refresh_token = match RefreshToken::generate("orta", refresh_token_payload, JWT_SECRET) {
+        Ok(token) => token,
+        Err(error) => {
+            println!("{:?}", error);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Unable to generate tokens",
+            )
+                .into_response();
+        }
+    };
 
     (
         StatusCode::OK,
-        jar.add(Cookie::new("access_token", access_token))
-            .add(Cookie::new("refresh_token", refresh_token)),
+        jar.add(Cookie::new("access_token", access_token)),
     )
         .into_response()
 }

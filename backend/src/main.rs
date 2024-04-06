@@ -4,17 +4,17 @@ mod repositories;
 mod routes;
 mod utils;
 
-use anyhow::Context;
+#[macro_use]
+extern crate dotenv_codegen;
+
 use axum::{
     http::StatusCode,
-    response::Response,
     routing::{get, patch, post, put},
     Router,
 };
-use axum_core::{extract::FromRef, response::IntoResponse};
 use axum_extra::extract::cookie::Key;
 use axum_prometheus::PrometheusMetricLayer;
-use config::Config;
+use config::{AppState, DATABASE_URL, PORT};
 use dotenv::dotenv;
 use repositories::PgRepository;
 use routes::{
@@ -23,6 +23,7 @@ use routes::{
         get_authors, patch_article, post_article, put_author,
     },
     comment::{delete_comment, get_comments, patch_comment, post_comment},
+    healthchecker::health_checker,
     list::{
         delete_list, delete_list_article, get_list, get_list_articles, get_list_by_user, get_lists,
         patch_list, post_list, put_list_article,
@@ -41,41 +42,14 @@ use std::{
 };
 use tower_http::cors::{Any, CorsLayer};
 
-#[macro_use]
-extern crate dotenv_codegen;
-
-#[derive(Clone)]
-pub struct AppState {
-    pub key: Key,
-    pub config: Config,
-    pub repository: PgRepository,
-}
-
-impl FromRef<AppState> for Key {
-    fn from_ref(state: &AppState) -> Self {
-        state.key.clone()
-    }
-}
-
-impl FromRef<AppState> for Config {
-    fn from_ref(state: &AppState) -> Self {
-        state.config.clone()
-    }
-}
-
-impl FromRef<AppState> for PgRepository {
-    fn from_ref(state: &AppState) -> Self {
-        state.repository.clone()
-    }
-}
+//TODO: add multithreading
+//TODO: add rate limiter? mb middleware
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     tracing_subscriber::fmt::init();
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
-
-    let config = Config::init();
 
     let cors = CorsLayer::new()
         .allow_methods(Any)
@@ -84,7 +58,7 @@ async fn main() {
 
     let pool = match PgPoolOptions::new()
         .max_connections(10)
-        .connect(&config.database_url)
+        .connect(DATABASE_URL)
         .await
     {
         Ok(pool) => {
@@ -106,7 +80,6 @@ async fn main() {
 
     let appstate = Arc::new(AppState {
         key: Key::generate(),
-        config,
         repository,
     });
 
@@ -115,7 +88,7 @@ async fn main() {
         .nest(
             "/api",
             Router::new()
-                .route("/healthchecker", get(health_checker_handler))
+                .route("/healthchecker", get(health_checker))
                 .nest(
                     "/admin",
                     Router::new()
@@ -216,16 +189,13 @@ async fn main() {
         .layer(cors)
         .layer(prometheus_layer);
 
-    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, appstate.config.port));
+    let port = PORT.parse::<u16>().expect("PORT must be a number");
+
+    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
-        .context("Failed to bind TcpListener")
-        .unwrap();
+        .expect("Failed to bind TcpListener");
 
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn health_checker_handler() -> Response {
-    (StatusCode::OK, "Orta is running").into_response()
 }

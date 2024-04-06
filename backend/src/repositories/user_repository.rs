@@ -3,15 +3,18 @@ use sqlx::{Error, PgPool};
 
 use crate::models::{
     enums::Role,
-    user_model::{CreateUser, UpdateUser, User, UserDTO},
+    user_model::{CreateUser, UpdateUser, User},
 };
+
+use super::password_repository::PgPasswordRepository;
 
 #[async_trait]
 pub trait UserRepository<E> {
-    async fn find_all(&self) -> Result<Vec<UserDTO>, E>;
+    async fn find_all(&self) -> Result<Vec<User>, E>;
     async fn find_by_id(&self, user_id: i32) -> Result<User, E>;
     async fn find_by_email(&self, user_email: &str) -> Result<User, E>;
     async fn find_by_username(&self, username: &str) -> Result<User, E>;
+    async fn find_by_account(&self, account_provider: &str, account_id: &str) -> Result<User, E>;
     async fn create(&self, new_user: &CreateUser) -> Result<User, E>;
     async fn update(&self, update_user: &UpdateUser) -> Result<User, E>;
     async fn verify(&self, user_id: i32) -> Result<User, E>;
@@ -24,19 +27,23 @@ pub trait UserRepository<E> {
 #[derive(Debug, Clone)]
 pub struct PgUserRepository {
     db: PgPool,
+    pub password: PgPasswordRepository,
 }
 
 impl PgUserRepository {
     pub fn new(db: PgPool) -> PgUserRepository {
-        Self { db }
+        Self {
+            db: db.clone(),
+            password: PgPasswordRepository::new(db),
+        }
     }
 }
 
 #[async_trait]
 impl UserRepository<Error> for PgUserRepository {
-    async fn find_all(&self) -> Result<Vec<UserDTO>, Error> {
+    async fn find_all(&self) -> Result<Vec<User>, Error> {
         sqlx::query_as!(
-            UserDTO,
+            User,
             r#"
             SELECT
                 id,
@@ -66,7 +73,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -90,7 +96,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -115,7 +120,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -130,19 +134,48 @@ impl UserRepository<Error> for PgUserRepository {
         .await
     }
 
+    async fn find_by_account(
+        &self,
+        account_provider: &str,
+        account_id: &str,
+    ) -> Result<User, Error> {
+        sqlx::query_as!(
+            User,
+            r#"
+            SELECT 
+                u.id,
+                u.username,
+                u.email,
+                u.email_verified,
+                u.image,
+                u.role AS "role: Role",
+                u.follower_count,
+                u.following_count,
+                u.approved_at,
+                u.deleted_at
+            FROM users u 
+            JOIN accounts a ON u.id = a.user_id
+            WHERE a.provider = $1 AND a.provider_account_id = $2
+            "#n,
+            account_provider,
+            account_id
+        )
+        .fetch_one(&self.db)
+        .await
+    }
+
     async fn create(&self, create_user: &CreateUser) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
-            INSERT INTO users (username, email, email_verified, image, password)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO users (username, email, email_verified, image)
+            VALUES ($1, $2, $3, $4)
             RETURNING
                 id,
                 username,
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -153,7 +186,6 @@ impl UserRepository<Error> for PgUserRepository {
             create_user.email,
             create_user.email_verified,
             create_user.image,
-            create_user.password,
         )
         .fetch_one(&self.db)
         .await
@@ -175,7 +207,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -205,7 +236,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -233,7 +263,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -261,7 +290,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -289,7 +317,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,
@@ -314,7 +341,6 @@ impl UserRepository<Error> for PgUserRepository {
                 email,
                 email_verified,
                 image,
-                password,
                 role AS "role: Role",
                 follower_count,
                 following_count,

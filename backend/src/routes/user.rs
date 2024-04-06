@@ -11,7 +11,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    models::user_model::{CreateUser, UpdateUser, UserDTO},
+    models::user_model::{CreateUser, UpdateUser},
     repositories::user_repository::UserRepository,
     AppState,
 };
@@ -31,7 +31,7 @@ pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
 pub async fn get_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i32>) -> Response {
     let db_response = state.repository.users.find_by_id(user_id).await;
     match db_response {
-        Ok(user) => (StatusCode::OK, Json(json!(UserDTO::set(user)))).into_response(),
+        Ok(user) => (StatusCode::OK, Json(json!(user))).into_response(),
         Err(error) => {
             if let sqlx::error::Error::RowNotFound = error {
                 return (StatusCode::NOT_FOUND, "User not found").into_response();
@@ -79,11 +79,10 @@ pub async fn post_user(
         email: payload.email,
         image: payload.image,
         email_verified: payload.email_verified,
-        password: hashed_password,
     };
     let response = state.repository.users.create(&create_user).await;
     match response {
-        Ok(user) => (StatusCode::CREATED, Json(json!(UserDTO::set(user)))).into_response(),
+        Ok(user) => (StatusCode::CREATED, Json(json!(user))).into_response(),
         Err(error) => {
             if let Some(database_error) = error.as_database_error() {
                 if let Some(constraint) = database_error.constraint() {
@@ -123,7 +122,7 @@ pub async fn patch_user(
     };
     let response = state.repository.users.update(&update_user).await;
     match response {
-        Ok(user) => (StatusCode::OK, Json(json!(UserDTO::set(user)))).into_response(),
+        Ok(user) => (StatusCode::OK, Json(json!(user))).into_response(),
         Err(error) => {
             if let sqlx::error::Error::RowNotFound = error {
                 return (StatusCode::NOT_FOUND, "User not found").into_response();
