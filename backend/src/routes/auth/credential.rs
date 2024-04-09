@@ -7,12 +7,18 @@ use axum::{
     Json,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
+use cookie::SameSite;
 use serde::Deserialize;
 use serde_json::json;
+use time::Duration;
+use tracing::error;
 use validator::Validate;
 
 use crate::{
-    config::JWT_SECRET,
+    config::{
+        ACCESS_TOKEN_DURATION, ACCESS_TOKEN_NAME, COOKIE_SALT, JWT_SECRET, REFRESH_TOKEN_DURATION,
+        REFRESH_TOKEN_NAME,
+    },
     models::user_model::CreateUser,
     repositories::{password_repository::PasswordRepository, user_repository::UserRepository},
     utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
@@ -31,7 +37,7 @@ pub struct SignUpRequest {
 pub async fn signup(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SignUpRequest>,
-    jar: CookieJar,
+    cookies: CookieJar,
 ) -> Response {
     let create_user = CreateUser {
         username: payload.username,
@@ -42,19 +48,24 @@ pub async fn signup(
 
     let user = match state.repository.users.create(&create_user).await {
         Ok(user) => {
-            if let Err(_error) = state
+            match state
                 .repository
                 .users
                 .password
                 .create(user.id, &payload.password)
                 .await
             {
-                if let Err(_error) = state.repository.users.delete(user.id).await {
+                Ok(_) => user,
+                Err(error) => {
+                    error!(name: "AUTH", "unable to set password {}", error);
+                    if let Err(_error) = state.repository.users.delete(user.id).await {
+                        return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong")
+                            .into_response();
+                    }
                     return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong")
                         .into_response();
                 }
             }
-            user
         }
         Err(error) => {
             if let Some(database_error) = error.as_database_error() {
@@ -96,10 +107,19 @@ pub async fn signup(
         }
     };
 
+    let access_token_cookie: Cookie = Cookie::build((
+        format!("{}{}", COOKIE_SALT, ACCESS_TOKEN_NAME),
+        access_token.clone(),
+    ))
+    .http_only(true)
+    .same_site(SameSite::Lax)
+    .max_age(Duration::minutes(ACCESS_TOKEN_DURATION))
+    .into();
+
     let refresh_token_payload = RefreshTokenPayload {
         user_id: user.id,
         role: user.role,
-        access_token: access_token.clone(),
+        access_token,
     };
 
     let refresh_token = match RefreshToken::generate("orta", refresh_token_payload, JWT_SECRET) {
@@ -114,9 +134,18 @@ pub async fn signup(
         }
     };
 
-    (
-        StatusCode::OK,
-        jar.add(Cookie::new("access_token", access_token)),
-    )
-        .into_response()
+    let refresh_token_cookie: Cookie = Cookie::build((
+        format!("{}{}", COOKIE_SALT, REFRESH_TOKEN_NAME),
+        refresh_token,
+    ))
+    .http_only(true)
+    .same_site(SameSite::Lax)
+    .max_age(Duration::minutes(REFRESH_TOKEN_DURATION))
+    .into();
+
+    let cookies = CookieJar::new()
+        .add(access_token_cookie)
+        .add(refresh_token_cookie);
+
+    (StatusCode::OK, cookies).into_response()
 }

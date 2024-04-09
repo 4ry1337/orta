@@ -21,14 +21,16 @@ use time::Duration;
 
 use crate::{
     config::{
-        COOKIE_AUTH_CODE_VERIFIER, COOKIE_AUTH_CSRF_STATE, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET,
-        HOST, JWT_SECRET,
+        ACCESS_TOKEN_DURATION, ACCESS_TOKEN_NAME, COOKIE_AUTH_CODE_VERIFIER,
+        COOKIE_AUTH_CSRF_STATE, COOKIE_SALT, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, HOST,
+        JWT_SECRET, REFRESH_TOKEN_DURATION, REFRESH_TOKEN_NAME,
     },
     models::{account_model::CreateAccount, user_model::CreateUser},
     repositories::{account_repository::AccountRepository, user_repository::UserRepository},
     utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
     AppState,
 };
+use tracing::{error, warn};
 
 use super::{AuthRequest, OAuthClient};
 
@@ -55,8 +57,8 @@ struct GitHubEmail {
 #[async_trait]
 impl OAuthClient for GithubOAuthClient {
     fn build(&self) -> Self {
-        let client_id = ClientId::new(GITHUB_CLIENT_ID.to_string());
-        let client_secret = ClientSecret::new(GITHUB_CLIENT_SECRET.to_string());
+        let client_id = ClientId::new(GOOGLE_CLIENT_ID.to_string());
+        let client_secret = ClientSecret::new(GOOGLE_CLIENT_SECRET.to_string());
         let auth_url = AuthUrl::new("https://github.com/login/oauth/authorize".to_string())
             .expect("Unable to create auth url");
         let token_url = TokenUrl::new("https://github.com/login/oauth/access_token".to_string())
@@ -69,7 +71,7 @@ impl OAuthClient for GithubOAuthClient {
         }
     }
 
-    async fn login(&self, State(state): State<Arc<AppState>>) -> Response {
+    async fn login(&self) -> Response {
         let (pkce_code_challenge, pkce_code_verifier) = PkceCodeChallenge::new_random_sha256();
 
         let (authorize_url, csrf_state) = self
@@ -111,16 +113,18 @@ impl OAuthClient for GithubOAuthClient {
         Query(query): Query<AuthRequest>,
         cookies: CookieJar,
     ) -> Response {
-        let mut is_new_user = false;
+        // let mut is_new_user = false;
         let code = query.code;
         let state = query.state;
         let stored_state = cookies.get(COOKIE_AUTH_CSRF_STATE);
         let stored_code_verifier = cookies.get(COOKIE_AUTH_CODE_VERIFIER);
 
         let (Some(csrf_state), Some(code_verifier)) = (stored_state, stored_code_verifier) else {
+            warn!(name: "AUTH","csrf state and code are not specified");
             return (StatusCode::BAD_REQUEST).into_response();
         };
         if csrf_state.value() != state {
+            warn!(name: "AUTH","csrf state is invalid");
             return (StatusCode::BAD_REQUEST).into_response();
         }
 
@@ -135,7 +139,10 @@ impl OAuthClient for GithubOAuthClient {
             .await
         {
             Ok(token_response) => token_response,
-            Err(error) => return (StatusCode::BAD_REQUEST, "Something went wrong").into_response(),
+            Err(error) => {
+                error!(name: "AUTH","unable to get response from client: \n{}", error);
+                return (StatusCode::BAD_REQUEST, "Something went wrong").into_response();
+            }
         };
 
         // Get the Github user info
@@ -148,13 +155,15 @@ impl OAuthClient for GithubOAuthClient {
         {
             Ok(github_response) => match github_response.json::<GithubUser>().await {
                 Ok(github_user) => github_user,
-                Err(_error) => {
+                Err(error) => {
+                    error!(name: "AUTH","unable to get response from github:\n{}", error);
                     return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong")
-                        .into_response()
+                        .into_response();
                 }
             },
-            Err(_error) => {
-                return (StatusCode::BAD_REQUEST, "Something went wrong").into_response()
+            Err(error) => {
+                error!(name: "AUTH","{}", error);
+                return (StatusCode::BAD_REQUEST, "Something went wrong").into_response();
             }
         };
 
@@ -174,12 +183,14 @@ impl OAuthClient for GithubOAuthClient {
                         .unwrap_or(emails.iter().next().unwrap())
                         .email
                         .to_owned(),
-                    Err(_error) => {
+                    Err(error) => {
+                        error!(name: "AUTH","unable to parse response from github:\n{}", error);
                         return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong")
-                            .into_response()
+                            .into_response();
                     }
                 },
-                Err(_error) => {
+                Err(error) => {
+                    error!(name: "AUTH","unable to get response from github:\n{}", error);
                     //in next-auth redirect to /signin
                     return (StatusCode::BAD_REQUEST, "Something went wrong").into_response();
                 }
@@ -222,7 +233,8 @@ impl OAuthClient for GithubOAuthClient {
                     image: Some(github_user.avatar_url),
                     email_verified: Some(Utc::now()),
                 };
-                is_new_user = true;
+                // is_new_user = true;
+
                 // If the user is not signed in and it looks like a new OAuth account then we
                 // check there also isn't an user account already associated with the same
                 // email address as the one in the OAuth profile.
@@ -244,6 +256,7 @@ impl OAuthClient for GithubOAuthClient {
                 match appstate.repository.users.create(&create_user).await {
                     Ok(user) => user,
                     Err(error) => {
+                        error!(name: "OAUTH","unable to create user:\n{}", error);
                         if let Some(database_error) = error.as_database_error() {
                             if let Some(constraint) = database_error.constraint() {
                                 if constraint == "users_email_key" {
@@ -256,7 +269,28 @@ impl OAuthClient for GithubOAuthClient {
                             .into_response();
                     }
                 }
+                // error!(name: "AUTH","unable to find user by account:\n{}", error);
             }
+        };
+
+        let expires_at: Option<i64> = match token_response.expires_in() {
+            Some(expires_in) => Some((Utc::now() + expires_in).timestamp()),
+            None => None,
+        };
+
+        let refresh_token: Option<String> = match token_response.refresh_token() {
+            Some(refresh_token) => Some(refresh_token.secret().to_string()),
+            None => None,
+        };
+
+        let scope: Option<String> = match token_response.scopes() {
+            Some(scopes) => Some(
+                scopes
+                    .iter()
+                    .map(|scope| scope.as_str().to_string())
+                    .collect(),
+            ),
+            None => None,
         };
 
         let new_account = CreateAccount {
@@ -264,11 +298,11 @@ impl OAuthClient for GithubOAuthClient {
             r#type: "oauth".to_string(),
             provider: "github".to_string(),
             provider_account_id: account_id,
-            refresh_token: Some(token_response.refresh_token().secret().to_string()),
+            refresh_token,
             access_token: Some(token_response.access_token().secret().to_string()),
-            expires_at: Some(token_response.expires_in()),
+            expires_at,
             token_type: Some(token_response.token_type().as_ref().to_string()),
-            scope: token_response.scopes().,
+            scope,
             id_token: None,
             session_state: None,
         };
@@ -276,6 +310,7 @@ impl OAuthClient for GithubOAuthClient {
         let account = match appstate.repository.account.create(&new_account).await {
             Ok(account) => account,
             Err(error) => {
+                error!(name: "AUTH","unable to create account:\n{}", error);
                 return (StatusCode::BAD_REQUEST, Json(json!(error.to_string()))).into_response();
             }
         };
@@ -290,57 +325,78 @@ impl OAuthClient for GithubOAuthClient {
         remove_code_verifier.make_removal();
 
         //TODO: create session token (access_token) and return it in cookies
+        // in next auth it is just adds fields to token
+        //const token = await callbacks.jwt({
+        //   token: defaultToken,
+        //   user,
+        //   account,
+        //   profile: OAuthProfile,
+        //   isNewUser,
+        //   trigger: isNewUser ? "signUp" : "signIn",
+        // })
         //
-        // let session_cookie: Cookie =
-        //     Cookie::build((COOKIE_AUTH_SESSION, user_session.id.to_string()))
-        //         .same_site(SameSite::Lax)
-        //         .http_only(true)
-        //         .path("/")
-        //         .max_age(cookie::time::Duration::milliseconds(
-        //             SESSION_DURATION.as_millis() as i64,
-        //         ))
-        //         .into();
+        // We will implement both tokens and persist refresh token
 
-        // let access_token_payload = AccessTokenPayload {
-        //     user_id: user.id,
-        //     email: user.email,
-        //     username: user.username,
-        //     image: user.image,
-        //     role: user.role,
-        // };
-        //
-        // let access_token = match AccessToken::generate("orta", access_token_payload, JWT_SECRET) {
-        //     Ok(token) => token,
-        //     Err(error) => {
-        //         println!("{:?}", error);
-        //         return (
-        //             StatusCode::INTERNAL_SERVER_ERROR,
-        //             "Unable to generate tokens",
-        //         )
-        //             .into_response();
-        //     }
-        // };
-        //
-        // let refresh_token_payload = RefreshTokenPayload {
-        //     user_id: user.id,
-        //     role: user.role,
-        //     access_token: access_token.clone(),
-        // };
-        //
-        // let refresh_token = match RefreshToken::generate("orta", refresh_token_payload, JWT_SECRET)
-        // {
-        //     Ok(token) => token,
-        //     Err(error) => {
-        //         println!("{:?}", error);
-        //         return (
-        //             StatusCode::INTERNAL_SERVER_ERROR,
-        //             "Unable to generate tokens",
-        //         )
-        //             .into_response();
-        //     }
-        // };
+        let access_token_payload = AccessTokenPayload {
+            user_id: user.id,
+            email: user.email,
+            username: user.username,
+            image: user.image,
+            role: user.role,
+        };
+
+        let access_token = match AccessToken::generate("orta", access_token_payload, JWT_SECRET) {
+            Ok(token) => token,
+            Err(error) => {
+                error!(name: "OAUTH","unable to generate access token:\n{}", error);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Unable to generate tokens",
+                )
+                    .into_response();
+            }
+        };
+
+        let access_token_cookie: Cookie = Cookie::build((
+            format!("{}{}", COOKIE_SALT, ACCESS_TOKEN_NAME),
+            access_token.clone(),
+        ))
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .max_age(Duration::minutes(ACCESS_TOKEN_DURATION))
+        .into();
+
+        let refresh_token_payload = RefreshTokenPayload {
+            user_id: user.id,
+            role: user.role,
+            access_token,
+        };
+
+        let refresh_token = match RefreshToken::generate("orta", refresh_token_payload, JWT_SECRET)
+        {
+            Ok(token) => token,
+            Err(error) => {
+                error!(name: "OAUTH","unable to generate refresh token:\n{}", error);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Unable to generate tokens",
+                )
+                    .into_response();
+            }
+        };
+
+        let refresh_token_cookie: Cookie = Cookie::build((
+            format!("{}{}", COOKIE_SALT, REFRESH_TOKEN_NAME),
+            refresh_token,
+        ))
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .max_age(Duration::minutes(REFRESH_TOKEN_DURATION))
+        .into();
 
         let cookies = CookieJar::new()
+            .add(access_token_cookie)
+            .add(refresh_token_cookie)
             .add(remove_csrf_cookie)
             .add(remove_code_verifier);
 

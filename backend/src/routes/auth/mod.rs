@@ -16,7 +16,7 @@ pub mod google;
 #[async_trait]
 pub trait OAuthClient {
     fn build(&self) -> Self;
-    async fn login(&self, State(state): State<Arc<AppState>>) -> Response;
+    async fn login(&self) -> Response;
     async fn callback(
         &self,
         State(state): State<Arc<AppState>>,
@@ -30,3 +30,5 @@ pub struct AuthRequest {
     code: String,
     state: String,
 }
+
+//TODO: should i add secure?

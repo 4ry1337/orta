@@ -41,6 +41,7 @@ use std::{
     sync::Arc,
 };
 use tower_http::cors::{Any, CorsLayer};
+use tracing::{error, info};
 
 //TODO: add multithreading
 //TODO: add rate limiter? mb middleware
@@ -62,11 +63,11 @@ async fn main() {
         .await
     {
         Ok(pool) => {
-            println!("Connection to the database is successful!");
+            info!("Connection to the database is successful!");
             pool
         }
         Err(err) => {
-            println!("Failed to connect to the database: {:?}", err);
+            error!("Failed to connect to the database: {:?}", err);
             std::process::exit(1);
         }
     };

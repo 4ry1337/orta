@@ -51,29 +51,28 @@ pub struct CreateUserRequestBody {
     pub email: String,
     pub email_verified: Option<DateTime<Utc>>,
     pub image: Option<String>,
-    pub password: Option<String>,
 }
 
 pub async fn post_user(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateUserRequestBody>,
 ) -> Response {
-    let hashed_password: Option<String> = match payload.password {
-        Some(pass) => {
-            let hash = bcrypt::hash(pass, 10);
-            match hash {
-                Ok(hash) => Some(hash),
-                Err(e) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!(e.to_string())),
-                    )
-                        .into_response();
-                }
-            }
-        }
-        _ => Option::None,
-    };
+    // let hashed_password: Option<String> = match payload.password {
+    //     Some(pass) => {
+    //         let hash = bcrypt::hash(pass, 10);
+    //         match hash {
+    //             Ok(hash) => Some(hash),
+    //             Err(e) => {
+    //                 return (
+    //                     StatusCode::INTERNAL_SERVER_ERROR,
+    //                     Json(json!(e.to_string())),
+    //                 )
+    //                     .into_response();
+    //             }
+    //         }
+    //     }
+    //     _ => Option::None,
+    // };
     let create_user = CreateUser {
         username: payload.username,
         email: payload.email,

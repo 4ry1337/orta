@@ -21,9 +21,9 @@ pub async fn get_articles(State(state): State<Arc<AppState>>) -> Response {
     let response = state.repository.articles.find_all().await;
     match response {
         Ok(article) => (StatusCode::OK, Json(json!(article))).into_response(),
-        Err(e) => (
+        Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
+            Json(json!(error.to_string())),
         )
             .into_response(),
     }
@@ -36,9 +36,9 @@ pub async fn get_articles_by_user(
     let response = state.repository.articles.find_by_authors(&[user_id]).await;
     match response {
         Ok(articles) => (StatusCode::OK, Json(json!(articles))).into_response(),
-        Err(e) => (
+        Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
+            Json(json!(error.to_string())),
         )
             .into_response(),
     }
