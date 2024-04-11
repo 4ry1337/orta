@@ -11,11 +11,12 @@ axum = { version = "0.7.5", features = ["http2"] }
 axum-core = "0.4.3"
 axum-extra = {version="0.9.3", features = ["cookie-private", "query", "cookie", "cookie-signed", "typed-header"]}
 cookie = "0.18"
-reqwest = { version = "0.12.2", features = ["json"] }
 
 # Auth:
 oauth2 = "4.4.2"
 jsonwebtoken = "9.3.0"
+reqwest = { version = "0.12.2", features = ["json"] }
+bcrypt = "0.15.1"
 
 # Middleware:
 tower = { version = "0.4.13", features = ["util", "timeout"] }
@@ -36,7 +37,8 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 axum-prometheus = "0.6.1"
 
 # Environment variables:
-envy = "0.4.2"
+dotenv = "0.15.0"
+dotenv_codegen = "0.15.0"
 
 # Serialisation/Deserialisation:
 serde = { version = "1.0.197", features = ["derive"] }
@@ -51,11 +53,7 @@ chrono = { version = "0.4.37", features = ["clock", "serde"] }
 time = "0.3.34"
 
 # Utils:
-uuid = { version= "1.8.0", features = ["serde"] }
 rand = { version = "0.8.5", features = ["min_const_gen"] }
-bcrypt = "0.15.1"
-dotenv = "0.15.0"
-dotenv_codegen = "0.15.0"
 slug = "0.1.5"
 futures = "0.3.30"
 

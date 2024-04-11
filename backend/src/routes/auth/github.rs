@@ -22,8 +22,8 @@ use time::Duration;
 use crate::{
     config::{
         ACCESS_TOKEN_DURATION, ACCESS_TOKEN_NAME, COOKIE_AUTH_CODE_VERIFIER,
-        COOKIE_AUTH_CSRF_STATE, COOKIE_SALT, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, HOST,
-        JWT_SECRET, REFRESH_TOKEN_DURATION, REFRESH_TOKEN_NAME,
+        COOKIE_AUTH_CSRF_STATE, COOKIE_AUTH_OAUTH_SIGNIN_AGE, COOKIE_SALT, GOOGLE_CLIENT_ID,
+        GOOGLE_CLIENT_SECRET, HOST, JWT_SECRET, REFRESH_TOKEN_DURATION, REFRESH_TOKEN_NAME,
     },
     models::{account_model::CreateAccount, user_model::CreateUser},
     repositories::{account_repository::AccountRepository, user_repository::UserRepository},
@@ -82,7 +82,7 @@ impl OAuthClient for GithubOAuthClient {
             .set_pkce_challenge(pkce_code_challenge)
             .url();
 
-        let cookie_max_age = Duration::minutes(5);
+        let cookie_max_age = Duration::minutes(COOKIE_AUTH_OAUTH_SIGNIN_AGE);
 
         let csrf_cookie: Cookie =
             Cookie::build((COOKIE_AUTH_CSRF_STATE, csrf_state.secret().to_owned()))
@@ -224,7 +224,7 @@ impl OAuthClient for GithubOAuthClient {
             .await
         {
             Ok(user) => user,
-            Err(error) => {
+            Err(_error) => {
                 // if user from jwt exists { link accounts }
                 // line 196
                 let create_user = CreateUser {

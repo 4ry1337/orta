@@ -8,6 +8,7 @@ services:
       - ./.env
     volumes:
       - orta-pg-data:/data/postgres
+
   pgAdmin:
     image: dpage/pgadmin4
     container_name: pgAdmin
@@ -40,35 +41,56 @@ services:
   #       DATABASE_URL:
   #   ports:
   #     - "8080:8080"
-  #   depends_on:
-  #     - neo4j
-  # grafana:
-  #   container_name: grafana
-  #   image: grafana/grafana
-  #   restart: unless-stopped
-  #   enviroment:
-  #     GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
-  #     GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
-  #   ports:
-  #     - 3000:3000
-  #   volumes:
-  #     - ./grafana:/etc/grafana/provisioning/datasources
-  #     - grafana/data:/var/lib/grafana
-  #
-  # prometheus:
-  #   container_name: prometheus
-  #   image: prom/prometheus
-  #   restart: unless-stopped
-  #   command:
-  #     - "--config.file=/etc/prometheus/prometheus.yml"
-  #   ports:
-  #     - 9090:9090
-  #   volumes:
-  #     - ./prometheus:/etc/prometheus
-  #     - prom/data:/prometheus
+  minio:
+    container_name: minio
+    image: quay.io/minio/minio
+    restart: unless-stopped
+    ports:
+      - 9000:9000
+      - 9001:9001
+    env_file:
+      - ./.env
+    # enviroment:
+    #   - MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+    #   - MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server --console-address ":9001" /data
+    volumes:
+      - minio_data:/minio
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    # enviroment:
+    #   GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+    #   GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana:/etc/grafana/provisioning/datasources
+      - grafana_data:/var/lib/grafana
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - 9090:9090
+    volumes:
+      - prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
 
 volumes:
-  orta-pg-data:
-  orta-pgadmin-data:
-  # - prom:
-  # - grafana:
+  minio_data: {}
+  orta-pg-data: {}
+  orta-pgadmin-data: {}
+  grafana: {}
+  grafana_data: {}
+  prometheus: {}
+  prometheus_data: {}

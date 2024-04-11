@@ -15,3 +15,8 @@ backend/target
 *.tsbuildinfo
 **/*.rs.bk
 *.pdb
+
+
+# Added by cargo
+
+/target

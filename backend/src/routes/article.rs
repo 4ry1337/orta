@@ -1,4 +1,8 @@
-use axum::async_trait;
+use axum::{
+    async_trait,
+    routing::{get, patch, post, put},
+    Router,
+};
 use std::sync::Arc;
 
 use axum::{
@@ -16,6 +20,23 @@ use crate::{
     repositories::{article_repository::ArticleRepository, user_repository::UserRepository},
     AppState,
 };
+
+pub fn router() -> Router<Arc<AppState>> {
+    // recs
+    Router::new()
+        .route("/articles", get(get_articles).post(post_article))
+        .route("/articles/:article_id", get(get_article))
+        .route("/articles/:article_id/authors", get(get_authors))
+        .route(
+            "/articles/:article_id/edit",
+            patch(patch_article).delete(delete_article),
+        )
+        .route(
+            "/articles/:article_id/edit/authors/:user_id",
+            put(put_author).delete(delete_author),
+        )
+        .route("/users/:user_id/articles", get(get_articles_by_user))
+}
 
 pub async fn get_articles(State(state): State<Arc<AppState>>) -> Response {
     let response = state.repository.articles.find_all().await;

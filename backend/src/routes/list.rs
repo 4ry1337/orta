@@ -4,7 +4,8 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Response,
-    Json,
+    routing::{get, put},
+    Json, Router,
 };
 use axum_core::response::IntoResponse;
 use serde::Deserialize;
@@ -18,6 +19,21 @@ use crate::{
     repositories::list_repository::ListRepository,
     AppState,
 };
+
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/lists", get(get_lists).post(post_list))
+        .route(
+            "/lists/:list_id",
+            get(get_list).patch(patch_list).delete(delete_list),
+        )
+        .route("/lists/:list_id/articles", get(get_list_articles))
+        .route(
+            "/lists/:list_id/articles/:article_id",
+            put(put_list_article).delete(delete_list_article),
+        )
+        .route("/users/:user_id/lists", get(get_list_by_user))
+}
 
 pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {
     let response = state.repository.lists.find_all().await;

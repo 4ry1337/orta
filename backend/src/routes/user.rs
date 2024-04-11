@@ -4,7 +4,8 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    routing::get,
+    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -15,6 +16,15 @@ use crate::{
     repositories::user_repository::UserRepository,
     AppState,
 };
+
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/users", get(get_users).post(post_user))
+        .route(
+            "/users/:user_id",
+            get(get_user).patch(patch_user).delete(delete_user),
+        )
+}
 
 pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
     let db_response = state.repository.users.find_all().await;

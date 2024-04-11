@@ -4,7 +4,8 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    routing::{get, put},
+    Json, Router,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -17,6 +18,19 @@ use crate::{
     repositories::tag_repository::TagRepository,
     AppState,
 };
+
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route(
+            "/articles/:article_id/edit/tags",
+            put(StatusCode::NOT_IMPLEMENTED).delete(StatusCode::NOT_IMPLEMENTED),
+        )
+        .route("/admin/tags", get(get_tags).post(post_tag))
+        .route(
+            "/admin/tags/:tag_id",
+            get(get_tag).patch(patch_tag).delete(delete_tag),
+        )
+}
 
 #[derive(Deserialize)]
 pub struct GetTagsQuery {
