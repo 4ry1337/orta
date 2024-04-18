@@ -3,7 +3,7 @@ use chrono::prelude::*;
 use serde::Serialize;
 use sqlx::Postgres;
 
-#[derive(sqlx::FromRow, Serialize, Debug)]
+#[derive(Clone, sqlx::FromRow, Serialize, Debug)]
 pub struct User {
     pub id: i32,
     pub username: String,

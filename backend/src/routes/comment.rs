@@ -4,29 +4,16 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{patch, post},
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
+    application::AppState,
     models::comment_model::{CreateComment, UpdateComment},
     repositories::{article_repository::ArticleRepository, comment_repository::CommentRepository},
-    AppState,
 };
-
-pub fn router() -> Router<Arc<AppState>> {
-    Router::new()
-        .route(
-            "/articles/:article_id/comments",
-            post(post_comment).get(get_comments),
-        )
-        .route(
-            "/articles/:article_id/comments/:comment_id",
-            patch(patch_comment).delete(delete_comment),
-        )
-}
 
 pub async fn get_comments(
     State(state): State<Arc<AppState>>,

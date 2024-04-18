@@ -1,96 +1,34 @@
-mod config;
-mod models;
-mod repositories;
-mod routes;
-mod utils;
-
-#[macro_use]
-extern crate dotenv_codegen;
-
-use axum::{routing::get, Router};
-use axum_extra::extract::cookie::Key;
-use axum_prometheus::PrometheusMetricLayer;
-use config::{AppState, DATABASE_URL, PORT};
-use dotenv::dotenv;
-use repositories::PgRepository;
-use routes::{admin::health_checker, article, comment, list, series, tags, user};
-use sqlx::postgres::PgPoolOptions;
-use std::{
-    net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
-};
-use tower_http::cors::{Any, CorsLayer};
-use tracing::{error, info};
+use backend::{application::Application, configuration::CONFIG};
 
 //TODO: add multithreading
 //TODO: add rate limiter? mb middleware
 
 #[tokio::main]
-async fn main() {
-    dotenv().ok();
-    tracing_subscriber::fmt::init();
-    let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+async fn main() -> anyhow::Result<()> {
+    // construct a subscriber that prints formatted traces to stdout
+    // Start configuring a `fmt` subscriber
+    let subscriber = tracing_subscriber::fmt()
+        // Use a more compact, abbreviated log format
+        .compact()
+        // Display source code file paths
+        .with_file(true)
+        // Display source code line numbers
+        .with_line_number(true)
+        // Display the thread ID an event was recorded on
+        .with_thread_ids(true)
+        // Don't display the event's target (module path)
+        .with_target(false)
+        // Build the subscriber
+        .finish();
 
-    let cors = CorsLayer::new()
-        .allow_methods(Any)
-        .allow_headers(Any)
-        .allow_origin(["http://localhost:3000".parse().unwrap()]);
+    // use that subscriber to process traces emitted after this point
+    tracing::subscriber::set_global_default(subscriber)?;
 
-    let pool = match PgPoolOptions::new()
-        .max_connections(10)
-        .connect(DATABASE_URL)
-        .await
-    {
-        Ok(pool) => {
-            info!("Connection to the database is successful!");
-            pool
-        }
-        Err(err) => {
-            error!("Failed to connect to the database: {:?}", err);
-            std::process::exit(1);
-        }
-    };
+    // println!("{:#?}", CONFIG.database);
 
-    sqlx::migrate!()
-        .run(&pool)
-        .await
-        .expect("Failed migrations :(");
+    let application = Application::build(CONFIG.clone()).await?;
 
-    let repository = PgRepository::new(&pool);
+    application.run().await?;
 
-    let appstate = Arc::new(AppState {
-        key: Key::generate(),
-        repository,
-    });
-
-    //TODO: refactor to routes
-    let app = Router::new()
-        .nest(
-            "/api",
-            Router::new()
-                .route("/admin/healthchecker", get(health_checker))
-                .route(
-                    "/admin/metrics",
-                    get(|| async move { metric_handle.render() }),
-                )
-                .merge(user::router())
-                .merge(article::router())
-                .merge(list::router())
-                .merge(series::router())
-                .merge(comment::router())
-                .merge(tags::router()),
-        )
-        .with_state(appstate.clone())
-        .layer(cors)
-        .layer(prometheus_layer);
-
-    let port = PORT.parse::<u16>().expect("PORT must be a number");
-
-    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-
-    let listener = tokio::net::TcpListener::bind(&addr)
-        .await
-        .expect("Failed to bind TcpListener");
-
-    axum::serve(listener, app).await.unwrap();
+    Ok(())
 }

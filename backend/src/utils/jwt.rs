@@ -14,13 +14,13 @@ pub struct Claims<T> {
 }
 
 pub trait JWT<T> {
-    fn generate(issuer: &str, payload: T, secret: &str) -> Result<String, Error>;
+    fn generate(payload: T, iss: &str, secret: &str) -> Result<String, Error>;
     fn validate(token: &str, secret: &str) -> Result<T, Error>;
 }
 
 pub struct AccessToken;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AccessTokenPayload {
     pub user_id: i32,
     pub email: String,
@@ -31,8 +31,8 @@ pub struct AccessTokenPayload {
 
 impl JWT<AccessTokenPayload> for AccessToken {
     fn generate(
-        issuer: &str,
         payload: AccessTokenPayload,
+        iss: &str,
         secret: &str,
     ) -> Result<String, jsonwebtoken::errors::Error> {
         let now = Utc::now();
@@ -44,7 +44,7 @@ impl JWT<AccessTokenPayload> for AccessToken {
         let claims = Claims {
             iat: now.timestamp(),
             exp: expiration.timestamp(),
-            iss: issuer.to_string(),
+            iss: iss.to_string(),
             sub: payload,
         };
 
@@ -68,7 +68,7 @@ impl JWT<AccessTokenPayload> for AccessToken {
 
 pub struct RefreshToken;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RefreshTokenPayload {
     pub user_id: i32,
     pub role: Role,
@@ -77,8 +77,8 @@ pub struct RefreshTokenPayload {
 
 impl JWT<RefreshTokenPayload> for RefreshToken {
     fn generate(
-        issuer: &str,
         payload: RefreshTokenPayload,
+        iss: &str,
         secret: &str,
     ) -> Result<String, jsonwebtoken::errors::Error> {
         let now = Utc::now();
@@ -90,7 +90,7 @@ impl JWT<RefreshTokenPayload> for RefreshToken {
         let claims = Claims {
             iat: now.timestamp(),
             exp: expiration.timestamp(),
-            iss: issuer.to_string(),
+            iss: iss.to_string(),
             sub: payload,
         };
 

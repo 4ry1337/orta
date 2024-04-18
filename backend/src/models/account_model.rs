@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(sqlx::FromRow, Serialize, Debug)]
 pub struct Account {
@@ -43,4 +43,21 @@ pub struct UpdateAccount {
     pub scope: Option<String>,
     pub id_token: Option<String>,
     pub session_state: Option<String>,
+}
+
+#[derive(Default, Deserialize)]
+pub struct GoogleUser {
+    pub sub: String,
+    pub name: String,
+    pub email: String,
+    pub email_verified: bool,
+    pub picture: String,
+}
+
+#[derive(Default, Deserialize)]
+pub struct GithubUser {
+    pub id: u64,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub avatar_url: String,
 }

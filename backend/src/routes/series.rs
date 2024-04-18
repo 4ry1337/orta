@@ -4,33 +4,17 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Response,
-    routing::{get, patch, put},
-    Json, Router,
+    Json,
 };
 use axum_core::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
+    application::AppState,
     models::series_model::{CreateSeries, UpdateSeries},
     repositories::{list_repository::ListRepository, series_repository::SeriesRepository},
-    AppState,
 };
-
-pub fn router() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/series", get(get_series).post(post_series))
-        .route(
-            "/series/:series_id",
-            patch(patch_series).delete(delete_series),
-        )
-        .route("/series/:series_id/articles", get(get_series_articles))
-        .route(
-            "/series/:series_id/articles/:article_id",
-            put(put_series_article).delete(delete_series_article),
-        )
-        .route("/users/:user_id/series", get(get_series_by_user))
-}
 
 pub async fn get_series(State(state): State<Arc<AppState>>) -> Response {
     let response = state.repository.series.find_all().await;

@@ -4,27 +4,17 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
-    Json, Router,
+    Json,
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
+    application::AppState,
     models::user_model::{CreateUser, UpdateUser},
     repositories::user_repository::UserRepository,
-    AppState,
 };
-
-pub fn router() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/users", get(get_users).post(post_user))
-        .route(
-            "/users/:user_id",
-            get(get_user).patch(patch_user).delete(delete_user),
-        )
-}
 
 pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
     let db_response = state.repository.users.find_all().await;

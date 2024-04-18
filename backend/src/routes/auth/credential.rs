@@ -4,10 +4,12 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    routing::post,
+    Json, Router,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use cookie::SameSite;
+use secrecy::ExposeSecret;
 use serde::Deserialize;
 use serde_json::json;
 use time::Duration;
@@ -15,15 +17,16 @@ use tracing::error;
 use validator::Validate;
 
 use crate::{
-    config::{
-        ACCESS_TOKEN_DURATION, ACCESS_TOKEN_NAME, COOKIE_SALT, JWT_SECRET, REFRESH_TOKEN_DURATION,
-        REFRESH_TOKEN_NAME,
-    },
+    application::AppState,
+    configuration::CONFIG,
     models::user_model::CreateUser,
     repositories::{password_repository::PasswordRepository, user_repository::UserRepository},
     utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
-    AppState,
 };
+
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new().route("/auth/credentail/signup", post(signup))
+}
 
 #[derive(Debug, Validate, Deserialize)]
 pub struct SignUpRequest {
@@ -35,9 +38,9 @@ pub struct SignUpRequest {
 }
 
 pub async fn signup(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<SignUpRequest>,
     cookies: CookieJar,
+    State(appstate): State<Arc<AppState>>,
+    Json(payload): Json<SignUpRequest>,
 ) -> Response {
     let create_user = CreateUser {
         username: payload.username,
@@ -46,9 +49,9 @@ pub async fn signup(
         email_verified: None,
     };
 
-    let user = match state.repository.users.create(&create_user).await {
+    let user = match appstate.repository.users.create(&create_user).await {
         Ok(user) => {
-            match state
+            match appstate
                 .repository
                 .users
                 .password
@@ -58,7 +61,7 @@ pub async fn signup(
                 Ok(_) => user,
                 Err(error) => {
                     error!(name: "AUTH", "unable to set password {}", error);
-                    if let Err(_error) = state.repository.users.delete(user.id).await {
+                    if let Err(_error) = appstate.repository.users.delete(user.id).await {
                         return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong")
                             .into_response();
                     }
@@ -87,60 +90,64 @@ pub async fn signup(
         }
     };
 
-    let access_token_payload = AccessTokenPayload {
-        user_id: user.id,
-        email: user.email,
-        username: user.username,
-        image: user.image,
-        role: user.role,
-    };
-
-    let access_token = match AccessToken::generate("orta", access_token_payload, JWT_SECRET) {
-        Ok(token) => token,
+    let access_token = match AccessToken::generate(
+        AccessTokenPayload {
+            user_id: user.id,
+            email: user.email,
+            username: user.username,
+            image: user.image,
+            role: user.role,
+        },
+        &CONFIG.application.host,
+        &CONFIG.auth.secret.expose_secret(),
+    ) {
+        Ok(access_token) => access_token,
         Err(error) => {
-            println!("{:?}", error);
+            error!(name: "AUTH","unable generate tokens:\n{}", error);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Unable to generate tokens",
+                Json(json!(error.to_string())),
+            )
+                .into_response();
+        }
+    };
+
+    let refresh_token = match RefreshToken::generate(
+        RefreshTokenPayload {
+            user_id: user.id,
+            role: user.role,
+            access_token: access_token.clone(),
+        },
+        &CONFIG.application.host,
+        &CONFIG.auth.secret.expose_secret(),
+    ) {
+        Ok(refresh_token) => refresh_token,
+        Err(error) => {
+            error!(name: "AUTH","unable generate tokens:\n{}", error);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(error.to_string())),
             )
                 .into_response();
         }
     };
 
     let access_token_cookie: Cookie = Cookie::build((
-        format!("{}{}", COOKIE_SALT, ACCESS_TOKEN_NAME),
-        access_token.clone(),
+        &CONFIG.cookie.access_token.name,
+        format!("{}.{}", CONFIG.cookie.salt, access_token.clone(),),
     ))
     .http_only(true)
     .same_site(SameSite::Lax)
-    .max_age(Duration::minutes(ACCESS_TOKEN_DURATION))
+    .max_age(Duration::minutes(CONFIG.cookie.access_token.duration))
     .into();
 
-    let refresh_token_payload = RefreshTokenPayload {
-        user_id: user.id,
-        role: user.role,
-        access_token,
-    };
-
-    let refresh_token = match RefreshToken::generate("orta", refresh_token_payload, JWT_SECRET) {
-        Ok(token) => token,
-        Err(error) => {
-            println!("{:?}", error);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Unable to generate tokens",
-            )
-                .into_response();
-        }
-    };
-
     let refresh_token_cookie: Cookie = Cookie::build((
-        format!("{}{}", COOKIE_SALT, REFRESH_TOKEN_NAME),
-        refresh_token,
+        &CONFIG.cookie.refresh_token.name,
+        format!("{}.{}", CONFIG.cookie.salt, refresh_token),
     ))
     .http_only(true)
     .same_site(SameSite::Lax)
-    .max_age(Duration::minutes(REFRESH_TOKEN_DURATION))
+    .max_age(Duration::minutes(CONFIG.cookie.refresh_token.duration))
     .into();
 
     let cookies = CookieJar::new()

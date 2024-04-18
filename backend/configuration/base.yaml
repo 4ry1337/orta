@@ -1,0 +1,41 @@
+application:
+  port: 5000
+  host: "http:/localhost"
+
+database:
+  host: 127.0.0.1
+  port: 5432
+  username: postgres
+  password: password
+  database_name: blog
+  require_ssl: false
+
+auth:
+  secret: secret
+  google:
+    client_id: client_id
+    client_secret: client_secret
+  github:
+    client_id: client_id
+    client_secret: client_secret
+
+cookie:
+  theme: theme
+  salt: __Secure.orta
+  auth:
+    # used when csrf and csrf verifier created
+    duration: 5
+    csrf_state_name: auth_csrf_state
+    code_verfier_name: auth_code_verifier
+  access_token:
+    name: access_token
+    duration: 5
+  refresh_token:
+    name: refresh_token
+    duration: 43200
+# email_client:
+#   base_url: "localhost"
+#   sender_email: "test@gmail.com"
+#   authorization_token: "my-secret-token"
+#   timeout_milliseconds: 10000
+# redis_uri: "redis://127.0.0.1:6379"
