@@ -24,8 +24,6 @@ async fn main() -> anyhow::Result<()> {
     // use that subscriber to process traces emitted after this point
     tracing::subscriber::set_global_default(subscriber)?;
 
-    // println!("{:#?}", CONFIG.database);
-
     let application = Application::build(CONFIG.clone()).await?;
 
     application.run().await?;

@@ -1,30 +1,45 @@
 use axum::async_trait;
-use sqlx::{Error, PgPool};
+use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::models::comment_model::{Comment, CreateComment, UpdateComment};
 
-#[async_trait()]
-pub trait CommentRepository<E> {
-    async fn find_by_article_id(&self, article_id: i32) -> Result<Vec<Comment>, E>;
-    async fn create(&self, create_comment: &CreateComment) -> Result<Comment, E>;
-    async fn update(&self, update_comment: &UpdateComment) -> Result<Comment, E>;
-    async fn delete(&self, comment_id: i32) -> Result<(), E>;
+#[async_trait]
+pub trait CommentRepository<DB, E>
+where
+    DB: Database,
+{
+    async fn find_all_by_article_id(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: i32,
+    ) -> Result<Vec<Comment>, E>;
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        comment_id: i32,
+    ) -> Result<Comment, E>;
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        create_comment: &CreateComment,
+    ) -> Result<Comment, E>;
+    async fn update(
+        transaction: &mut Transaction<'_, DB>,
+        update_comment: &UpdateComment,
+    ) -> Result<Comment, E>;
+    async fn delete(
+        transaction: &mut Transaction<'_, DB>,
+        comment_id: i32,
+        article_id: i32,
+    ) -> Result<Comment, E>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PgCommentRepository {
-    db: PgPool,
-}
-
-impl PgCommentRepository {
-    pub fn new(db: PgPool) -> PgCommentRepository {
-        Self { db }
-    }
-}
+pub struct CommentRepositoryImpl;
 
 #[async_trait]
-impl CommentRepository<Error> for PgCommentRepository {
-    async fn find_by_article_id(&self, article_id: i32) -> Result<Vec<Comment>, Error> {
+impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
+    async fn find_all_by_article_id(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: i32,
+    ) -> Result<Vec<Comment>, Error> {
         sqlx::query_as!(
             Comment,
             r#"
@@ -34,11 +49,31 @@ impl CommentRepository<Error> for PgCommentRepository {
             "#n,
             article_id,
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn create(&self, create_comment: &CreateComment) -> Result<Comment, Error> {
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        comment_id: i32,
+    ) -> Result<Comment, Error> {
+        sqlx::query_as!(
+            Comment,
+            r#"
+            SELECT *
+            FROM comments
+            WHERE id = $1
+            "#n,
+            comment_id
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn create(
+        transaction: &mut Transaction<'_, Postgres>,
+        create_comment: &CreateComment,
+    ) -> Result<Comment, Error> {
         sqlx::query_as!(
             Comment,
             r#"
@@ -53,38 +88,47 @@ impl CommentRepository<Error> for PgCommentRepository {
             create_comment.content,
             create_comment.article_id,
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn update(&self, update_comment: &UpdateComment) -> Result<Comment, Error> {
+    async fn update(
+        transaction: &mut Transaction<'_, Postgres>,
+        update_comment: &UpdateComment,
+    ) -> Result<Comment, Error> {
         sqlx::query_as!(
             Comment,
             r#"
             UPDATE comments
-            SET content = COALESCE($3, comments.content)
-            WHERE id = $1 AND commenter_id = $2
+            SET content = COALESCE($4, comments.content)
+            WHERE id = $1 AND commenter_id = $2 AND article_id = $3
             RETURNING *
             "#n,
             update_comment.id,
             update_comment.user_id,
+            update_comment.article_id,
             update_comment.content
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn delete(&self, comment_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query_as!(
+    async fn delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        comment_id: i32,
+        article_id: i32,
+    ) -> Result<Comment, Error> {
+        sqlx::query_as!(
             Comment,
             r#"
-            DELETE FROM articles
-            WHERE id = $1
+            DELETE FROM comments
+            WHERE id = $1 AND article_id = $2
+            RETURNING *
             "#n,
             comment_id,
+            article_id
         )
-        .execute(&self.db)
-        .await;
-        Ok(())
+        .fetch_one(&mut **transaction)
+        .await
     }
 }

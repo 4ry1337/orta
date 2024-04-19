@@ -8,15 +8,11 @@ use axum::{
 
 use crate::models::{enums::Role, user_model::User};
 
-pub async fn role_middleware(
-    State(state): State<Role>,
+pub async fn content_owner_middleware(
+    State(state): State<OwnerState>,
     Extension(user): Extension<User>,
     req: Request,
     next: Next,
 ) -> Response {
-    //TODO: better logic for roles
-    if user.role != Role::Admin {
-        return (StatusCode::FORBIDDEN).into_response();
-    }
     next.run(req).await
 }

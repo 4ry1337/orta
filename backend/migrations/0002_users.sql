@@ -11,7 +11,7 @@ CREATE TABLE Users (
   email_verified TIMESTAMPTZ,
   image TEXT,
   role Role NOT NULL DEFAULT 'USER',
-  bio TEXT NOT NULL,
+  bio TEXT,
   urls TEXT[],
   follower_count INTEGER NOT NULL DEFAULT 0,
   following_count INTEGER NOT NULL DEFAULT 0,

@@ -23,6 +23,7 @@ pub struct CreateComment {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateComment {
     pub id: i32,
+    pub article_id: i32,
     pub user_id: i32,
-    pub content: String,
+    pub content: Option<String>,
 }

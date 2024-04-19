@@ -1,39 +1,58 @@
 use axum::async_trait;
-use sqlx::{Error, PgPool};
+use slug::slugify;
+use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::models::{
-    article_model::Article,
-    enums::Visibility,
-    list_model::{CreateList, List, UpdateList},
+use crate::{
+    models::{
+        article_model::Article,
+        enums::Visibility,
+        list_model::{CreateList, List, UpdateList},
+    },
+    utils::random_string::generate,
 };
 
 #[async_trait]
-pub trait ListRepository<T, E> {
-    async fn find_all(&self) -> Result<Vec<List>, E>;
-    async fn find_by_user(&self, user_id: i32) -> Result<Vec<List>, E>;
-    async fn find(&self, list_id: i32) -> Result<List, E>;
-    async fn create(&self, create_list: &CreateList) -> Result<List, E>;
-    async fn update(&self, update_list: &UpdateList) -> Result<List, E>;
-    async fn delete(&self, list_id: i32) -> Result<(), E>;
-    async fn find_articles(&self, list_id: i32) -> Result<Vec<Article>, E>;
-    async fn add_article(&self, list_id: i32, article_id: i32) -> Result<(), E>;
-    async fn remove_article(&self, list_id: i32, article_id: i32) -> Result<(), E>;
+pub trait ListRepository<DB, E>
+where
+    DB: Database,
+{
+    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<List>, E>;
+    async fn find_by_user(
+        transaction: &mut Transaction<'_, DB>,
+        user_id: i32,
+    ) -> Result<Vec<List>, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, list_id: i32) -> Result<List, E>;
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        create_list: &CreateList,
+    ) -> Result<List, E>;
+    async fn update(
+        transaction: &mut Transaction<'_, DB>,
+        update_list: &UpdateList,
+    ) -> Result<List, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, list_id: i32) -> Result<List, E>;
+    async fn find_articles(
+        transaction: &mut Transaction<'_, DB>,
+        list_id: i32,
+    ) -> Result<Vec<Article>, E>;
+    async fn add_article(
+        transaction: &mut Transaction<'_, DB>,
+        list_id: i32,
+        article_id: i32,
+    ) -> Result<(i32, i32), E>;
+    async fn remove_article(
+        transaction: &mut Transaction<'_, DB>,
+        list_id: i32,
+        article_id: i32,
+    ) -> Result<(i32, i32), E>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PgListRepository {
-    db: PgPool,
-}
-
-impl PgListRepository {
-    pub fn new(db: PgPool) -> PgListRepository {
-        Self { db }
-    }
-}
+pub struct ListRepositoryImpl;
 
 #[async_trait]
-impl ListRepository<PgPool, Error> for PgListRepository {
-    async fn find_all(&self) -> Result<Vec<List>, Error> {
+impl ListRepository<Postgres, Error> for ListRepositoryImpl {
+    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<List>, Error> {
         sqlx::query_as!(
             List,
             r#"
@@ -50,11 +69,14 @@ impl ListRepository<PgPool, Error> for PgListRepository {
             ORDER BY created_at DESC
             "#n
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn find_by_user(&self, user_id: i32) -> Result<Vec<List>, Error> {
+    async fn find_by_user(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<Vec<List>, Error> {
         sqlx::query_as!(
             List,
             r#"
@@ -73,11 +95,14 @@ impl ListRepository<PgPool, Error> for PgListRepository {
             "#n,
             user_id,
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn find(&self, list_id: i32) -> Result<List, Error> {
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        list_id: i32,
+    ) -> Result<List, Error> {
         sqlx::query_as!(
             List,
             r#"
@@ -96,12 +121,14 @@ impl ListRepository<PgPool, Error> for PgListRepository {
             "#n,
             list_id,
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn create(&self, create_list: &CreateList) -> Result<List, Error> {
-        let slug = create_list.label.clone().trim().replace(" ", "-");
+    async fn create(
+        transaction: &mut Transaction<'_, Postgres>,
+        create_list: &CreateList,
+    ) -> Result<List, Error> {
         sqlx::query_as!(
             List,
             r#"
@@ -124,20 +151,19 @@ impl ListRepository<PgPool, Error> for PgListRepository {
                 updated_at
             "#n,
             create_list.user_id,
-            slug,
+            slugify(format!("{}-{}", create_list.label, generate(12))),
             create_list.label,
             create_list.image,
             create_list.visibility as Visibility
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn update(&self, update_list: &UpdateList) -> Result<List, Error> {
-        let slug = match update_list.label.clone() {
-            Some(label) => label.clone().trim().replace(" ", "-"),
-            None => "".to_string(),
-        };
+    async fn update(
+        transaction: &mut Transaction<'_, Postgres>,
+        update_list: &UpdateList,
+    ) -> Result<List, Error> {
         sqlx::query_as!(
             List,
             r#"
@@ -158,30 +184,47 @@ impl ListRepository<PgPool, Error> for PgListRepository {
                 updated_at
             "#n,
             update_list.id,
-            slug,
+            update_list
+                .label
+                .clone()
+                .map(|v| slugify(format!("{}-{}", v, generate(12)))),
             update_list.label,
             update_list.image,
             update_list.visibility as Option<Visibility>
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn delete(&self, list_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query_as!(
+    async fn delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        list_id: i32,
+    ) -> Result<List, Error> {
+        sqlx::query_as!(
             List,
             r#"
             DELETE FROM lists
             WHERE id = $1
+            RETURNING
+                id,
+                user_id,
+                slug,
+                label,
+                image,
+                visibility AS "visibility: Visibility",
+                created_at,
+                updated_at
             "#n,
             list_id,
         )
-        .execute(&self.db)
-        .await;
-        Ok(())
+        .fetch_one(&mut **transaction)
+        .await
     }
 
-    async fn find_articles(&self, list_id: i32) -> Result<Vec<Article>, Error> {
+    async fn find_articles(
+        transaction: &mut Transaction<'_, Postgres>,
+        list_id: i32,
+    ) -> Result<Vec<Article>, Error> {
         sqlx::query_as!(
             Article,
             r#"
@@ -193,11 +236,15 @@ impl ListRepository<PgPool, Error> for PgListRepository {
             "#n,
             list_id,
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn add_article(&self, list_id: i32, article_id: i32) -> Result<(), Error> {
+    async fn add_article(
+        transaction: &mut Transaction<'_, Postgres>,
+        list_id: i32,
+        article_id: i32,
+    ) -> Result<(i32, i32), Error> {
         let _ = sqlx::query!(
             r#"
             INSERT INTO listarticle (article_id, list_id)
@@ -206,12 +253,16 @@ impl ListRepository<PgPool, Error> for PgListRepository {
             article_id,
             list_id
         )
-        .execute(&self.db)
+        .execute(&mut **transaction)
         .await;
-        Ok(())
+        Ok((list_id, article_id))
     }
 
-    async fn remove_article(&self, list_id: i32, article_id: i32) -> Result<(), Error> {
+    async fn remove_article(
+        transaction: &mut Transaction<'_, Postgres>,
+        list_id: i32,
+        article_id: i32,
+    ) -> Result<(i32, i32), Error> {
         let _ = sqlx::query!(
             r#"
             DELETE FROM listarticle
@@ -220,8 +271,8 @@ impl ListRepository<PgPool, Error> for PgListRepository {
             list_id,
             article_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await;
-        Ok(())
+        Ok((list_id, article_id))
     }
 }

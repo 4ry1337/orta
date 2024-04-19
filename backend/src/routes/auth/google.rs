@@ -20,7 +20,10 @@ use crate::{
     application::AppState,
     configuration::CONFIG,
     models::{account_model::CreateAccount, user_model::CreateUser},
-    repositories::{account_repository::AccountRepository, user_repository::UserRepository},
+    repositories::{
+        account_repository::{AccountRepository, AccountRepositoryImpl},
+        user_repository::{UserRepository, UserRepositoryImpl},
+    },
     services::auth::OAuthClient,
     utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
 };
@@ -127,6 +130,14 @@ async fn callback(
         }
     };
 
+    let mut transaction = match appstate.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
     // Add user session
 
     //TODO: understand this part https://github.com/nextauthjs/next-auth/blob/main/packages/core/src/lib/actions/callback/index.ts#L107
@@ -144,63 +155,61 @@ async fn callback(
     //
     //if signed user in none, return user info
 
-    let user = match appstate
-        .repository
-        .users
-        .find_by_account("google", &google_user.sub)
-        .await
-    {
-        Ok(user) => user,
-        Err(error) => {
-            // if user from jwt exists { link accounts }
-            // line 196
-            let create_user = CreateUser {
-                username: google_user.name,
-                email: google_user.email,
-                image: Some(google_user.picture),
-                email_verified: Some(Utc::now()),
-            };
-            // is_new_user = true;
+    let user =
+        match UserRepositoryImpl::find_by_account(&mut transaction, "google", &google_user.sub)
+            .await
+        {
+            Ok(user) => user,
+            Err(error) => {
+                // if user from jwt exists { link accounts }
+                // line 196
+                let create_user = CreateUser {
+                    username: google_user.name,
+                    email: google_user.email,
+                    image: Some(google_user.picture),
+                    email_verified: Some(Utc::now()),
+                };
+                // is_new_user = true;
 
-            // If the user is not signed in and it looks like a new OAuth account then we
-            // check there also isn't an user account already associated with the same
-            // email address as the one in the OAuth profile.
-            //
-            // This step is often overlooked in OAuth implementations, but covers the following cases:
-            //
-            // 1. It makes it harder for someone to accidentally create two accounts.
-            //    e.g. by signin in with email, then again with an oauth account connected to the same email.
-            // 2. It makes it harder to hijack a user account using a 3rd party OAuth account.
-            //    e.g. by creating an oauth account then changing the email address associated with it.
-            //
-            // It's quite common for services to automatically link accounts in this case, but it's
-            // better practice to require the user to sign in *then* link accounts to be sure
-            // someone is not exploiting a problem with a third party OAuth service.
-            //
-            // OAuth providers should require email address verification to prevent this, but in
-            // practice that is not always the case; this helps protect against that.
+                // If the user is not signed in and it looks like a new OAuth account then we
+                // check there also isn't an user account already associated with the same
+                // email address as the one in the OAuth profile.
+                //
+                // This step is often overlooked in OAuth implementations, but covers the following cases:
+                //
+                // 1. It makes it harder for someone to accidentally create two accounts.
+                //    e.g. by signin in with email, then again with an oauth account connected to the same email.
+                // 2. It makes it harder to hijack a user account using a 3rd party OAuth account.
+                //    e.g. by creating an oauth account then changing the email address associated with it.
+                //
+                // It's quite common for services to automatically link accounts in this case, but it's
+                // better practice to require the user to sign in *then* link accounts to be sure
+                // someone is not exploiting a problem with a third party OAuth service.
+                //
+                // OAuth providers should require email address verification to prevent this, but in
+                // practice that is not always the case; this helps protect against that.
 
-            match appstate.repository.users.create(&create_user).await {
-                Ok(user) => user,
-                Err(error) => {
-                    error!(name: "OAUTH","unable to create user:\n{}", error);
-                    if let Some(database_error) = error.as_database_error() {
-                        if let Some(constraint) = database_error.constraint() {
-                            if constraint == "users_email_key" {
-                                return (
+                match UserRepositoryImpl::create(&mut transaction, &create_user).await {
+                    Ok(user) => user,
+                    Err(error) => {
+                        error!(name: "OAUTH","unable to create user:\n{}", error);
+                        if let Some(database_error) = error.as_database_error() {
+                            if let Some(constraint) = database_error.constraint() {
+                                if constraint == "users_email_key" {
+                                    return (
                                     StatusCode::BAD_REQUEST,
                                     "Another account already exists with the same e-mail address",
                                 )
                                     .into_response();
+                                }
                             }
                         }
+                        return (StatusCode::BAD_REQUEST, Json(json!(error.to_string())))
+                            .into_response();
                     }
-                    return (StatusCode::BAD_REQUEST, Json(json!(error.to_string())))
-                        .into_response();
                 }
             }
-        }
-    };
+        };
 
     let expires_at: Option<i64> = match token_response.expires_in() {
         Some(expires_in) => Some((Utc::now() + expires_in).timestamp()),
@@ -222,21 +231,24 @@ async fn callback(
         None => None,
     };
 
-    let new_account = CreateAccount {
-        user_id: user.id,
-        r#type: "oidc".to_string(),
-        provider: "google".to_string(),
-        provider_account_id: google_user.sub,
-        refresh_token,
-        access_token: Some(token_response.access_token().secret().to_string()),
-        expires_at,
-        token_type: Some(token_response.token_type().as_ref().to_string()),
-        scope,
-        id_token: None,
-        session_state: None,
-    };
-
-    let account = match appstate.repository.account.create(&new_account).await {
+    match AccountRepositoryImpl::create(
+        &mut transaction,
+        &CreateAccount {
+            user_id: user.id,
+            r#type: "oidc".to_string(),
+            provider: "google".to_string(),
+            provider_account_id: google_user.sub,
+            refresh_token,
+            access_token: Some(token_response.access_token().secret().to_string()),
+            expires_at,
+            token_type: Some(token_response.token_type().as_ref().to_string()),
+            scope,
+            id_token: None,
+            session_state: None,
+        },
+    )
+    .await
+    {
         Ok(account) => account,
         Err(error) => {
             error!(name: "OAUTH","unable to create account:\n{}", error);

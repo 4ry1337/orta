@@ -1,6 +1,6 @@
 use axum::async_trait;
 use slug::slugify;
-use sqlx::{postgres::PgQueryResult, Error, PgPool};
+use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{
     models::{
@@ -12,32 +12,45 @@ use crate::{
 };
 
 #[async_trait]
-pub trait ArticleRepository<E> {
-    async fn create(&self, create_article: &CreateArticle) -> Result<Article, E>;
-    async fn find_all(&self) -> Result<Vec<Article>, E>;
-    async fn find_by_id(&self, article_id: i32) -> Result<Article, E>;
-    async fn find_by_authors(&self, users: &[i32]) -> Result<Vec<Article>, E>;
-    async fn update(&self, update_article: &UpdateArticle) -> Result<Article, E>;
-    async fn delete(&self, article_id: i32) -> Result<PgQueryResult, Error>;
-    async fn get_authors(&self, article_id: i32) -> Result<Vec<User>, E>;
-    async fn add_author(&self, add_author: &AddAuthor) -> Result<PgQueryResult, E>;
-    async fn delete_author(&self, delete_author: &DeleteAuthor) -> Result<PgQueryResult, E>;
+pub trait ArticleRepository<DB, E>
+where
+    DB: Database,
+{
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        create_article: &CreateArticle,
+    ) -> Result<Article, E>;
+    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<Article>, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, article_id: i32) -> Result<Article, E>;
+    async fn find_by_authors(
+        transaction: &mut Transaction<'_, DB>,
+        users: &[i32],
+    ) -> Result<Vec<Article>, E>;
+    async fn update(
+        transaction: &mut Transaction<'_, DB>,
+        update_article: &UpdateArticle,
+    ) -> Result<Article, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, article_id: i32) -> Result<Article, E>;
+    async fn get_authors(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: i32,
+    ) -> Result<Vec<User>, E>;
+    async fn add_author(
+        transaction: &mut Transaction<'_, DB>,
+        add_author: &AddAuthor,
+    ) -> Result<(i32, i32), E>;
+    async fn delete_author(
+        transaction: &mut Transaction<'_, DB>,
+        delete_author: &DeleteAuthor,
+    ) -> Result<(i32, i32), E>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PgArticleRepository {
-    db: PgPool,
-}
-
-impl PgArticleRepository {
-    pub fn new(db: PgPool) -> PgArticleRepository {
-        Self { db }
-    }
-}
+pub struct ArticleRepositoryImpl;
 
 #[async_trait]
-impl ArticleRepository<Error> for PgArticleRepository {
-    async fn find_all(&self) -> Result<Vec<Article>, Error> {
+impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
+    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<Article>, Error> {
         sqlx::query_as!(
             Article,
             r#"
@@ -45,10 +58,13 @@ impl ArticleRepository<Error> for PgArticleRepository {
             FROM articles
             "#n
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
-    async fn find_by_id(&self, article_id: i32) -> Result<Article, Error> {
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: i32,
+    ) -> Result<Article, Error> {
         sqlx::query_as!(
             Article,
             r#"
@@ -58,11 +74,14 @@ impl ArticleRepository<Error> for PgArticleRepository {
             "#n,
             article_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn find_by_authors(&self, users: &[i32]) -> Result<Vec<Article>, Error> {
+    async fn find_by_authors(
+        transaction: &mut Transaction<'_, Postgres>,
+        users: &[i32],
+    ) -> Result<Vec<Article>, Error> {
         sqlx::query_as!(
             Article,
             r#"
@@ -74,11 +93,14 @@ impl ArticleRepository<Error> for PgArticleRepository {
             "#n,
             &users
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn create(&self, create_article: &CreateArticle) -> Result<Article, Error> {
+    async fn create(
+        transaction: &mut Transaction<'_, Postgres>,
+        create_article: &CreateArticle,
+    ) -> Result<Article, Error> {
         sqlx::query_as!(
             Article,
             r#"
@@ -95,46 +117,58 @@ impl ArticleRepository<Error> for PgArticleRepository {
             FROM article;
             "#n,
             create_article.user_id,
-            slugify(format!("{} {}", create_article.title, generate(12))),
+            slugify(format!("{}-{}", create_article.title, generate(12))),
             create_article.title.trim()
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn update(&self, update_article: &UpdateArticle) -> Result<Article, Error> {
-        let title = match &update_article.title {
-            Some(title) => Some(slugify(format!("{}", title))),
-            None => None,
-        };
+    async fn update(
+        transaction: &mut Transaction<'_, Postgres>,
+        update_article: &UpdateArticle,
+    ) -> Result<Article, Error> {
         sqlx::query_as!(
             Article,
             r#"
             UPDATE articles
-            SET title = COALESCE($2, articles.title)
+            SET title = COALESCE($2, articles.title),
+                slug = COALESCE($3, articles.slug)
             WHERE articles.id = $1
             RETURNING *
             "#n,
             update_article.id,
-            title,
+            update_article.title,
+            update_article
+                .title
+                .clone()
+                .map(|v| slugify(format!("{}-{}", v, generate(12))))
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn delete(&self, article_id: i32) -> Result<PgQueryResult, Error> {
-        sqlx::query!(
+    async fn delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: i32,
+    ) -> Result<Article, Error> {
+        sqlx::query_as!(
+            Article,
             r#"
             DELETE FROM articles
             WHERE id = $1
+            RETURNING *
             "#n,
             article_id
         )
-        .execute(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn get_authors(&self, article_id: i32) -> Result<Vec<User>, Error> {
+    async fn get_authors(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: i32,
+    ) -> Result<Vec<User>, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -155,12 +189,15 @@ impl ArticleRepository<Error> for PgArticleRepository {
             "#n,
             article_id
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn add_author(&self, add_author: &AddAuthor) -> Result<PgQueryResult, Error> {
-        sqlx::query!(
+    async fn add_author(
+        transaction: &mut Transaction<'_, Postgres>,
+        add_author: &AddAuthor,
+    ) -> Result<(i32, i32), Error> {
+        let _ = sqlx::query!(
             r#"
             INSERT INTO authors (author_id, article_id)
             VALUES ($1, $2)
@@ -168,12 +205,16 @@ impl ArticleRepository<Error> for PgArticleRepository {
             add_author.user_id,
             add_author.article_id
         )
-        .execute(&self.db)
-        .await
+        .execute(&mut **transaction)
+        .await;
+        Ok((add_author.article_id, add_author.user_id))
     }
 
-    async fn delete_author(&self, delete_author: &DeleteAuthor) -> Result<PgQueryResult, Error> {
-        sqlx::query!(
+    async fn delete_author(
+        transaction: &mut Transaction<'_, Postgres>,
+        delete_author: &DeleteAuthor,
+    ) -> Result<(i32, i32), Error> {
+        let _ = sqlx::query!(
             r#"
             DELETE FROM authors
             WHERE author_id = $1 AND article_id = $2
@@ -181,7 +222,8 @@ impl ArticleRepository<Error> for PgArticleRepository {
             delete_author.user_id,
             delete_author.article_id
         )
-        .execute(&self.db)
-        .await
+        .execute(&mut **transaction)
+        .await;
+        Ok((delete_author.article_id, delete_author.user_id))
     }
 }

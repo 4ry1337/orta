@@ -1,47 +1,52 @@
 use axum::async_trait;
-use sqlx::{Error, PgPool};
+use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::models::{
     enums::Role,
     user_model::{CreateUser, UpdateUser, User},
 };
 
-use super::password_repository::PgPasswordRepository;
-
 #[async_trait]
-pub trait UserRepository<E> {
-    async fn find_all(&self) -> Result<Vec<User>, E>;
-    async fn find_by_id(&self, user_id: i32) -> Result<User, E>;
-    async fn find_by_email(&self, user_email: &str) -> Result<User, E>;
-    async fn find_by_username(&self, username: &str) -> Result<User, E>;
-    async fn find_by_account(&self, account_provider: &str, account_id: &str) -> Result<User, E>;
-    async fn create(&self, new_user: &CreateUser) -> Result<User, E>;
-    async fn update(&self, update_user: &UpdateUser) -> Result<User, E>;
-    async fn verify(&self, user_id: i32) -> Result<User, E>;
-    async fn approve(&self, user_id: i32) -> Result<User, E>;
-    async fn unapprove(&self, user_id: i32) -> Result<User, E>;
-    async fn soft_delete(&self, user_id: i32) -> Result<User, E>;
-    async fn delete(&self, user_id: i32) -> Result<User, E>;
+pub trait UserRepository<DB, E>
+where
+    DB: Database,
+{
+    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<User>, E>;
+    async fn find_by_email(
+        transaction: &mut Transaction<'_, DB>,
+        user_email: &str,
+    ) -> Result<User, E>;
+    async fn find_by_username(
+        transaction: &mut Transaction<'_, DB>,
+        username: &str,
+    ) -> Result<User, E>;
+    async fn find_by_account(
+        transaction: &mut Transaction<'_, DB>,
+        account_provider: &str,
+        account_id: &str,
+    ) -> Result<User, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        new_user: &CreateUser,
+    ) -> Result<User, E>;
+    async fn update(
+        transaction: &mut Transaction<'_, DB>,
+        update_user: &UpdateUser,
+    ) -> Result<User, E>;
+    async fn verify(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
+    async fn approve(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
+    async fn unapprove(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
+    async fn soft_delete(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PgUserRepository {
-    db: PgPool,
-    pub password: PgPasswordRepository,
-}
-
-impl PgUserRepository {
-    pub fn new(db: PgPool) -> PgUserRepository {
-        Self {
-            db: db.clone(),
-            password: PgPasswordRepository::new(db),
-        }
-    }
-}
+pub struct UserRepositoryImpl;
 
 #[async_trait]
-impl UserRepository<Error> for PgUserRepository {
-    async fn find_all(&self) -> Result<Vec<User>, Error> {
+impl UserRepository<Postgres, Error> for UserRepositoryImpl {
+    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<User>, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -59,11 +64,14 @@ impl UserRepository<Error> for PgUserRepository {
             FROM users
             "#n
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn find_by_id(&self, user_id: i32) -> Result<User, Error> {
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -82,11 +90,14 @@ impl UserRepository<Error> for PgUserRepository {
             WHERE id = $1"#n,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn find_by_email(&self, user_email: &str) -> Result<User, Error> {
+    async fn find_by_email(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_email: &str,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -106,11 +117,14 @@ impl UserRepository<Error> for PgUserRepository {
             "#n,
             user_email
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn find_by_username(&self, username: &str) -> Result<User, Error> {
+    async fn find_by_username(
+        transaction: &mut Transaction<'_, Postgres>,
+        username: &str,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -130,12 +144,12 @@ impl UserRepository<Error> for PgUserRepository {
             "#n,
             username
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
     async fn find_by_account(
-        &self,
+        transaction: &mut Transaction<'_, Postgres>,
         account_provider: &str,
         account_id: &str,
     ) -> Result<User, Error> {
@@ -160,11 +174,14 @@ impl UserRepository<Error> for PgUserRepository {
             account_provider,
             account_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn create(&self, create_user: &CreateUser) -> Result<User, Error> {
+    async fn create(
+        transaction: &mut Transaction<'_, Postgres>,
+        create_user: &CreateUser,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -187,11 +204,14 @@ impl UserRepository<Error> for PgUserRepository {
             create_user.email_verified,
             create_user.image,
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn update(&self, update_user: &UpdateUser) -> Result<User, Error> {
+    async fn update(
+        transaction: &mut Transaction<'_, Postgres>,
+        update_user: &UpdateUser,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -217,11 +237,14 @@ impl UserRepository<Error> for PgUserRepository {
             update_user.username,
             update_user.image
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn verify(&self, user_id: i32) -> Result<User, Error> {
+    async fn verify(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -244,11 +267,14 @@ impl UserRepository<Error> for PgUserRepository {
             "#n,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn approve(&self, user_id: i32) -> Result<User, Error> {
+    async fn approve(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -271,11 +297,14 @@ impl UserRepository<Error> for PgUserRepository {
             "#n,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn unapprove(&self, user_id: i32) -> Result<User, Error> {
+    async fn unapprove(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -298,11 +327,14 @@ impl UserRepository<Error> for PgUserRepository {
             "#n,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn soft_delete(&self, user_id: i32) -> Result<User, Error> {
+    async fn soft_delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -325,11 +357,14 @@ impl UserRepository<Error> for PgUserRepository {
             "#n,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn delete(&self, user_id: i32) -> Result<User, Error> {
+    async fn delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -349,7 +384,7 @@ impl UserRepository<Error> for PgUserRepository {
             "#n,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 }

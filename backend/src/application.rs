@@ -8,7 +8,7 @@ use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
 use dotenv::dotenv;
 use sqlx::{postgres::PgPoolOptions, PgPool};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
     compression::CompressionLayer,
@@ -18,7 +18,6 @@ use tower_http::{
 
 use crate::{
     configuration::{DatabaseSettings, Settings},
-    repositories::PgRepository,
     routes,
     services::Services,
 };
@@ -26,19 +25,13 @@ use crate::{
 #[derive(Clone)]
 pub struct AppState {
     pub key: Key,
-    pub repository: PgRepository,
+    pub db: PgPool,
     pub services: Services,
 }
 
 impl FromRef<AppState> for Key {
     fn from_ref(state: &AppState) -> Self {
         state.key.clone()
-    }
-}
-
-impl FromRef<AppState> for PgRepository {
-    fn from_ref(state: &AppState) -> Self {
-        state.repository.clone()
     }
 }
 
@@ -52,7 +45,7 @@ pub struct Application {
     port: u16,
     listener: TcpListener,
     address: SocketAddr,
-    appstate: AppState,
+    appstate: Arc<AppState>,
 }
 
 impl Application {
@@ -66,11 +59,11 @@ impl Application {
 
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
-        let appstate = AppState {
+        let appstate = Arc::new(AppState {
             key: Key::generate(),
-            repository: PgRepository::new(&pool),
+            db: pool,
             services: Services::new(),
-        };
+        });
 
         let listener = TcpListener::bind(&address).await?;
 
@@ -106,12 +99,36 @@ impl Application {
 
         axum::serve(
             self.listener,
-            routes::router()
+            routes::router(self.appstate.clone())
                 .layer(middleware)
                 .layer(cors)
-                .with_state(Arc::new(self.appstate)),
+                .with_state(self.appstate),
         )
+        .with_graceful_shutdown(shutdown_signal())
         .await
+    }
+}
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
     }
 }
 

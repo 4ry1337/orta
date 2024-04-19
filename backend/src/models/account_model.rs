@@ -45,7 +45,7 @@ pub struct UpdateAccount {
     pub session_state: Option<String>,
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Default, Debug, Deserialize, Clone)]
 pub struct GoogleUser {
     pub sub: String,
     pub name: String,
@@ -54,7 +54,7 @@ pub struct GoogleUser {
     pub picture: String,
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Default, Debug, Deserialize, Clone)]
 pub struct GithubUser {
     pub id: u64,
     pub name: Option<String>,

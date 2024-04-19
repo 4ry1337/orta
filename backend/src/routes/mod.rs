@@ -1,13 +1,19 @@
 use std::sync::Arc;
 
 use axum::{
+    handler::Handler,
     http::StatusCode,
-    routing::{get, patch, post, put},
-    Router,
+    middleware,
+    routing::{get, patch, post, put, Router},
 };
+
 use axum_prometheus::PrometheusMetricLayer;
 
-use crate::application::AppState;
+use crate::{
+    application::AppState,
+    middlewares::{auth::auth_middleware, role::role_middleware},
+    models::enums::Role,
+};
 
 use self::{
     admin::health_checker,
@@ -37,7 +43,7 @@ pub mod series;
 pub mod tags;
 pub mod user;
 
-pub fn router() -> Router<Arc<AppState>> {
+pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
     Router::new()
         .nest(
@@ -53,15 +59,41 @@ pub fn router() -> Router<Arc<AppState>> {
                             get(get_tag).patch(patch_tag).delete(delete_tag),
                         )
                         .route("/healthchecker", get(health_checker))
-                        .route("/metrics", get(|| async move { metric_handle.render() })),
+                        .route("/metrics", get(|| async move { metric_handle.render() }))
+                        .layer(middleware::from_fn_with_state(
+                            state.clone(),
+                            auth_middleware,
+                        ))
+                        .layer(middleware::from_fn_with_state(Role::Admin, role_middleware)),
                 )
                 .nest(
                     "/users",
                     Router::new()
-                        .route("/", get(get_users).post(post_user))
+                        .route(
+                            "/",
+                            get(get_users).post(
+                                post_user
+                                    .layer(middleware::from_fn_with_state(
+                                        state.clone(),
+                                        auth_middleware,
+                                    ))
+                                    .layer(middleware::from_fn_with_state(
+                                        Role::Admin,
+                                        role_middleware,
+                                    )),
+                            ),
+                        )
                         .route(
                             "/:user_id",
-                            get(get_user).patch(patch_user).delete(delete_user),
+                            get(get_user)
+                                .patch(patch_user.layer(middleware::from_fn_with_state(
+                                    state.clone(),
+                                    auth_middleware,
+                                )))
+                                .delete(delete_user.layer(middleware::from_fn_with_state(
+                                    state.clone(),
+                                    auth_middleware,
+                                ))),
                         )
                         .route("/:user_id/lists", get(get_list_by_user))
                         .route("/:user_id/articles", get(get_articles_by_user))
@@ -70,16 +102,28 @@ pub fn router() -> Router<Arc<AppState>> {
                 .nest(
                     "/articles",
                     Router::new()
-                        .route("/", get(get_articles).post(post_article))
+                        .route(
+                            "/",
+                            get(get_articles).post(post_article.layer(
+                                middleware::from_fn_with_state(state.clone(), auth_middleware),
+                            )),
+                        )
                         .route("/:article_id", get(get_article))
                         .route("/:article_id/authors", get(get_authors))
-                        .route(
+                        .nest(
                             "/:article_id/edit",
-                            patch(patch_article).delete(delete_article),
-                        )
-                        .route(
-                            "/:article_id/edit/authors/:user_id",
-                            put(put_author).delete(delete_author),
+                            Router::new()
+                                .route("/", patch(patch_article).delete(delete_article))
+                                .route("/authors/:user_id", put(put_author).delete(delete_author))
+                                .route(
+                                    "/:article_id/edit/tags",
+                                    put(StatusCode::NOT_IMPLEMENTED)
+                                        .delete(StatusCode::NOT_IMPLEMENTED),
+                                )
+                                .layer(middleware::from_fn_with_state(
+                                    state.clone(),
+                                    auth_middleware,
+                                )),
                         )
                         .route(
                             "/:article_id/comments",
@@ -88,10 +132,6 @@ pub fn router() -> Router<Arc<AppState>> {
                         .route(
                             "/:article_id/comments/:comment_id",
                             patch(patch_comment).delete(delete_comment),
-                        )
-                        .route(
-                            "/:article_id/edit/tags",
-                            put(StatusCode::NOT_IMPLEMENTED).delete(StatusCode::NOT_IMPLEMENTED),
                         ),
                 )
                 .nest(

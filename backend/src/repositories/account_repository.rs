@@ -1,32 +1,36 @@
 use axum::async_trait;
-use sqlx::{Error, PgPool};
+use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::models::account_model::{Account, CreateAccount, UpdateAccount};
 
 #[async_trait]
-pub trait AccountRepository<E> {
-    async fn find_all(&self) -> Result<Vec<Account>, E>;
-    async fn find(&self, account_id: i32) -> Result<Account, E>;
-    async fn find_by_user(&self, user_id: i32) -> Result<Account, E>;
-    async fn create(&self, new_account: &CreateAccount) -> Result<Account, E>;
-    async fn update(&self, update_accunt: &UpdateAccount) -> Result<Account, E>;
-    async fn delete(&self, account_id: i32) -> Result<Account, E>;
+pub trait AccountRepository<DB, E>
+where
+    DB: Database,
+{
+    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<Account>, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, account_id: i32) -> Result<Account, E>;
+    async fn find_by_user(
+        transaction: &mut Transaction<'_, DB>,
+        user_id: i32,
+    ) -> Result<Account, E>;
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        new_account: &CreateAccount,
+    ) -> Result<Account, E>;
+    async fn update(
+        transaction: &mut Transaction<'_, DB>,
+        update_accunt: &UpdateAccount,
+    ) -> Result<Account, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, account_id: i32) -> Result<Account, E>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PgAccountRepository {
-    db: PgPool,
-}
-
-impl PgAccountRepository {
-    pub fn new(db: PgPool) -> PgAccountRepository {
-        Self { db }
-    }
-}
+pub struct AccountRepositoryImpl;
 
 #[async_trait]
-impl AccountRepository<Error> for PgAccountRepository {
-    async fn find_all(&self) -> Result<Vec<Account>, Error> {
+impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
+    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<Account>, Error> {
         sqlx::query_as!(
             Account,
             r#"
@@ -34,10 +38,13 @@ impl AccountRepository<Error> for PgAccountRepository {
             FROM accounts
             "#
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
-    async fn find(&self, account_id: i32) -> Result<Account, Error> {
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        account_id: i32,
+    ) -> Result<Account, Error> {
         sqlx::query_as!(
             Account,
             r#"
@@ -47,10 +54,13 @@ impl AccountRepository<Error> for PgAccountRepository {
             "#,
             account_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
-    async fn find_by_user(&self, user_id: i32) -> Result<Account, Error> {
+    async fn find_by_user(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<Account, Error> {
         sqlx::query_as!(
             Account,
             r#"
@@ -60,10 +70,13 @@ impl AccountRepository<Error> for PgAccountRepository {
             "#,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
-    async fn create(&self, new_account: &CreateAccount) -> Result<Account, Error> {
+    async fn create(
+        transaction: &mut Transaction<'_, Postgres>,
+        new_account: &CreateAccount,
+    ) -> Result<Account, Error> {
         sqlx::query_as!(
             Account,
             r#"
@@ -86,7 +99,7 @@ impl AccountRepository<Error> for PgAccountRepository {
             new_account.id_token,
             new_account.session_state,
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
     // CREATE TABLE verification_token
@@ -97,7 +110,10 @@ impl AccountRepository<Error> for PgAccountRepository {
     //
     //   PRIMARY KEY (identifier, token)
     // );
-    async fn update(&self, update_accunt: &UpdateAccount) -> Result<Account, Error> {
+    async fn update(
+        transaction: &mut Transaction<'_, Postgres>,
+        update_accunt: &UpdateAccount,
+    ) -> Result<Account, Error> {
         sqlx::query_as!(
             Account,
             r#"
@@ -122,10 +138,13 @@ impl AccountRepository<Error> for PgAccountRepository {
             update_accunt.id_token,
             update_accunt.session_state
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
-    async fn delete(&self, account_id: i32) -> Result<Account, Error> {
+    async fn delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        account_id: i32,
+    ) -> Result<Account, Error> {
         sqlx::query_as!(
             Account,
             r#"
@@ -135,7 +154,7 @@ impl AccountRepository<Error> for PgAccountRepository {
             "#n,
             account_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 }

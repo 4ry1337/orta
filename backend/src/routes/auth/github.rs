@@ -21,7 +21,10 @@ use crate::{
     application::AppState,
     configuration::CONFIG,
     models::{account_model::CreateAccount, user_model::CreateUser},
-    repositories::{account_repository::AccountRepository, user_repository::UserRepository},
+    repositories::{
+        account_repository::{AccountRepository, AccountRepositoryImpl},
+        user_repository::{UserRepository, UserRepositoryImpl},
+    },
     services::auth::OAuthClient,
     utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
 };
@@ -135,6 +138,14 @@ async fn callback(
         }
     };
 
+    let mut transaction = match appstate.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
     // Add user session
 
     //TODO: understand this part https://github.com/nextauthjs/next-auth/blob/main/packages/core/src/lib/actions/callback/index.ts#L107
@@ -152,11 +163,12 @@ async fn callback(
     //
     //if signed user in none, return user info
 
-    let user = match appstate
-        .repository
-        .users
-        .find_by_account("github", &github_user.id.to_string())
-        .await
+    let user = match UserRepositoryImpl::find_by_account(
+        &mut transaction,
+        "github",
+        &github_user.id.to_string(),
+    )
+    .await
     {
         Ok(user) => user,
         Err(_error) => {
@@ -202,7 +214,7 @@ async fn callback(
             // OAuth providers should require email address verification to prevent this, but in
             // practice that is not always the case; this helps protect against that.
 
-            match appstate.repository.users.create(&create_user).await {
+            match UserRepositoryImpl::create(&mut transaction, &create_user).await {
                 Ok(user) => user,
                 Err(error) => {
                     error!(name: "OAUTH","unable to create user:\n{}", error);
@@ -245,21 +257,24 @@ async fn callback(
         None => None,
     };
 
-    let new_account = CreateAccount {
-        user_id: user.id,
-        r#type: "oauth".to_string(),
-        provider: "github".to_string(),
-        provider_account_id: github_user.id.to_string(),
-        refresh_token,
-        access_token: Some(token_response.access_token().secret().to_string()),
-        expires_at,
-        token_type: Some(token_response.token_type().as_ref().to_string()),
-        scope,
-        id_token: None,
-        session_state: None,
-    };
-
-    let account = match appstate.repository.account.create(&new_account).await {
+    let account = match AccountRepositoryImpl::create(
+        &mut transaction,
+        &CreateAccount {
+            user_id: user.id,
+            r#type: "oauth".to_string(),
+            provider: "github".to_string(),
+            provider_account_id: github_user.id.to_string(),
+            refresh_token,
+            access_token: Some(token_response.access_token().secret().to_string()),
+            expires_at,
+            token_type: Some(token_response.token_type().as_ref().to_string()),
+            scope,
+            id_token: None,
+            session_state: None,
+        },
+    )
+    .await
+    {
         Ok(account) => account,
         Err(error) => {
             error!(name: "AUTH","unable to create account:\n{}", error);
@@ -267,6 +282,10 @@ async fn callback(
         }
     };
 
+    if let Err(err) = transaction.commit().await {
+        error!("{:#?}", err);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+    }
     // Remove code_verifier and csrf_state cookies
     let mut remove_csrf_cookie = Cookie::new(&CONFIG.cookie.auth.csrf_state_name, "");
     remove_csrf_cookie.set_path("/");

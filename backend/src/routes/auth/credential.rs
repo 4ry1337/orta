@@ -5,13 +5,12 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
-    Json, Router,
+    Extension, Json, Router,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use cookie::SameSite;
 use secrecy::ExposeSecret;
 use serde::Deserialize;
-use serde_json::json;
 use time::Duration;
 use tracing::error;
 use validator::Validate;
@@ -19,9 +18,15 @@ use validator::Validate;
 use crate::{
     application::AppState,
     configuration::CONFIG,
-    models::user_model::CreateUser,
-    repositories::{password_repository::PasswordRepository, user_repository::UserRepository},
-    utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
+    models::user_model::{CreateUser, User},
+    repositories::{
+        password_repository::{PasswordRepository, PasswordRepositoryImpl},
+        user_repository::{UserRepository, UserRepositoryImpl},
+    },
+    utils::{
+        jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
+        random_string::generate,
+    },
 };
 
 pub fn router() -> Router<Arc<AppState>> {
@@ -39,39 +44,36 @@ pub struct SignUpRequest {
 
 pub async fn signup(
     cookies: CookieJar,
+    Extension(user): Extension<User>,
     State(appstate): State<Arc<AppState>>,
     Json(payload): Json<SignUpRequest>,
 ) -> Response {
-    let create_user = CreateUser {
-        username: payload.username,
-        email: payload.email,
-        image: None,
-        email_verified: None,
+    let mut transaction = match appstate.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
     };
 
-    let user = match appstate.repository.users.create(&create_user).await {
-        Ok(user) => {
-            match appstate
-                .repository
-                .users
-                .password
-                .create(user.id, &payload.password)
-                .await
-            {
-                Ok(_) => user,
-                Err(error) => {
-                    error!(name: "AUTH", "unable to set password {}", error);
-                    if let Err(_error) = appstate.repository.users.delete(user.id).await {
-                        return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong")
-                            .into_response();
-                    }
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong")
-                        .into_response();
-                }
+    let user = match UserRepositoryImpl::create(
+        &mut transaction,
+        &CreateUser {
+            username: payload.username,
+            email: payload.email,
+            image: None,
+            email_verified: None,
+        },
+    )
+    .await
+    {
+        Ok(user) => user,
+        Err(err) => {
+            error!("{:#?}", err);
+            if let sqlx::error::Error::RowNotFound = err {
+                return (StatusCode::NOT_FOUND, "User not found").into_response();
             }
-        }
-        Err(error) => {
-            if let Some(database_error) = error.as_database_error() {
+            if let Some(database_error) = err.as_database_error() {
                 if let Some(constraint) = database_error.constraint() {
                     if constraint == "users_email_key" {
                         return (StatusCode::BAD_REQUEST, "Email is not available").into_response();
@@ -82,13 +84,30 @@ pub async fn signup(
                     }
                 }
             }
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
-            )
-                .into_response();
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
+    let salt = generate(6);
+    let hashed_password = match bcrypt::hash(payload.password, 10) {
+        Ok(password) => password + &salt,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match PasswordRepositoryImpl::create(&mut transaction, user.id, &hashed_password, &salt).await {
+        Ok(password) => password,
+        Err(error) => {
+            error!("unable to set password {}", error);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
+    if let Err(err) = transaction.commit().await {
+        error!("{:#?}", err);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+    }
 
     let access_token = match AccessToken::generate(
         AccessTokenPayload {
@@ -106,7 +125,7 @@ pub async fn signup(
             error!(name: "AUTH","unable generate tokens:\n{}", error);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
+                "Unable to generate tokens",
             )
                 .into_response();
         }
@@ -123,10 +142,10 @@ pub async fn signup(
     ) {
         Ok(refresh_token) => refresh_token,
         Err(error) => {
-            error!(name: "AUTH","unable generate tokens:\n{}", error);
+            error!("unable generate tokens:\n{}", error);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
+                "Unable to generate tokens",
             )
                 .into_response();
         }

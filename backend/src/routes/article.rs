@@ -9,22 +9,35 @@ use axum::{
 use axum_core::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
+use tracing::error;
 
 use crate::{
     application::AppState,
     models::article_model::{AddAuthor, CreateArticle, DeleteAuthor, UpdateArticle},
-    repositories::{article_repository::ArticleRepository, user_repository::UserRepository},
+    repositories::article_repository::{ArticleRepository, ArticleRepositoryImpl},
 };
 
 pub async fn get_articles(State(state): State<Arc<AppState>>) -> Response {
-    let response = state.repository.articles.find_all().await;
-    match response {
-        Ok(article) => (StatusCode::OK, Json(json!(article))).into_response(),
-        Err(error) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(error.to_string())),
-        )
-            .into_response(),
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let articles = match ArticleRepositoryImpl::find_all(&mut transaction).await {
+        Ok(articles) => articles,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
+        Ok(_) => (StatusCode::OK, Json(json!(articles))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
     }
 }
 
@@ -32,14 +45,27 @@ pub async fn get_articles_by_user(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.articles.find_by_authors(&[user_id]).await;
-    match response {
-        Ok(articles) => (StatusCode::OK, Json(json!(articles))).into_response(),
-        Err(error) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(error.to_string())),
-        )
-            .into_response(),
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let articles = match ArticleRepositoryImpl::find_by_authors(&mut transaction, &[user_id]).await
+    {
+        Ok(articles) => articles,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
+        Ok(_) => (StatusCode::OK, Json(json!(articles))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
     }
 }
 
@@ -47,18 +73,28 @@ pub async fn get_article(
     State(state): State<Arc<AppState>>,
     Path(article_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.articles.find_by_id(article_id).await;
-    match response {
-        Ok(article) => (StatusCode::OK, Json(json!(article))).into_response(),
-        Err(error) => {
-            if let sqlx::error::Error::RowNotFound = error {
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
+        Ok(article) => article,
+        Err(err) => {
+            error!("{:#?}", err);
+            if let sqlx::error::Error::RowNotFound = err {
                 return (StatusCode::NOT_FOUND, "Article not found").into_response();
             }
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
-            )
-                .into_response()
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
+        Ok(_) => (StatusCode::OK, Json(json!(article))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     }
 }
@@ -73,15 +109,22 @@ pub async fn post_article(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<PostArticleRequestBody>,
 ) -> Response {
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
     let create_article = CreateArticle {
         title: payload.title,
         user_id: payload.user_id,
     };
-    let response = state.repository.articles.create(&create_article).await;
-    match response {
-        Ok(article) => (StatusCode::CREATED, Json(json!(article))).into_response(),
-        Err(error) => {
-            if let Some(database_error) = error.as_database_error() {
+    let article = match ArticleRepositoryImpl::create(&mut transaction, &create_article).await {
+        Ok(article) => article,
+        Err(err) => {
+            error!("{:#?}", err);
+            if let Some(database_error) = err.as_database_error() {
                 if let Some(constraint) = database_error.constraint() {
                     if constraint == "authors_author_id_fkey" {
                         return (StatusCode::BAD_REQUEST, "User not found").into_response();
@@ -91,11 +134,14 @@ pub async fn post_article(
                     }
                 }
             }
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
-            )
-                .into_response()
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
+        Ok(_) => (StatusCode::OK, Json(json!(article))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     }
 }
@@ -110,29 +156,46 @@ pub async fn patch_article(
     Path(article_id): Path<i32>,
     Json(payload): Json<PatchArticleRequestBody>,
 ) -> Response {
-    let udpate_article = UpdateArticle {
-        id: article_id,
-        title: payload.title,
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
     };
-    let response = state.repository.articles.update(&udpate_article).await;
-    match response {
-        Ok(article) => (StatusCode::OK, Json(json!(article))).into_response(),
-        Err(error) => {
-            if let sqlx::error::Error::RowNotFound = error {
+    let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
+        Ok(article) => article,
+        Err(err) => {
+            error!("{:#?}", err);
+            if let sqlx::error::Error::RowNotFound = err {
                 return (StatusCode::NOT_FOUND, "Article not found").into_response();
             }
-            if let Some(database_error) = error.as_database_error() {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let udpate_article = UpdateArticle {
+        id: article.id,
+        title: payload.title,
+    };
+    let article = match ArticleRepositoryImpl::update(&mut transaction, &udpate_article).await {
+        Ok(article) => article,
+        Err(err) => {
+            error!("{:#?}", err);
+            if let Some(database_error) = err.as_database_error() {
                 if let Some(constraint) = database_error.constraint() {
                     if constraint == "articles_slug_key" {
                         return (StatusCode::BAD_REQUEST, "Retry").into_response();
                     }
                 }
             }
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
-            )
-                .into_response()
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
+        Ok(_) => (StatusCode::OK, Json(json!(article))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     }
 }
@@ -141,18 +204,35 @@ pub async fn delete_article(
     State(state): State<Arc<AppState>>,
     Path(article_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.articles.delete(article_id).await;
-    match response {
-        Ok(_) => (StatusCode::OK, format!("Deleted article: {article_id}")).into_response(),
-        Err(error) => {
-            if let sqlx::error::Error::RowNotFound = error {
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
+        Ok(article) => article,
+        Err(err) => {
+            error!("{:#?}", err);
+            if let sqlx::error::Error::RowNotFound = err {
                 return (StatusCode::NOT_FOUND, "Article not found").into_response();
             }
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
-            )
-                .into_response()
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let article = match ArticleRepositoryImpl::delete(&mut transaction, article.id).await {
+        Ok(article) => article,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
+        Ok(_) => (StatusCode::OK, format!("Deleted article: {}", article.id)).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     }
 }
@@ -161,32 +241,35 @@ pub async fn get_authors(
     State(state): State<Arc<AppState>>,
     Path(article_id): Path<i32>,
 ) -> Response {
-    let response = state.repository.articles.find_by_id(article_id).await;
-
-    if let Err(error) = response {
-        if let sqlx::error::Error::RowNotFound = error {
-            return (StatusCode::NOT_FOUND, "Article not found").into_response();
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(error.to_string())),
-        )
-            .into_response();
-    }
-
-    let response = state.repository.articles.get_authors(article_id).await;
-
-    match response {
-        Ok(users) => (StatusCode::OK, Json(json!(users))).into_response(),
-        Err(error) => {
-            if let sqlx::error::Error::RowNotFound = error {
+    };
+    let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
+        Ok(article) => article,
+        Err(err) => {
+            error!("{:#?}", err);
+            if let sqlx::error::Error::RowNotFound = err {
                 return (StatusCode::NOT_FOUND, "Article not found").into_response();
             }
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
-            )
-                .into_response()
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let authors = match ArticleRepositoryImpl::get_authors(&mut transaction, article_id).await {
+        Ok(users) => users,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
+        Ok(_) => (StatusCode::OK, Json(json!(authors))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     }
 }
@@ -195,54 +278,46 @@ pub async fn put_author(
     State(state): State<Arc<AppState>>,
     Path((article_id, user_id)): Path<(i32, i32)>,
 ) -> Response {
-    let response = state.repository.articles.find_by_id(article_id).await;
-
-    if let Err(error) = response {
-        if let sqlx::error::Error::RowNotFound = error {
-            return (StatusCode::NOT_FOUND, "Article not found").into_response();
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(error.to_string())),
-        )
-            .into_response();
-    }
-
-    let response = state.repository.users.find_by_id(user_id).await;
-
-    if let Err(error) = response {
-        if let sqlx::error::Error::RowNotFound = error {
-            return (StatusCode::NOT_FOUND, "User not found").into_response();
-        }
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(error.to_string())),
-        )
-            .into_response();
-    }
-
+    };
     let add_author = AddAuthor {
         user_id,
         article_id,
     };
-
-    let response = state.repository.articles.add_author(&add_author).await;
-
-    match response {
+    let authors = match ArticleRepositoryImpl::add_author(&mut transaction, &add_author).await {
+        Ok(users) => users,
+        Err(err) => {
+            error!("{:#?}", err);
+            // if let sqlx::error::Error::RowNotFound = err {
+            //     return (StatusCode::NOT_FOUND, "Article not found").into_response();
+            // }
+            if let Some(database_error) = err.as_database_error() {
+                if let Some(constraint) = database_error.constraint() {
+                    if constraint == "authors_author_id_fkey" {
+                        return (StatusCode::BAD_REQUEST, "User does not exist").into_response();
+                    }
+                    if constraint == "authors_article_id_fkey" {
+                        return (StatusCode::BAD_REQUEST, "Article does not exist").into_response();
+                    }
+                }
+            }
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
         Ok(_) => (
             StatusCode::OK,
-            format!("Author {} added to {}", user_id, article_id),
+            format!("Author {} added to {}", authors.1, authors.0),
         )
             .into_response(),
-        Err(error) => {
-            if let sqlx::error::Error::RowNotFound = error {
-                return (StatusCode::NOT_FOUND, "Article not found").into_response();
-            }
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(error.to_string())),
-            )
-                .into_response()
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     }
 }
@@ -251,52 +326,48 @@ pub async fn delete_author(
     State(state): State<Arc<AppState>>,
     Path((article_id, user_id)): Path<(i32, i32)>,
 ) -> Response {
-    let response = state.repository.articles.find_by_id(article_id).await;
-
-    if let Err(error) = response {
-        if let sqlx::error::Error::RowNotFound = error {
-            return (StatusCode::NOT_FOUND, "Article not found").into_response();
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(error.to_string())),
-        )
-            .into_response();
-    }
-
-    let response = state.repository.users.find_by_id(user_id).await;
-
-    if let Err(error) = response {
-        if let sqlx::error::Error::RowNotFound = error {
-            return (StatusCode::NOT_FOUND, "User not found").into_response();
-        }
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(error.to_string())),
-        )
-            .into_response();
-    }
-
+    };
     let delete_author = DeleteAuthor {
         user_id,
         article_id,
     };
 
-    let response = state
-        .repository
-        .articles
-        .delete_author(&delete_author)
-        .await;
-    match response {
+    let authors = match ArticleRepositoryImpl::delete_author(&mut transaction, &delete_author).await
+    {
+        Ok(users) => users,
+        Err(err) => {
+            error!("{:#?}", err);
+            // if let sqlx::error::Error::RowNotFound = err {
+            //     return (StatusCode::NOT_FOUND, "Article not found").into_response();
+            // }
+            if let Some(database_error) = err.as_database_error() {
+                if let Some(constraint) = database_error.constraint() {
+                    if constraint == "authors_author_id_fkey" {
+                        return (StatusCode::BAD_REQUEST, "User does not exist").into_response();
+                    }
+                    if constraint == "authors_article_id_fkey" {
+                        return (StatusCode::BAD_REQUEST, "Article does not exist").into_response();
+                    }
+                }
+            }
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    match transaction.commit().await {
         Ok(_) => (
             StatusCode::OK,
-            format!("Author {} deleted to {}", user_id, article_id),
+            format!("Author {} deleted from {}", authors.1, authors.0),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(e.to_string())),
-        )
-            .into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
     }
 }

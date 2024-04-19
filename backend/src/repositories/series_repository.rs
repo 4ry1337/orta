@@ -1,5 +1,5 @@
 use axum::async_trait;
-use sqlx::{Error, PgPool};
+use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::models::{
     article_model::Article,
@@ -7,37 +7,53 @@ use crate::models::{
 };
 
 #[async_trait]
-pub trait SeriesRepository<E> {
-    async fn find_all(&self) -> Result<Vec<Series>, E>;
-    async fn find_by_user(&self, user_id: i32) -> Result<Vec<Series>, E>;
-    async fn create(&self, create_series: &CreateSeries) -> Result<Series, E>;
-    async fn update(&self, update_series: &UpdateSeries) -> Result<Series, E>;
-    async fn delete(&self, series_id: i32) -> Result<(), E>;
-    async fn find_articles(&self, series_id: i32) -> Result<Vec<Article>, E>;
-    async fn add_article(&self, series_id: i32, article_id: i32) -> Result<(), E>;
+pub trait SeriesRepository<DB, E>
+where
+    DB: Database,
+{
+    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<Series>, E>;
+    async fn find_by_user(
+        transaction: &mut Transaction<'_, DB>,
+        user_id: i32,
+    ) -> Result<Vec<Series>, E>;
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        create_series: &CreateSeries,
+    ) -> Result<Series, E>;
+    async fn update(
+        transaction: &mut Transaction<'_, DB>,
+        update_series: &UpdateSeries,
+    ) -> Result<Series, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
+    //TODO: get one series
+    async fn find_articles(
+        transaction: &mut Transaction<'_, DB>,
+        series_id: i32,
+    ) -> Result<Vec<Article>, E>;
+    async fn add_article(
+        transaction: &mut Transaction<'_, DB>,
+        series_id: i32,
+        article_id: i32,
+    ) -> Result<(i32, i32), E>;
     async fn reorder_article(
-        &self,
+        transaction: &mut Transaction<'_, DB>,
         series_id: i32,
         article_id: i32,
         new_order: f32,
-    ) -> Result<(), E>;
-    async fn remove_article(&self, series_id: i32, article_id: i32) -> Result<(), E>;
+    ) -> Result<(i32, i32), E>;
+    async fn remove_article(
+        transaction: &mut Transaction<'_, DB>,
+        series_id: i32,
+        article_id: i32,
+    ) -> Result<(i32, i32), E>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PgSeriesRepository {
-    db: PgPool,
-}
-
-impl PgSeriesRepository {
-    pub fn new(db: PgPool) -> PgSeriesRepository {
-        Self { db }
-    }
-}
+pub struct SeriesRepositoryImpl;
 
 #[async_trait]
-impl SeriesRepository<Error> for PgSeriesRepository {
-    async fn find_all(&self) -> Result<Vec<Series>, Error> {
+impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
+    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<Series>, Error> {
         sqlx::query_as!(
             Series,
             r#"
@@ -47,11 +63,14 @@ impl SeriesRepository<Error> for PgSeriesRepository {
             ORDER BY created_at DESC
             "#n
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn find_by_user(&self, user_id: i32) -> Result<Vec<Series>, Error> {
+    async fn find_by_user(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<Vec<Series>, Error> {
         sqlx::query_as!(
             Series,
             r#"
@@ -62,11 +81,14 @@ impl SeriesRepository<Error> for PgSeriesRepository {
             "#n,
             user_id
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn create(&self, create_series: &CreateSeries) -> Result<Series, Error> {
+    async fn create(
+        transaction: &mut Transaction<'_, Postgres>,
+        create_series: &CreateSeries,
+    ) -> Result<Series, Error> {
         sqlx::query_as!(
             Series,
             r#"
@@ -82,11 +104,14 @@ impl SeriesRepository<Error> for PgSeriesRepository {
             create_series.label,
             create_series.image
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn update(&self, update_series: &UpdateSeries) -> Result<Series, Error> {
+    async fn update(
+        transaction: &mut Transaction<'_, Postgres>,
+        update_series: &UpdateSeries,
+    ) -> Result<Series, Error> {
         sqlx::query_as!(
             Series,
             r#"
@@ -101,24 +126,31 @@ impl SeriesRepository<Error> for PgSeriesRepository {
             update_series.label,
             update_series.image
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn delete(&self, series_id: i32) -> Result<(), Error> {
-        let _ = sqlx::query!(
+    async fn delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        series_id: i32,
+    ) -> Result<Series, Error> {
+        sqlx::query_as!(
+            Series,
             r#"
             DELETE FROM series
             WHERE id = $1
+            RETURNING *
             "#n,
             series_id
         )
-        .execute(&self.db)
-        .await;
-        Ok(())
+        .fetch_one(&mut **transaction)
+        .await
     }
 
-    async fn find_articles(&self, series_id: i32) -> Result<Vec<Article>, Error> {
+    async fn find_articles(
+        transaction: &mut Transaction<'_, Postgres>,
+        series_id: i32,
+    ) -> Result<Vec<Article>, Error> {
         sqlx::query_as!(
             Article,
             r#"
@@ -130,12 +162,16 @@ impl SeriesRepository<Error> for PgSeriesRepository {
             "#n,
             series_id,
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
     //TODO: test following
-    async fn add_article(&self, series_id: i32, article_id: i32) -> Result<(), Error> {
+    async fn add_article(
+        transaction: &mut Transaction<'_, Postgres>,
+        series_id: i32,
+        article_id: i32,
+    ) -> Result<(i32, i32), Error> {
         let _ = sqlx::query!(
             r#"
             INSERT INTO seriesarticle (series_id, article_id, "order")
@@ -148,17 +184,17 @@ impl SeriesRepository<Error> for PgSeriesRepository {
             series_id,
             article_id,
         )
-        .execute(&self.db)
+        .execute(&mut **transaction)
         .await;
-        Ok(())
+        Ok((series_id, article_id))
     }
 
     async fn reorder_article(
-        &self,
+        transaction: &mut Transaction<'_, Postgres>,
         series_id: i32,
         article_id: i32,
         new_order: f32,
-    ) -> Result<(), Error> {
+    ) -> Result<(i32, i32), Error> {
         let _ = sqlx::query!(
             r#"
             UPDATE seriesarticle
@@ -169,12 +205,16 @@ impl SeriesRepository<Error> for PgSeriesRepository {
             article_id,
             new_order
         )
-        .execute(&self.db)
+        .execute(&mut **transaction)
         .await;
-        Ok(())
+        Ok((series_id, article_id))
     }
 
-    async fn remove_article(&self, series_id: i32, article_id: i32) -> Result<(), Error> {
+    async fn remove_article(
+        transaction: &mut Transaction<'_, Postgres>,
+        series_id: i32,
+        article_id: i32,
+    ) -> Result<(i32, i32), Error> {
         let _ = sqlx::query!(
             r#"
             DELETE FROM seriesarticle
@@ -183,8 +223,8 @@ impl SeriesRepository<Error> for PgSeriesRepository {
             series_id,
             article_id
         )
-        .execute(&self.db)
+        .execute(&mut **transaction)
         .await;
-        Ok(())
+        Ok((series_id, article_id))
     }
 }

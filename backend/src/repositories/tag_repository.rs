@@ -1,6 +1,6 @@
 use axum::async_trait;
 use slug::slugify;
-use sqlx::{postgres::PgQueryResult, Error, PgPool};
+use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::models::{
     enums::TagStatus,
@@ -8,32 +8,50 @@ use crate::models::{
 };
 
 #[async_trait]
-pub trait TagRepository<E> {
-    async fn find_all(&self, get_tags: &GetTags) -> Result<Vec<Tag>, E>;
-    async fn find_by_article(&self, article_id: i32) -> Result<Vec<Tag>, E>;
-    async fn find(&self, tag_id: i32) -> Result<Tag, E>;
-    async fn create(&self, create_tag: &CreateTag) -> Result<Tag, E>;
-    // async fn create_many(&self, create_tags: &[&CreateTag]) -> Result<Vec<Tag>, E>;
-    async fn update(&self, update_tag: &UpdateTag) -> Result<Tag, E>;
-    async fn delete(&self, tag_id: i32) -> Result<PgQueryResult, E>;
-    async fn add_article_tags(&self, article_id: i32, tag_id: i32) -> Result<PgQueryResult, E>;
-    async fn remove_article_tags(&self, article_id: i32, tag_id: i32) -> Result<PgQueryResult, E>;
+pub trait TagRepository<DB, E>
+where
+    DB: Database,
+{
+    async fn find_all(
+        transaction: &mut Transaction<'_, DB>,
+        get_tags: &GetTags,
+    ) -> Result<Vec<Tag>, E>;
+    async fn find_by_article(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: i32,
+    ) -> Result<Vec<Tag>, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, tag_id: i32) -> Result<Tag, E>;
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        create_tag: &CreateTag,
+    ) -> Result<Tag, E>;
+    // async fn create_many(transaction: &mut Transaction<'_, DB>, create_tags: &[&CreateTag]) -> Result<Vec<Tag>, E>;
+    async fn update(
+        transaction: &mut Transaction<'_, DB>,
+        update_tag: &UpdateTag,
+    ) -> Result<Tag, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, tag_id: i32) -> Result<Tag, E>;
+    async fn add_article_tags(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: i32,
+        tag_id: i32,
+    ) -> Result<(), E>;
+    async fn remove_article_tags(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: i32,
+        tag_id: i32,
+    ) -> Result<(), E>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PgTagRepository {
-    db: PgPool,
-}
-
-impl PgTagRepository {
-    pub fn new(db: PgPool) -> PgTagRepository {
-        Self { db }
-    }
-}
+pub struct TagRepositoryImpl;
 
 #[async_trait]
-impl TagRepository<Error> for PgTagRepository {
-    async fn find_all(&self, get_tags: &GetTags) -> Result<Vec<Tag>, Error> {
+impl TagRepository<Postgres, Error> for TagRepositoryImpl {
+    async fn find_all(
+        transaction: &mut Transaction<'_, Postgres>,
+        get_tags: &GetTags,
+    ) -> Result<Vec<Tag>, Error> {
         sqlx::query_as!(
             Tag,
             r#"
@@ -49,11 +67,11 @@ impl TagRepository<Error> for PgTagRepository {
             "#n,
             get_tags.tag_status as Option<TagStatus>
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn find(&self, tag_id: i32) -> Result<Tag, Error> {
+    async fn find(transaction: &mut Transaction<'_, Postgres>, tag_id: i32) -> Result<Tag, Error> {
         sqlx::query_as!(
             Tag,
             r#"
@@ -69,11 +87,14 @@ impl TagRepository<Error> for PgTagRepository {
             "#n,
             tag_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn find_by_article(&self, article_id: i32) -> Result<Vec<Tag>, Error> {
+    async fn find_by_article(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: i32,
+    ) -> Result<Vec<Tag>, Error> {
         sqlx::query_as!(
             Tag,
             r#"
@@ -90,11 +111,14 @@ impl TagRepository<Error> for PgTagRepository {
             "#n,
             article_id
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn create(&self, create_tag: &CreateTag) -> Result<Tag, Error> {
+    async fn create(
+        transaction: &mut Transaction<'_, Postgres>,
+        create_tag: &CreateTag,
+    ) -> Result<Tag, Error> {
         sqlx::query_as!(
             Tag,
             r#"
@@ -111,7 +135,7 @@ impl TagRepository<Error> for PgTagRepository {
             slugify(format!("{}", create_tag.label)),
             create_tag.tag_status as TagStatus
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
@@ -143,7 +167,10 @@ impl TagRepository<Error> for PgTagRepository {
     //     .await
     // }
 
-    async fn update(&self, update_tag: &UpdateTag) -> Result<Tag, Error> {
+    async fn update(
+        transaction: &mut Transaction<'_, Postgres>,
+        update_tag: &UpdateTag,
+    ) -> Result<Tag, Error> {
         let label = match &update_tag.label {
             Some(label) => Some(slugify(label)),
             None => None,
@@ -168,24 +195,39 @@ impl TagRepository<Error> for PgTagRepository {
             label,
             update_tag.tag_status as Option<TagStatus>
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn delete(&self, tag_id: i32) -> Result<PgQueryResult, Error> {
-        sqlx::query!(
+    async fn delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        tag_id: i32,
+    ) -> Result<Tag, Error> {
+        sqlx::query_as!(
+            Tag,
             r#"
             DELETE FROM tags
             WHERE id = $1
+            RETURNING
+                id,
+                label,
+                article_count,
+                tag_status AS "tag_status: TagStatus",
+                created_at,
+                updated_at
             "#n,
             tag_id
         )
-        .execute(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn add_article_tags(&self, article_id: i32, tag_id: i32) -> Result<PgQueryResult, Error> {
-        sqlx::query!(
+    async fn add_article_tags(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: i32,
+        tag_id: i32,
+    ) -> Result<(), Error> {
+        let _ = sqlx::query!(
             r#"
             WITH article_count_increment AS (
                 UPDATE tags
@@ -199,16 +241,17 @@ impl TagRepository<Error> for PgTagRepository {
             article_id,
             tag_id
         )
-        .execute(&self.db)
-        .await
+        .execute(&mut **transaction)
+        .await;
+        Ok(())
     }
 
     async fn remove_article_tags(
-        &self,
+        transaction: &mut Transaction<'_, Postgres>,
         article_id: i32,
         tag_id: i32,
-    ) -> Result<PgQueryResult, Error> {
-        sqlx::query!(
+    ) -> Result<(), Error> {
+        let _ = sqlx::query!(
             r#"
             DELETE FROM articletags
             WHERE article_id = $1 AND tag_id = $2
@@ -216,7 +259,8 @@ impl TagRepository<Error> for PgTagRepository {
             article_id,
             tag_id
         )
-        .execute(&self.db)
-        .await
+        .execute(&mut **transaction)
+        .await;
+        Ok(())
     }
 }

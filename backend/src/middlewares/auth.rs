@@ -13,7 +13,7 @@ use tracing::error;
 use crate::{
     application::AppState,
     configuration::CONFIG,
-    repositories::user_repository::UserRepository,
+    repositories::user_repository::{UserRepository, UserRepositoryImpl},
     utils::jwt::{AccessToken, JWT},
 };
 
@@ -36,12 +36,14 @@ pub async fn auth_middleware(
             }
         };
 
-    let user = match state
-        .repository
-        .users
-        .find_by_id(token_payload.user_id)
-        .await
-    {
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let user = match UserRepositoryImpl::find(&mut transaction, token_payload.user_id).await {
         Ok(user) => user,
         Err(error) => {
             if let sqlx::error::Error::RowNotFound = error {
@@ -50,6 +52,11 @@ pub async fn auth_middleware(
             error!("Unable to get user: {}", error);
             return (StatusCode::UNAUTHORIZED).into_response();
         }
+    };
+
+    if let Err(err) = transaction.commit().await {
+        error!("{:#?}", err);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
     };
 
     req.extensions_mut().insert(user);

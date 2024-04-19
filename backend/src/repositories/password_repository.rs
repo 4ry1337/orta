@@ -1,30 +1,38 @@
 use axum::async_trait;
-use sqlx::{Error, PgPool};
+use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{models::password_model::Password, utils::random_string::generate};
 
 #[async_trait]
-pub trait PasswordRepository<E> {
-    async fn find(&self, user_id: i32) -> Result<Password, E>;
-    async fn create(&self, user_id: i32, password: &str) -> Result<Password, E>;
-    async fn update(&self, user_id: i32, password: &str) -> Result<Password, E>;
-    async fn delete(&self, user_id: i32) -> Result<Password, E>;
+pub trait PasswordRepository<DB, E>
+where
+    DB: Database,
+{
+    async fn find(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<Password, E>;
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        user_id: i32,
+        salt: &str,
+        password: &str,
+    ) -> Result<Password, E>;
+    async fn update(
+        transaction: &mut Transaction<'_, DB>,
+        user_id: i32,
+        password: &str,
+        salt: &str,
+    ) -> Result<Password, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<Password, E>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PgPasswordRepository {
-    db: PgPool,
-}
-
-impl PgPasswordRepository {
-    pub fn new(db: PgPool) -> PgPasswordRepository {
-        Self { db }
-    }
-}
+pub struct PasswordRepositoryImpl;
 
 #[async_trait]
-impl PasswordRepository<Error> for PgPasswordRepository {
-    async fn find(&self, user_id: i32) -> Result<Password, Error> {
+impl PasswordRepository<Postgres, Error> for PasswordRepositoryImpl {
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<Password, Error> {
         sqlx::query_as!(
             Password,
             r#"
@@ -33,13 +41,16 @@ impl PasswordRepository<Error> for PgPasswordRepository {
             WHERE id = $1"#n,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn create(&self, user_id: i32, password: &str) -> Result<Password, Error> {
-        let hashed_password = bcrypt::hash(password, 10).unwrap();
-        let salt = generate(6);
+    async fn create(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+        password: &str,
+        salt: &str,
+    ) -> Result<Password, Error> {
         sqlx::query_as!(
             Password,
             r#"
@@ -48,16 +59,19 @@ impl PasswordRepository<Error> for PgPasswordRepository {
             RETURNING *
             "#n,
             user_id,
-            format!("{}{}", hashed_password, salt),
+            password,
             salt
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn update(&self, user_id: i32, password: &str) -> Result<Password, Error> {
-        let hashed_password = bcrypt::hash(password, 10).unwrap();
-        let salt = generate(6);
+    async fn update(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+        password: &str,
+        salt: &str,
+    ) -> Result<Password, Error> {
         sqlx::query_as!(
             Password,
             r#"
@@ -70,14 +84,17 @@ impl PasswordRepository<Error> for PgPasswordRepository {
             RETURNING * 
             "#n,
             user_id,
-            format!("{}{}", hashed_password, salt),
+            password,
             salt
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 
-    async fn delete(&self, user_id: i32) -> Result<Password, Error> {
+    async fn delete(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<Password, Error> {
         sqlx::query_as!(
             Password,
             r#"
@@ -87,7 +104,7 @@ impl PasswordRepository<Error> for PgPasswordRepository {
             "#n,
             user_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut **transaction)
         .await
     }
 }
