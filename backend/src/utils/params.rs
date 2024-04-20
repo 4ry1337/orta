@@ -35,3 +35,13 @@ impl QueryParams for QueryParamsImpl {
         self.page.or(DEFAULT_PAGE).unwrap_or_default()
     }
 }
+
+#[derive(Deserialize)]
+pub struct PathParams {
+    pub comment_id: Option<i32>,
+    pub user_id: Option<i32>,
+    pub article_id: Option<i32>,
+    pub series_id: Option<i32>,
+    pub tag_id: Option<i32>,
+    pub list_id: Option<i32>,
+}

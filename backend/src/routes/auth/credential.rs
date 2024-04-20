@@ -5,11 +5,10 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
-    Extension, Json, Router,
+    Form, Router,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use cookie::SameSite;
-use secrecy::ExposeSecret;
 use serde::Deserialize;
 use time::Duration;
 use tracing::error;
@@ -18,7 +17,7 @@ use validator::Validate;
 use crate::{
     application::AppState,
     configuration::CONFIG,
-    models::user_model::{CreateUser, User},
+    models::user_model::CreateUser,
     repositories::{
         password_repository::{PasswordRepository, PasswordRepositoryImpl},
         user_repository::{UserRepository, UserRepositoryImpl},
@@ -30,7 +29,9 @@ use crate::{
 };
 
 pub fn router() -> Router<Arc<AppState>> {
-    Router::new().route("/auth/credentail/signup", post(signup))
+    Router::new()
+        .route("/auth/credentail/signup", post(signup))
+        .route("/auth/credentail/signin", post(signin))
 }
 
 #[derive(Debug, Validate, Deserialize)]
@@ -43,10 +44,9 @@ pub struct SignUpRequest {
 }
 
 pub async fn signup(
-    cookies: CookieJar,
-    Extension(user): Extension<User>,
+    _cookies: CookieJar,
     State(appstate): State<Arc<AppState>>,
-    Json(payload): Json<SignUpRequest>,
+    Form(payload): Form<SignUpRequest>,
 ) -> Response {
     let mut transaction = match appstate.db.begin().await {
         Ok(transaction) => transaction,
@@ -109,17 +109,13 @@ pub async fn signup(
         return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
     }
 
-    let access_token = match AccessToken::generate(
-        AccessTokenPayload {
-            user_id: user.id,
-            email: user.email,
-            username: user.username,
-            image: user.image,
-            role: user.role,
-        },
-        &CONFIG.application.host,
-        &CONFIG.auth.secret.expose_secret(),
-    ) {
+    let access_token = match AccessToken::generate(AccessTokenPayload {
+        user_id: user.id,
+        email: user.email,
+        username: user.username,
+        image: user.image,
+        role: user.role,
+    }) {
         Ok(access_token) => access_token,
         Err(error) => {
             error!(name: "AUTH","unable generate tokens:\n{}", error);
@@ -131,15 +127,11 @@ pub async fn signup(
         }
     };
 
-    let refresh_token = match RefreshToken::generate(
-        RefreshTokenPayload {
-            user_id: user.id,
-            role: user.role,
-            access_token: access_token.clone(),
-        },
-        &CONFIG.application.host,
-        &CONFIG.auth.secret.expose_secret(),
-    ) {
+    let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
+        user_id: user.id,
+        role: user.role,
+        access_token: access_token.clone(),
+    }) {
         Ok(refresh_token) => refresh_token,
         Err(error) => {
             error!("unable generate tokens:\n{}", error);
@@ -175,3 +167,124 @@ pub async fn signup(
 
     (StatusCode::OK, cookies).into_response()
 }
+
+#[derive(Debug, Validate, Deserialize)]
+pub struct SignInRequest {
+    #[validate(email)]
+    pub email: String,
+    #[validate(length(min = 8))]
+    pub password: String,
+}
+
+pub async fn signin(
+    _cookies: CookieJar,
+    State(appstate): State<Arc<AppState>>,
+    Form(payload): Form<SignInRequest>,
+) -> Response {
+    let mut transaction = match appstate.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
+    let user = match UserRepositoryImpl::find_by_email(&mut transaction, &payload.email).await {
+        Ok(user) => user,
+        Err(err) => {
+            error!("{:#?}", err);
+            if let sqlx::error::Error::RowNotFound = err {
+                return (StatusCode::NOT_FOUND, "User not found").into_response();
+            }
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
+    let password = match PasswordRepositoryImpl::find(&mut transaction, user.id).await {
+        Ok(password) => password,
+        Err(err) => {
+            error!("{}", err);
+            if let sqlx::error::Error::RowNotFound = err {
+                //TODO: better error response
+                return (StatusCode::NOT_FOUND, "Password not found").into_response();
+            }
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
+    if let Err(err) = transaction.commit().await {
+        error!("{:#?}", err);
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+    }
+
+    match password.password.strip_suffix(&password.salt) {
+        Some(password) => match bcrypt::verify(payload.password, password) {
+            Ok(verified) => verified,
+            Err(err) => {
+                error!("{:#?}", err);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+            }
+        },
+        None => return (StatusCode::UNAUTHORIZED, "Invalid credentails").into_response(),
+    };
+
+    let access_token = match AccessToken::generate(AccessTokenPayload {
+        user_id: user.id,
+        email: user.email,
+        username: user.username,
+        image: user.image,
+        role: user.role,
+    }) {
+        Ok(access_token) => access_token,
+        Err(error) => {
+            error!(name: "AUTH","unable generate tokens:\n{}", error);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Unable to generate tokens",
+            )
+                .into_response();
+        }
+    };
+
+    let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
+        user_id: user.id,
+        role: user.role,
+        access_token: access_token.clone(),
+    }) {
+        Ok(refresh_token) => refresh_token,
+        Err(error) => {
+            error!("unable generate tokens:\n{}", error);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Unable to generate tokens",
+            )
+                .into_response();
+        }
+    };
+
+    let access_token_cookie: Cookie = Cookie::build((
+        &CONFIG.cookie.access_token.name,
+        format!("{}.{}", CONFIG.cookie.salt, access_token.clone(),),
+    ))
+    .http_only(true)
+    .same_site(SameSite::Lax)
+    .max_age(Duration::minutes(CONFIG.cookie.access_token.duration))
+    .into();
+
+    let refresh_token_cookie: Cookie = Cookie::build((
+        &CONFIG.cookie.refresh_token.name,
+        format!("{}.{}", CONFIG.cookie.salt, refresh_token),
+    ))
+    .http_only(true)
+    .same_site(SameSite::Lax)
+    .max_age(Duration::minutes(CONFIG.cookie.refresh_token.duration))
+    .into();
+
+    let cookies = CookieJar::new()
+        .add(access_token_cookie)
+        .add(refresh_token_cookie);
+
+    (StatusCode::OK, cookies).into_response()
+}
+
+// TODO activiaton links

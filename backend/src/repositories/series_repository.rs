@@ -25,7 +25,7 @@ where
         update_series: &UpdateSeries,
     ) -> Result<Series, E>;
     async fn delete(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
-    //TODO: get one series
+    async fn find(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
     async fn find_articles(
         transaction: &mut Transaction<'_, DB>,
         series_id: i32,
@@ -66,7 +66,22 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         .fetch_all(&mut **transaction)
         .await
     }
-
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        series_id: i32,
+    ) -> Result<Series, Error> {
+        sqlx::query_as!(
+            Series,
+            r#"
+            SELECT *
+            FROM series
+            WHERE id = $1
+            "#n,
+            series_id
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
     async fn find_by_user(
         transaction: &mut Transaction<'_, Postgres>,
         user_id: i32,

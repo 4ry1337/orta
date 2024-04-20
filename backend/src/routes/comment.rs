@@ -17,12 +17,18 @@ use crate::{
         article_repository::{ArticleRepository, ArticleRepositoryImpl},
         comment_repository::{CommentRepository, CommentRepositoryImpl},
     },
+    utils::params::PathParams,
 };
 
 pub async fn get_comments(
     State(state): State<Arc<AppState>>,
-    Path(article_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -30,6 +36,7 @@ pub async fn get_comments(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
         Ok(article) => article,
         Err(err) => {
@@ -40,6 +47,7 @@ pub async fn get_comments(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let comments =
         match CommentRepositoryImpl::find_all_by_article_id(&mut transaction, article.id).await {
             Ok(comments) => comments,
@@ -49,6 +57,7 @@ pub async fn get_comments(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
             }
         };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(comments))).into_response(),
         Err(err) => {
@@ -60,8 +69,18 @@ pub async fn get_comments(
 
 pub async fn get_comment(
     State(state): State<Arc<AppState>>,
-    Path((article_id, comment_id)): Path<(i32, i32)>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    let comment_id = match params.comment_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -69,6 +88,7 @@ pub async fn get_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let _article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
         Ok(article) => article,
         Err(err) => {
@@ -79,6 +99,7 @@ pub async fn get_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let comment = match CommentRepositoryImpl::find(&mut transaction, comment_id).await {
         Ok(comment) => comment,
         Err(err) => {
@@ -89,6 +110,7 @@ pub async fn get_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(comment))).into_response(),
         Err(err) => {
@@ -106,9 +128,14 @@ pub struct PostCommentRequestBody {
 
 pub async fn post_comment(
     State(state): State<Arc<AppState>>,
-    Path(article_id): Path<i32>,
+    Path(params): Path<PathParams>,
     Json(payload): Json<PostCommentRequestBody>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -116,6 +143,7 @@ pub async fn post_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let comment = match CommentRepositoryImpl::create(
         &mut transaction,
         &CreateComment {
@@ -142,6 +170,7 @@ pub async fn post_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(comment))).into_response(),
         Err(err) => {
@@ -159,9 +188,19 @@ pub struct PatchCommentRequestBody {
 
 pub async fn patch_comment(
     State(state): State<Arc<AppState>>,
-    Path((article_id, comment_id)): Path<(i32, i32)>,
+    Path(params): Path<PathParams>,
     Json(payload): Json<PatchCommentRequestBody>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    let comment_id = match params.comment_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -169,6 +208,7 @@ pub async fn patch_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
         Ok(article) => article,
         Err(err) => {
@@ -179,6 +219,7 @@ pub async fn patch_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let comment = match CommentRepositoryImpl::update(
         &mut transaction,
         &UpdateComment {
@@ -196,6 +237,7 @@ pub async fn patch_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(comment))).into_response(),
         Err(err) => {
@@ -207,8 +249,18 @@ pub async fn patch_comment(
 
 pub async fn delete_comment(
     State(state): State<Arc<AppState>>,
-    Path((article_id, comment_id)): Path<(i32, i32)>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    let comment_id = match params.comment_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -216,6 +268,7 @@ pub async fn delete_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
         Ok(article) => article,
         Err(err) => {
@@ -226,6 +279,7 @@ pub async fn delete_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let comment = match CommentRepositoryImpl::find(&mut transaction, comment_id).await {
         Ok(comment) => comment,
         Err(err) => {
@@ -236,6 +290,7 @@ pub async fn delete_comment(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let comment =
         match CommentRepositoryImpl::delete(&mut transaction, comment.id, article.id).await {
             Ok(comment) => comment,
@@ -244,6 +299,7 @@ pub async fn delete_comment(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
             }
         };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, format!("Deleted comment: {}", comment.id)).into_response(),
         Err(err) => {

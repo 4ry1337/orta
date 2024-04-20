@@ -15,6 +15,7 @@ use crate::{
     application::AppState,
     models::series_model::{CreateSeries, UpdateSeries},
     repositories::series_repository::{SeriesRepository, SeriesRepositoryImpl},
+    utils::params::PathParams,
 };
 
 pub async fn get_series(State(state): State<Arc<AppState>>) -> Response {
@@ -25,6 +26,7 @@ pub async fn get_series(State(state): State<Arc<AppState>>) -> Response {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let series = match SeriesRepositoryImpl::find_all(&mut transaction).await {
         Ok(series) => series,
         Err(err) => {
@@ -32,6 +34,41 @@ pub async fn get_series(State(state): State<Arc<AppState>>) -> Response {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
+    match transaction.commit().await {
+        Ok(_) => (StatusCode::OK, Json(json!(series))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    }
+}
+
+pub async fn get_series_by_id(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let series_id = match params.series_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    let mut transaction = match state.db.begin().await {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
+    let series = match SeriesRepositoryImpl::find(&mut transaction, series_id).await {
+        Ok(series) => series,
+        Err(err) => {
+            error!("{:#?}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(series))).into_response(),
         Err(err) => {
@@ -43,8 +80,13 @@ pub async fn get_series(State(state): State<Arc<AppState>>) -> Response {
 
 pub async fn get_series_by_user(
     State(state): State<Arc<AppState>>,
-    Path(user_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -52,6 +94,7 @@ pub async fn get_series_by_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let series = match SeriesRepositoryImpl::find_by_user(&mut transaction, user_id).await {
         Ok(series) => series,
         Err(err) => {
@@ -59,6 +102,7 @@ pub async fn get_series_by_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(series))).into_response(),
         Err(err) => {
@@ -86,11 +130,13 @@ pub async fn post_series(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let create_series = CreateSeries {
         user_id: payload.user_id,
         label: payload.label,
         image: payload.image,
     };
+
     let series = match SeriesRepositoryImpl::create(&mut transaction, &create_series).await {
         Ok(series) => series,
         Err(err) => {
@@ -99,6 +145,7 @@ pub async fn post_series(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(series))).into_response(),
         Err(err) => {
@@ -116,9 +163,14 @@ pub struct PatchSeriesRequestBody {
 
 pub async fn patch_series(
     State(state): State<Arc<AppState>>,
-    Path(series_id): Path<i32>,
+    Path(params): Path<PathParams>,
     Json(payload): Json<PatchSeriesRequestBody>,
 ) -> Response {
+    let series_id = match params.series_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -126,11 +178,13 @@ pub async fn patch_series(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let update_series = UpdateSeries {
         id: series_id,
         label: payload.label,
         image: payload.image,
     };
+
     let series = match SeriesRepositoryImpl::update(&mut transaction, &update_series).await {
         Ok(series) => series,
         Err(err) => {
@@ -139,6 +193,7 @@ pub async fn patch_series(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(series))).into_response(),
         Err(err) => {
@@ -150,8 +205,13 @@ pub async fn patch_series(
 
 pub async fn delete_series(
     State(state): State<Arc<AppState>>,
-    Path(series_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let series_id = match params.series_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -159,6 +219,7 @@ pub async fn delete_series(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let series = match SeriesRepositoryImpl::delete(&mut transaction, series_id).await {
         Ok(series) => series,
         Err(err) => {
@@ -167,6 +228,7 @@ pub async fn delete_series(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(series))).into_response(),
         Err(err) => {
@@ -178,8 +240,13 @@ pub async fn delete_series(
 
 pub async fn get_series_articles(
     State(state): State<Arc<AppState>>,
-    Path(series_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let series_id = match params.series_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -187,6 +254,7 @@ pub async fn get_series_articles(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let series = match SeriesRepositoryImpl::find_articles(&mut transaction, series_id).await {
         Ok(series) => series,
         Err(err) => {
@@ -195,6 +263,7 @@ pub async fn get_series_articles(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(series))).into_response(),
         Err(err) => {
@@ -206,9 +275,18 @@ pub async fn get_series_articles(
 
 pub async fn put_series_article(
     State(state): State<Arc<AppState>>,
-    Path(series_id): Path<i32>,
-    Path(article_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    let series_id = match params.series_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -216,6 +294,7 @@ pub async fn put_series_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let series =
         match SeriesRepositoryImpl::add_article(&mut transaction, series_id, article_id).await {
             Ok(series) => series,
@@ -225,6 +304,7 @@ pub async fn put_series_article(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
             }
         };
+
     match transaction.commit().await {
         Ok(_) => (
             StatusCode::OK,
@@ -240,9 +320,18 @@ pub async fn put_series_article(
 
 pub async fn delete_series_article(
     State(state): State<Arc<AppState>>,
-    Path(series_id): Path<i32>,
-    Path(article_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    let series_id = match params.series_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -250,6 +339,7 @@ pub async fn delete_series_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let series =
         match SeriesRepositoryImpl::remove_article(&mut transaction, series_id, article_id).await {
             Ok(series) => series,
@@ -260,6 +350,7 @@ pub async fn delete_series_article(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
             }
         };
+
     match transaction.commit().await {
         Ok(_) => (
             StatusCode::OK,

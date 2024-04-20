@@ -1,7 +1,7 @@
 use axum::async_trait;
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::{models::password_model::Password, utils::random_string::generate};
+use crate::models::password_model::Password;
 
 #[async_trait]
 pub trait PasswordRepository<DB, E>

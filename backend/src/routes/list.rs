@@ -22,6 +22,7 @@ use crate::{
         list_repository::{ListRepository, ListRepositoryImpl},
         user_repository::{UserRepository, UserRepositoryImpl},
     },
+    utils::params::PathParams,
 };
 
 pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {
@@ -32,6 +33,7 @@ pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let lists = match ListRepositoryImpl::find_all(&mut transaction).await {
         Ok(lists) => lists,
         Err(err) => {
@@ -39,6 +41,7 @@ pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(lists))).into_response(),
         Err(err) => {
@@ -48,7 +51,15 @@ pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {
     }
 }
 
-pub async fn get_list(State(state): State<Arc<AppState>>, Path(list_id): Path<i32>) -> Response {
+pub async fn get_list(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let list_id = match params.list_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -56,6 +67,7 @@ pub async fn get_list(State(state): State<Arc<AppState>>, Path(list_id): Path<i3
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
         Ok(list) => list,
         Err(err) => {
@@ -66,6 +78,7 @@ pub async fn get_list(State(state): State<Arc<AppState>>, Path(list_id): Path<i3
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(list))).into_response(),
         Err(err) => {
@@ -94,13 +107,18 @@ pub async fn post_list(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
-    let create_list = CreateList {
-        user_id: payload.user_id,
-        label: payload.label,
-        image: payload.image,
-        visibility: payload.visibility,
-    };
-    let list = match ListRepositoryImpl::create(&mut transaction, &create_list).await {
+
+    let list = match ListRepositoryImpl::create(
+        &mut transaction,
+        &CreateList {
+            user_id: payload.user_id,
+            label: payload.label,
+            image: payload.image,
+            visibility: payload.visibility,
+        },
+    )
+    .await
+    {
         Ok(list) => list,
         Err(err) => {
             error!("{:#?}", err);
@@ -120,6 +138,7 @@ pub async fn post_list(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::CREATED, Json(json!(list))).into_response(),
         Err(err) => {
@@ -138,9 +157,14 @@ pub struct PatchListRequestBody {
 
 pub async fn patch_list(
     State(state): State<Arc<AppState>>,
-    Path(list_id): Path<i32>,
+    Path(params): Path<PathParams>,
     Json(payload): Json<PatchListRequestBody>,
 ) -> Response {
+    let list_id = match params.list_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -148,6 +172,7 @@ pub async fn patch_list(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
         Ok(list) => list,
         Err(err) => {
@@ -158,12 +183,14 @@ pub async fn patch_list(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let update_list = UpdateList {
         id: list.id,
         label: payload.label,
         image: payload.image,
         visibility: payload.visibility,
     };
+
     let list = match ListRepositoryImpl::update(&mut transaction, &update_list).await {
         Ok(list) => list,
         Err(err) => {
@@ -178,6 +205,7 @@ pub async fn patch_list(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(list))).into_response(),
         Err(err) => {
@@ -187,7 +215,15 @@ pub async fn patch_list(
     }
 }
 
-pub async fn delete_list(State(state): State<Arc<AppState>>, Path(list_id): Path<i32>) -> Response {
+pub async fn delete_list(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let list_id = match params.list_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -195,6 +231,7 @@ pub async fn delete_list(State(state): State<Arc<AppState>>, Path(list_id): Path
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
         Ok(list) => list,
         Err(err) => {
@@ -205,6 +242,7 @@ pub async fn delete_list(State(state): State<Arc<AppState>>, Path(list_id): Path
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let list = match ListRepositoryImpl::delete(&mut transaction, list.id).await {
         Ok(list) => list,
         Err(err) => {
@@ -212,6 +250,7 @@ pub async fn delete_list(State(state): State<Arc<AppState>>, Path(list_id): Path
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, format!("Deleted article: {}", list.id)).into_response(),
         Err(err) => {
@@ -223,8 +262,13 @@ pub async fn delete_list(State(state): State<Arc<AppState>>, Path(list_id): Path
 
 pub async fn get_list_by_user(
     State(state): State<Arc<AppState>>,
-    Path(user_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -232,6 +276,7 @@ pub async fn get_list_by_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let user = match UserRepositoryImpl::find(&mut transaction, user_id).await {
         Ok(user) => user,
         Err(err) => {
@@ -242,6 +287,7 @@ pub async fn get_list_by_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let lists = match ListRepositoryImpl::find_by_user(&mut transaction, user.id).await {
         Ok(lists) => lists,
         Err(err) => {
@@ -249,6 +295,7 @@ pub async fn get_list_by_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(lists))).into_response(),
         Err(err) => {
@@ -260,8 +307,13 @@ pub async fn get_list_by_user(
 
 pub async fn get_list_articles(
     State(state): State<Arc<AppState>>,
-    Path(list_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let list_id = match params.list_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -269,6 +321,7 @@ pub async fn get_list_articles(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
         Ok(list) => list,
         Err(err) => {
@@ -279,6 +332,7 @@ pub async fn get_list_articles(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let articles = match ListRepositoryImpl::find_articles(&mut transaction, list.id).await {
         Ok(articles) => articles,
         Err(err) => {
@@ -286,6 +340,7 @@ pub async fn get_list_articles(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(articles))).into_response(),
         Err(err) => {
@@ -297,9 +352,18 @@ pub async fn get_list_articles(
 
 pub async fn put_list_article(
     State(state): State<Arc<AppState>>,
-    Path(list_id): Path<i32>,
-    Path(article_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    let list_id = match params.list_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -307,6 +371,7 @@ pub async fn put_list_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
         Ok(list) => list,
         Err(err) => {
@@ -317,6 +382,7 @@ pub async fn put_list_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
         Ok(article) => article,
         Err(err) => {
@@ -327,6 +393,7 @@ pub async fn put_list_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let reponse = match ListRepositoryImpl::add_article(&mut transaction, list.id, article.id).await
     {
         Ok(reponse) => reponse,
@@ -335,6 +402,7 @@ pub async fn put_list_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(()) => (
             StatusCode::OK,
@@ -350,9 +418,18 @@ pub async fn put_list_article(
 
 pub async fn delete_list_article(
     State(state): State<Arc<AppState>>,
-    Path(list_id): Path<i32>,
-    Path(article_id): Path<i32>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    let list_id = match params.list_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -360,6 +437,7 @@ pub async fn delete_list_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
         Ok(list) => list,
         Err(err) => {
@@ -370,6 +448,7 @@ pub async fn delete_list_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
         Ok(article) => article,
         Err(err) => {
@@ -380,6 +459,7 @@ pub async fn delete_list_article(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let reponse =
         match ListRepositoryImpl::remove_article(&mut transaction, list.id, article.id).await {
             Ok(reponse) => reponse,
@@ -388,6 +468,7 @@ pub async fn delete_list_article(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
             }
         };
+
     match transaction.commit().await {
         Ok(()) => (
             StatusCode::OK,

@@ -1,7 +1,6 @@
-use thiserror::Error;
+use thiserror::Error as ThisError;
 
-#[derive(Debug, Error)]
-#[non_exhaustive]
+#[derive(Debug, ThisError)]
 pub enum Error {
     #[error("Failed to acquire a Postgres connection from the pool")]
     PoolError(#[source] sqlx::Error),

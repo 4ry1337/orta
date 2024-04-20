@@ -11,7 +11,6 @@ use axum_extra::extract::{cookie::Cookie, CookieJar};
 use chrono::Utc;
 use cookie::SameSite;
 use oauth2::{reqwest::async_http_client, AuthorizationCode, PkceCodeVerifier, TokenResponse};
-use secrecy::ExposeSecret;
 use serde_json::json;
 use time::Duration;
 use tracing::{error, warn};
@@ -36,7 +35,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/auth/google/callback", get(callback))
 }
 
-async fn login(cookies: CookieJar, State(appstate): State<Arc<AppState>>) -> Response {
+async fn login(_cookies: CookieJar, State(appstate): State<Arc<AppState>>) -> Response {
     let (pkce_code_verifier, authorize_url, csrf_state) =
         appstate.services.auth.google.authorization_url();
 
@@ -160,7 +159,7 @@ async fn callback(
             .await
         {
             Ok(user) => user,
-            Err(error) => {
+            Err(_error) => {
                 // if user from jwt exists { link accounts }
                 // line 196
                 let create_user = CreateUser {
@@ -192,7 +191,7 @@ async fn callback(
                 match UserRepositoryImpl::create(&mut transaction, &create_user).await {
                     Ok(user) => user,
                     Err(error) => {
-                        error!(name: "OAUTH","unable to create user:\n{}", error);
+                        error!("unable to create user:\n{}", error);
                         if let Some(database_error) = error.as_database_error() {
                             if let Some(constraint) = database_error.constraint() {
                                 if constraint == "users_email_key" {
@@ -278,17 +277,13 @@ async fn callback(
     //
     // We will implement both tokens and persist refresh token
 
-    let access_token = match AccessToken::generate(
-        AccessTokenPayload {
-            user_id: user.id,
-            email: user.email,
-            username: user.username,
-            image: user.image,
-            role: user.role,
-        },
-        &CONFIG.application.host,
-        &CONFIG.auth.secret.expose_secret(),
-    ) {
+    let access_token = match AccessToken::generate(AccessTokenPayload {
+        user_id: user.id,
+        email: user.email,
+        username: user.username,
+        image: user.image,
+        role: user.role,
+    }) {
         Ok(access_token) => access_token,
         Err(error) => {
             error!(name: "AUTH","unable generate tokens:\n{}", error);
@@ -300,15 +295,11 @@ async fn callback(
         }
     };
 
-    let refresh_token = match RefreshToken::generate(
-        RefreshTokenPayload {
-            user_id: user.id,
-            role: user.role,
-            access_token: access_token.clone(),
-        },
-        &CONFIG.application.host,
-        &CONFIG.auth.secret.expose_secret(),
-    ) {
+    let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
+        user_id: user.id,
+        role: user.role,
+        access_token: access_token.clone(),
+    }) {
         Ok(refresh_token) => refresh_token,
         Err(error) => {
             error!(name: "AUTH","unable generate tokens:\n{}", error);

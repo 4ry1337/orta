@@ -17,6 +17,7 @@ use crate::{
         tag_model::{CreateTag, GetTags, UpdateTag},
     },
     repositories::tag_repository::{TagRepository, TagRepositoryImpl},
+    utils::params::PathParams,
 };
 
 #[derive(Deserialize)]
@@ -35,6 +36,7 @@ pub async fn get_tags(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let tags = match TagRepositoryImpl::find_all(
         &mut transaction,
         &GetTags {
@@ -52,6 +54,7 @@ pub async fn get_tags(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(tags))).into_response(),
         Err(err) => {
@@ -61,7 +64,15 @@ pub async fn get_tags(
     }
 }
 
-pub async fn get_tag(State(state): State<Arc<AppState>>, Path(tag_id): Path<i32>) -> Response {
+pub async fn get_tag(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let tag_id = match params.tag_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -69,6 +80,7 @@ pub async fn get_tag(State(state): State<Arc<AppState>>, Path(tag_id): Path<i32>
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let tag = match TagRepositoryImpl::find(&mut transaction, tag_id).await {
         Ok(tag) => tag,
         Err(err) => {
@@ -79,6 +91,7 @@ pub async fn get_tag(State(state): State<Arc<AppState>>, Path(tag_id): Path<i32>
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(tag))).into_response(),
         Err(err) => {
@@ -105,6 +118,7 @@ pub async fn post_tag(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let tag = match TagRepositoryImpl::create(
         &mut transaction,
         &CreateTag {
@@ -131,6 +145,7 @@ pub async fn post_tag(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::CREATED, Json(json!(tag))).into_response(),
         Err(err) => {
@@ -148,9 +163,14 @@ pub struct PatchTagRequestBody {
 
 pub async fn patch_tag(
     State(state): State<Arc<AppState>>,
-    Path(tag_id): Path<i32>,
+    Path(params): Path<PathParams>,
     Json(payload): Json<PatchTagRequestBody>,
 ) -> Response {
+    let tag_id = match params.tag_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -158,6 +178,7 @@ pub async fn patch_tag(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let tag = match TagRepositoryImpl::find(&mut transaction, tag_id).await {
         Ok(tag) => tag,
         Err(err) => {
@@ -168,6 +189,7 @@ pub async fn patch_tag(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let tag = match TagRepositoryImpl::update(
         &mut transaction,
         &UpdateTag {
@@ -194,6 +216,7 @@ pub async fn patch_tag(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(tag))).into_response(),
         Err(err) => {
@@ -203,7 +226,15 @@ pub async fn patch_tag(
     }
 }
 
-pub async fn delete_tag(State(state): State<Arc<AppState>>, Path(tag_id): Path<i32>) -> Response {
+pub async fn delete_tag(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let tag_id = match params.tag_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -211,6 +242,7 @@ pub async fn delete_tag(State(state): State<Arc<AppState>>, Path(tag_id): Path<i
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let tag = match TagRepositoryImpl::find(&mut transaction, tag_id).await {
         Ok(tag) => tag,
         Err(err) => {
@@ -221,6 +253,7 @@ pub async fn delete_tag(State(state): State<Arc<AppState>>, Path(tag_id): Path<i
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let tag = match TagRepositoryImpl::delete(&mut transaction, tag.id).await {
         Ok(tag) => tag,
         Err(err) => {
@@ -228,6 +261,7 @@ pub async fn delete_tag(State(state): State<Arc<AppState>>, Path(tag_id): Path<i
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, format!("Deleted tag id: {}", tag.id)).into_response(),
         Err(err) => {

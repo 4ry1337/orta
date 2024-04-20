@@ -15,6 +15,7 @@ use crate::{
     application::AppState,
     models::user_model::{CreateUser, UpdateUser},
     repositories::user_repository::{UserRepository, UserRepositoryImpl},
+    utils::params::PathParams,
 };
 
 pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
@@ -25,6 +26,7 @@ pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let users = match UserRepositoryImpl::find_all(&mut transaction).await {
         Ok(users) => users,
         Err(err) => {
@@ -32,6 +34,7 @@ pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(users))).into_response(),
         Err(err) => {
@@ -41,7 +44,15 @@ pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
     }
 }
 
-pub async fn get_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i32>) -> Response {
+pub async fn get_user(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -49,6 +60,7 @@ pub async fn get_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i3
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let user = match UserRepositoryImpl::find(&mut transaction, user_id).await {
         Ok(user) => user,
         Err(err) => {
@@ -59,6 +71,7 @@ pub async fn get_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i3
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(user))).into_response(),
         Err(err) => {
@@ -87,13 +100,18 @@ pub async fn post_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
-    let create_user = CreateUser {
-        username: payload.username,
-        email: payload.email,
-        image: payload.image,
-        email_verified: payload.email_verified,
-    };
-    let user = match UserRepositoryImpl::create(&mut transaction, &create_user).await {
+
+    let user = match UserRepositoryImpl::create(
+        &mut transaction,
+        &CreateUser {
+            username: payload.username,
+            email: payload.email,
+            image: payload.image,
+            email_verified: payload.email_verified,
+        },
+    )
+    .await
+    {
         Ok(user) => user,
         Err(err) => {
             error!("{:#?}", err);
@@ -114,6 +132,7 @@ pub async fn post_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::CREATED, Json(json!(user))).into_response(),
         Err(err) => {
@@ -131,9 +150,14 @@ pub struct PatchUserRequestBody {
 
 pub async fn patch_user(
     State(state): State<Arc<AppState>>,
-    Path(user_id): Path<i32>,
+    Path(params): Path<PathParams>,
     Json(payload): Json<PatchUserRequestBody>,
 ) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -141,6 +165,7 @@ pub async fn patch_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let user = match UserRepositoryImpl::find(&mut transaction, user_id).await {
         Ok(user) => user,
         Err(err) => {
@@ -151,12 +176,17 @@ pub async fn patch_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
-    let update_user = UpdateUser {
-        id: user.id,
-        username: payload.username,
-        image: payload.image,
-    };
-    let user = match UserRepositoryImpl::update(&mut transaction, &update_user).await {
+
+    let user = match UserRepositoryImpl::update(
+        &mut transaction,
+        &UpdateUser {
+            id: user.id,
+            username: payload.username,
+            image: payload.image,
+        },
+    )
+    .await
+    {
         Ok(user) => user,
         Err(err) => {
             error!("{:#?}", err);
@@ -174,6 +204,7 @@ pub async fn patch_user(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, Json(json!(user))).into_response(),
         Err(err) => {
@@ -183,7 +214,15 @@ pub async fn patch_user(
     }
 }
 
-pub async fn delete_user(State(state): State<Arc<AppState>>, Path(user_id): Path<i32>) -> Response {
+pub async fn delete_user(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
         Err(err) => {
@@ -191,6 +230,7 @@ pub async fn delete_user(State(state): State<Arc<AppState>>, Path(user_id): Path
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let user = match UserRepositoryImpl::find(&mut transaction, user_id).await {
         Ok(user) => user,
         Err(err) => {
@@ -201,6 +241,7 @@ pub async fn delete_user(State(state): State<Arc<AppState>>, Path(user_id): Path
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
+
     let user = match UserRepositoryImpl::delete(&mut transaction, user.id).await {
         Ok(user) => user,
         Err(error) => {
@@ -211,6 +252,7 @@ pub async fn delete_user(State(state): State<Arc<AppState>>, Path(user_id): Path
                 .into_response()
         }
     };
+
     match transaction.commit().await {
         Ok(_) => (StatusCode::OK, format!("Deleted user: {}", user.id)).into_response(),
         Err(err) => {

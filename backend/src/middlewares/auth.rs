@@ -7,7 +7,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
-use secrecy::ExposeSecret;
 use tracing::error;
 
 use crate::{
@@ -22,19 +21,29 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Response {
-    let token = match req.headers().typed_get::<Authorization<Bearer>>() {
+    let token_with_prefix = match req.headers().typed_get::<Authorization<Bearer>>() {
         Some(token) => token,
         None => return (StatusCode::BAD_REQUEST, "No token").into_response(),
     };
 
-    let token_payload =
-        match AccessToken::validate(token.token(), CONFIG.auth.secret.expose_secret()) {
-            Ok(token_payload) => token_payload,
-            Err(error) => {
-                error!("Unable to validate token: {}", error);
-                return (StatusCode::UNAUTHORIZED).into_response();
-            }
-        };
+    let token = match token_with_prefix
+        .token()
+        .strip_prefix(&(CONFIG.cookie.salt.clone() + "."))
+    {
+        Some(token) => token,
+        None => return (StatusCode::BAD_REQUEST, "Invalid token").into_response(),
+    };
+
+    let token_payload = match AccessToken::validate(token) {
+        Ok(token_payload) => token_payload,
+        Err(error) => {
+            // if let jsonwebtoken::errors::ErrorKind::ExpiredSignature = error {
+            //
+            // }
+            error!("Unable to validate token: {:#?}", error);
+            return (StatusCode::UNAUTHORIZED).into_response();
+        }
+    };
 
     let mut transaction = match state.db.begin().await {
         Ok(transaction) => transaction,
@@ -43,7 +52,8 @@ pub async fn auth_middleware(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
-    let user = match UserRepositoryImpl::find(&mut transaction, token_payload.user_id).await {
+    let user = match UserRepositoryImpl::find(&mut transaction, token_payload.payload.user_id).await
+    {
         Ok(user) => user,
         Err(error) => {
             if let sqlx::error::Error::RowNotFound = error {

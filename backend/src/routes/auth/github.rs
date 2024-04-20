@@ -11,8 +11,6 @@ use axum_extra::extract::{cookie::Cookie, CookieJar};
 use chrono::Utc;
 use cookie::SameSite;
 use oauth2::{reqwest::async_http_client, AuthorizationCode, PkceCodeVerifier, TokenResponse};
-use secrecy::ExposeSecret;
-use serde::Deserialize;
 use serde_json::json;
 use time::Duration;
 use tracing::{error, warn};
@@ -31,21 +29,13 @@ use crate::{
 
 use super::AuthRequest;
 
-#[derive(Default, Deserialize)]
-struct GitHubEmail {
-    email: String,
-    primary: bool,
-    // verified: bool,
-    // visibility: String,
-}
-
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/auth/github/signup", get(login))
         .route("/auth/github/callback", get(callback))
 }
 
-async fn login(cookies: CookieJar, State(appstate): State<Arc<AppState>>) -> Response {
+async fn login(State(appstate): State<Arc<AppState>>) -> Response {
     let (pkce_code_verifier, authorize_url, csrf_state) =
         appstate.services.auth.github.authorization_url();
 
@@ -257,7 +247,7 @@ async fn callback(
         None => None,
     };
 
-    let account = match AccountRepositoryImpl::create(
+    match AccountRepositoryImpl::create(
         &mut transaction,
         &CreateAccount {
             user_id: user.id,
@@ -308,20 +298,16 @@ async fn callback(
     //
     // We will implement both tokens and persist refresh token
 
-    let access_token = match AccessToken::generate(
-        AccessTokenPayload {
-            user_id: user.id,
-            email: user.email,
-            username: user.username,
-            image: user.image,
-            role: user.role,
-        },
-        &CONFIG.application.host,
-        &CONFIG.auth.secret.expose_secret(),
-    ) {
+    let access_token = match AccessToken::generate(AccessTokenPayload {
+        user_id: user.id,
+        email: user.email,
+        username: user.username,
+        image: user.image,
+        role: user.role,
+    }) {
         Ok(access_token) => access_token,
         Err(error) => {
-            error!(name: "AUTH","unable generate tokens:\n{}", error);
+            error!("unable generate tokens: {:?}", error);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!(error.to_string())),
@@ -330,18 +316,14 @@ async fn callback(
         }
     };
 
-    let refresh_token = match RefreshToken::generate(
-        RefreshTokenPayload {
-            user_id: user.id,
-            role: user.role,
-            access_token: access_token.clone(),
-        },
-        &CONFIG.application.host,
-        &CONFIG.auth.secret.expose_secret(),
-    ) {
+    let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
+        user_id: user.id,
+        role: user.role,
+        access_token: access_token.clone(),
+    }) {
         Ok(refresh_token) => refresh_token,
         Err(error) => {
-            error!(name: "AUTH","unable generate tokens:\n{}", error);
+            error!("unable generate tokens: {:?}", error);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!(error.to_string())),

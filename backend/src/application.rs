@@ -44,7 +44,7 @@ impl FromRef<AppState> for Services {
 pub struct Application {
     port: u16,
     listener: TcpListener,
-    address: SocketAddr,
+    // address: SocketAddr,
     appstate: Arc<AppState>,
 }
 
@@ -70,7 +70,7 @@ impl Application {
         Ok(Self {
             port,
             listener,
-            address,
+            // address,
             appstate,
         })
     }
@@ -90,12 +90,6 @@ impl Application {
             .layer(RequestBodyTimeoutLayer::new(Duration::from_secs(30)))
             .layer(TimeoutLayer::new(Duration::from_secs(30)))
             .layer(CatchPanicLayer::new());
-
-        //TODO: refactor to routes
-        // let app = routes::router()
-        //     .layer(middleware)
-        //     .layer(cors)
-        //     .with_state(appstate);
 
         axum::serve(
             self.listener,
