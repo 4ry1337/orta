@@ -82,7 +82,7 @@ impl TryFrom<String> for Environment {
 pub struct Settings {
     pub application: ApplicationSettings,
     pub database: DatabaseSettings,
-    pub cookie: CookieSettings,
+    pub cookie: CookiesSettings,
     pub auth: AuthSettings,
     // pub email_client: EmailClientSettings,
     // pub redis_uri: Secret<String>,
@@ -93,6 +93,7 @@ pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
+    pub hmac_secret: Secret<String>,
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -127,31 +128,18 @@ impl DatabaseSettings {
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
-pub struct CookieSettings {
+pub struct CookiesSettings {
     pub theme: String,
     pub salt: String,
-    pub auth: AuthCookiesSettings,
-    pub access_token: AccessTokenSettings,
-    pub refresh_token: RefreshTokenSettings,
+    pub csrf_state: CookieSettings,
+    pub code_verfier: CookieSettings,
+    pub access_token: CookieSettings,
+    pub refresh_token: CookieSettings,
+    pub fingerprint: CookieSettings,
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
-pub struct AuthCookiesSettings {
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub duration: i64,
-    pub csrf_state_name: String,
-    pub code_verfier_name: String,
-}
-
-#[derive(Debug, serde::Deserialize, Clone)]
-pub struct AccessTokenSettings {
-    pub name: String,
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub duration: i64,
-}
-
-#[derive(Debug, serde::Deserialize, Clone)]
-pub struct RefreshTokenSettings {
+pub struct CookieSettings {
     pub name: String,
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub duration: i64,

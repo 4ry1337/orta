@@ -1,6 +1,7 @@
 application:
   port: 5000
-  host: "http:/localhost"
+  host: "http://localhost"
+  hmac_secret: ""
 
 database:
   host: 127.0.0.1
@@ -22,17 +23,21 @@ auth:
 cookie:
   theme: theme
   salt: __Secure.orta
-  auth:
-    # used when csrf and csrf verifier created
+  csrf_state:
+    name: csrf_state_name
     duration: 5
-    csrf_state_name: auth_csrf_state
-    code_verfier_name: auth_code_verifier
+  code_verfier:
+    name: code_verfier_name
+    duration: 5
   access_token:
     name: access_token
     duration: 5
   refresh_token:
     name: refresh_token
     duration: 43200
+  fingerprint:
+    name: fingerprint
+    duration: 43200 # must be less ot equal to refresh token
 # email_client:
 #   base_url: "localhost"
 #   sender_email: "test@gmail.com"
