@@ -28,8 +28,6 @@ pub struct ArticleVersion {
 //     pub device_data: String,
 // }
 
-// derived
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateArticle {
     pub user_id: i32,

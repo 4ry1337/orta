@@ -14,6 +14,8 @@ pub struct Account {
     pub scope: Option<String>,
     pub id_token: Option<String>,
     pub session_state: Option<String>,
+    pub password: Option<String>,
+    pub salt: Option<String>,
 }
 
 pub struct CreateAccount {
@@ -28,6 +30,8 @@ pub struct CreateAccount {
     pub scope: Option<String>,
     pub id_token: Option<String>,
     pub session_state: Option<String>,
+    pub password: Option<String>,
+    pub salt: Option<String>,
 }
 
 pub struct UpdateAccount {
@@ -43,6 +47,8 @@ pub struct UpdateAccount {
     pub scope: Option<String>,
     pub id_token: Option<String>,
     pub session_state: Option<String>,
+    pub password: Option<String>,
+    pub salt: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize, Clone)]

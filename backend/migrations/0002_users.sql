@@ -19,12 +19,6 @@ CREATE TABLE Users (
   deleted_at TIMESTAMPTZ
 );
 
-CREATE TABLE Passwords (
-  id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  password TEXT NOT NULL,
-  salt TEXT NOT NULL
-);
-
 CREATE TABLE Accounts (
   id SERIAL NOT NULL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES Users(id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -37,7 +31,9 @@ CREATE TABLE Accounts (
   token_type TEXT,
   scope TEXT,
   id_token TEXT,
-  session_state TEXT
+  session_state TEXT,
+  password TEXT,
+  salt TEXT 
 );
 
 CREATE UNIQUE INDEX Account_provider_provider_account_id_key ON Accounts(provider, provider_account_id);

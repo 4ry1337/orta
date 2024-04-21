@@ -83,8 +83,8 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
             INSERT INTO accounts
             (user_id, type, provider, provider_account_id, 
             refresh_token, access_token, expires_at,
-            token_type, scope, id_token, session_state)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            token_type, scope, id_token, session_state, password, salt)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING *
             "#n,
             new_account.user_id,
@@ -98,6 +98,8 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
             new_account.scope,
             new_account.id_token,
             new_account.session_state,
+            new_account.password,
+            new_account.salt
         )
         .fetch_one(&mut **transaction)
         .await
@@ -125,7 +127,9 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
                 token_type = coalesce($5,accounts.token_type),
                 scope = coalesce($6,accounts.scope),
                 id_token = coalesce($7,accounts.id_token),
-                session_state = coalesce($8,accounts.session_state)
+                session_state = coalesce($8,accounts.session_state),
+                password = coalesce($9,accounts.password),
+                salt = coalesce($10,accounts.salt)
             WHERE id = $1
             RETURNING *
             "#n,
@@ -136,7 +140,9 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
             update_accunt.token_type,
             update_accunt.scope,
             update_accunt.id_token,
-            update_accunt.session_state
+            update_accunt.session_state,
+            update_accunt.password,
+            update_accunt.salt
         )
         .fetch_one(&mut **transaction)
         .await
