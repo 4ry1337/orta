@@ -55,6 +55,7 @@ impl JWT<AccessTokenPayload> for AccessToken {
             &EncodingKey::from_secret(CONFIG.auth.secret.expose_secret().as_bytes()),
         )
     }
+
     fn validate(token: &str) -> Result<Claims<AccessTokenPayload>, Error> {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.set_issuer(&[&CONFIG.application.host]);
@@ -74,8 +75,7 @@ pub struct RefreshToken;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RefreshTokenPayload {
     pub user_id: i32,
-    pub role: Role,
-    pub access_token: String,
+    pub fingerprint: String,
 }
 
 impl JWT<RefreshTokenPayload> for RefreshToken {

@@ -1,6 +1,6 @@
 use backend::{
     models::enums::Role,
-    utils::jwt::{AccessToken, AccessTokenPayload, Claims, JWT},
+    utils::jwt::{AccessToken, AccessTokenPayload, JWT},
 };
 
 #[tokio::test]
