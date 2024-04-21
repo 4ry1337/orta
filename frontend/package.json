@@ -9,12 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@auth/pg-adapter": "^0.5.3",
-    "@auth/prisma-adapter": "^1.4.0",
     "@hookform/resolvers": "^3.3.4",
     "@lexical/file": "^0.13.1",
     "@lexical/react": "^0.13.1",
-    "@prisma/client": "^5.9.1",
     "@radix-ui/react-accordion": "^1.1.2",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-collapsible": "^1.0.3",
@@ -47,9 +44,7 @@
     "lexical": "^0.13.1",
     "lucide-react": "^0.314.0",
     "next": "14.1.0",
-    "next-auth": "^4.24.5",
     "next-themes": "^0.2.1",
-    "pg": "^8.11.3",
     "react": "^18",
     "react-day-picker": "^8.10.0",
     "react-dom": "^18",
@@ -65,7 +60,6 @@
     "@tailwindcss/typography": "^0.5.10",
     "@types/katex": "^0.16.7",
     "@types/node": "^20",
-    "@types/pg": "^8.11.0",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
@@ -75,7 +69,6 @@
     "postcss": "^8",
     "prettier-plugin-organize-imports": "^3.2.4",
     "prettier-plugin-tailwindcss": "^0.5.7",
-    "prisma": "^5.9.1",
     "tailwindcss": "^3.3.0",
     "typescript": "^5"
   }

@@ -6,9 +6,8 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { HTMLAttributes, useEffect } from 'react';
+import { HTMLAttributes } from 'react';
 import SignInForm from './SingInForm';
 import SignUpForm from './SingUpForm';
 
@@ -17,13 +16,6 @@ interface AuthTabsProps
 
 const AuthTabs = (props: AuthTabsProps) => {
   const router = useRouter();
-  const session = useSession();
-  useEffect(() => {
-    if (session.status === 'authenticated') {
-      console.log('authenticated');
-      router.push('/');
-    }
-  }, [session?.status, router]);
   return (
     <Tabs defaultValue='signin'>
       <TabsList className='grid w-full grid-cols-2'>

@@ -1,12 +1,5 @@
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import db from '@/lib/prismadb';
 import Link from 'next/link';
 
 const MainLayout = async ({
@@ -14,19 +7,6 @@ const MainLayout = async ({
 }: {
   children: React.ReactNode;
 }) => {
-  const tags = await db.tag.findMany({
-    orderBy: {
-      article_count: 'desc',
-    },
-    take: 10,
-  })
-
-  const top_authors = await db.user.findMany({
-    orderBy: {
-      follower_count: 'desc'
-    },
-    take: 10,
-  })
   const marketing = [
     {
       href: '/tos',
@@ -61,7 +41,7 @@ const MainLayout = async ({
           <div className=''>
             <h2 className='mb-4'>Trending</h2>
             <div className='inline-flex flex-wrap gap-2'>
-              {tags.map((tag) => {
+              {/*tags.map((tag) => {
                 return (
                   <Link
                     href={`/search?tags=${tag}`}
@@ -71,13 +51,13 @@ const MainLayout = async ({
                     <Badge>{tag}</Badge>
                   </Link>
                 );
-              })}
+              })*/}
             </div>
           </div>
           <div className=''>
             <h2 className='mb-4'>Popular Writers</h2>
             <div className='flex flex-col gap-2'>
-              {top_authors.map((top_author) => {
+              {/*top_authors.map((top_author) => {
                 return (
                   <Link
                     href={`/@${top_author.id}`}
@@ -98,7 +78,7 @@ const MainLayout = async ({
                     </div>
                   </Link>
                 );
-              })}
+              })*/}
             </div>
           </div>
           <div className='inline-flex flex-wrap gap-4'>

@@ -11,10 +11,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
-import UserButton from './UserButton';
 
 interface SidebarProps
-  extends React.HTMLAttributes<HTMLDivElement> {}
+  extends React.HTMLAttributes<HTMLDivElement> { }
 
 interface IRoute {
   label: string;
@@ -103,10 +102,10 @@ const Sidebar = ({ className }: SidebarProps) => {
             );
           })}
         </div>
-        <UserButton className='' />
       </aside>
     </header>
   );
 };
 
+// <UserButton className='' />
 export default Sidebar;
