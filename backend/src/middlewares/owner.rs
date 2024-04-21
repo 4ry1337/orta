@@ -11,7 +11,6 @@ use tracing::error;
 
 use crate::{
     application::AppState,
-    models::user_model::User,
     repositories::{
         article_repository::{ArticleRepository, ArticleRepositoryImpl},
         comment_repository::{CommentRepository, CommentRepositoryImpl},
@@ -19,6 +18,7 @@ use crate::{
         series_repository::{SeriesRepository, SeriesRepositoryImpl},
         user_repository::{UserRepository, UserRepositoryImpl},
     },
+    utils::jwt::AccessTokenPayload,
 };
 
 #[derive(Clone)]
@@ -37,7 +37,7 @@ pub struct ContentOwnerState {
 }
 pub async fn content_owner_middleware(
     State(state): State<ContentOwnerState>,
-    Extension(user): Extension<User>,
+    Extension(token): Extension<AccessTokenPayload>,
     Path(params): Path<HashMap<String, String>>,
     req: Request,
     next: Next,
@@ -67,7 +67,7 @@ pub async fn content_owner_middleware(
             match ArticleRepositoryImpl::get_authors(&mut transaction, target_id).await {
                 Ok(users) => {
                     //TODO: write better or create new function in article_repository
-                    if users.iter().any(|v| v.id == user.id) {
+                    if users.iter().any(|v| v.id == token.user_id) {
                         match transaction.commit().await {
                             Ok(_) => return next.run(req).await,
                             Err(err) => {
@@ -102,7 +102,7 @@ pub async fn content_owner_middleware(
             };
             match CommentRepositoryImpl::find(&mut transaction, target_id).await {
                 Ok(comment) => {
-                    if comment.commenter_id == user.id {
+                    if comment.commenter_id == token.user_id {
                         match transaction.commit().await {
                             Ok(_) => return next.run(req).await,
                             Err(err) => {
@@ -137,7 +137,7 @@ pub async fn content_owner_middleware(
             };
             match ListRepositoryImpl::find(&mut transaction, target_id).await {
                 Ok(list) => {
-                    if list.user_id == user.id {
+                    if list.user_id == token.user_id {
                         match transaction.commit().await {
                             Ok(_) => return next.run(req).await,
                             Err(err) => {
@@ -172,7 +172,7 @@ pub async fn content_owner_middleware(
             };
             match SeriesRepositoryImpl::find(&mut transaction, target_id).await {
                 Ok(series) => {
-                    if series.user_id == user.id {
+                    if series.user_id == token.user_id {
                         match transaction.commit().await {
                             Ok(_) => return next.run(req).await,
                             Err(err) => {
@@ -207,7 +207,7 @@ pub async fn content_owner_middleware(
             };
             match UserRepositoryImpl::find(&mut transaction, target_id).await {
                 Ok(v) => {
-                    if v.id == user.id {
+                    if v.id == token.user_id {
                         match transaction.commit().await {
                             Ok(_) => return next.run(req).await,
                             Err(err) => {

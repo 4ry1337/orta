@@ -17,12 +17,13 @@ use validator::Validate;
 use crate::{
     application::AppState,
     configuration::CONFIG,
-    models::user_model::CreateUser,
+    models::{account_model::CreateAccount, user_model::CreateUser},
     repositories::{
-        password_repository::{PasswordRepository, PasswordRepositoryImpl},
+        account_repository::{AccountRepository, AccountRepositoryImpl},
         user_repository::{UserRepository, UserRepositoryImpl},
     },
     utils::{
+        fingerprint::{generate_fingerprint, verify_fingerprint_hash},
         jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
         random_string::generate,
     },
@@ -44,7 +45,6 @@ pub struct SignUpRequest {
 }
 
 pub async fn signup(
-    _cookies: CookieJar,
     State(appstate): State<Arc<AppState>>,
     Form(payload): Form<SignUpRequest>,
 ) -> Response {
@@ -96,8 +96,27 @@ pub async fn signup(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
-    match PasswordRepositoryImpl::create(&mut transaction, user.id, &hashed_password, &salt).await {
-        Ok(password) => password,
+    match AccountRepositoryImpl::create(
+        &mut transaction,
+        &CreateAccount {
+            user_id: user.id,
+            r#type: "credentails".to_string(),
+            provider: "credentails".to_string(),
+            provider_account_id: user.id.to_string(),
+            expires_at: None,
+            refresh_token: None,
+            access_token: None,
+            scope: None,
+            token_type: None,
+            id_token: None,
+            session_state: None,
+            password: Some(hashed_password),
+            salt: Some(salt),
+        },
+    )
+    .await
+    {
+        Ok(account) => account,
         Err(error) => {
             error!("unable to set password {}", error);
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
@@ -127,10 +146,21 @@ pub async fn signup(
         }
     };
 
+    let (fingerprint, fingerprint_hash) = match generate_fingerprint() {
+        Ok((fingerprint, fingerprint_hash)) => (fingerprint, fingerprint_hash),
+        Err(err) => {
+            error!("fingerprint error {}", err);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Unable to genereate tokens",
+            )
+                .into_response();
+        }
+    };
+
     let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
         user_id: user.id,
-        role: user.role,
-        access_token: access_token.clone(),
+        fingerprint: fingerprint_hash,
     }) {
         Ok(refresh_token) => refresh_token,
         Err(error) => {
@@ -143,13 +173,22 @@ pub async fn signup(
         }
     };
 
-    let access_token_cookie: Cookie = Cookie::build((
-        &CONFIG.cookie.access_token.name,
-        format!("{}.{}", CONFIG.cookie.salt, access_token.clone(),),
+    // let access_token_cookie: Cookie = Cookie::build((
+    //     &CONFIG.cookie.access_token.name,
+    //     format!("{}.{}", CONFIG.cookie.salt, access_token.clone(),),
+    // ))
+    // .http_only(true)
+    // .same_site(SameSite::Lax)
+    // .max_age(Duration::minutes(CONFIG.cookie.access_token.duration))
+    // .into();
+
+    let fingerprint_cookie: Cookie = Cookie::build((
+        &CONFIG.cookie.fingerprint.name,
+        format!("{}.{}", CONFIG.cookie.salt, fingerprint),
     ))
     .http_only(true)
     .same_site(SameSite::Lax)
-    .max_age(Duration::minutes(CONFIG.cookie.access_token.duration))
+    .max_age(Duration::minutes(CONFIG.cookie.refresh_token.duration))
     .into();
 
     let refresh_token_cookie: Cookie = Cookie::build((
@@ -162,10 +201,10 @@ pub async fn signup(
     .into();
 
     let cookies = CookieJar::new()
-        .add(access_token_cookie)
-        .add(refresh_token_cookie);
+        .add(refresh_token_cookie)
+        .add(fingerprint_cookie);
 
-    (StatusCode::OK, cookies).into_response()
+    (StatusCode::OK, cookies, access_token).into_response()
 }
 
 #[derive(Debug, Validate, Deserialize)]
@@ -177,7 +216,6 @@ pub struct SignInRequest {
 }
 
 pub async fn signin(
-    _cookies: CookieJar,
     State(appstate): State<Arc<AppState>>,
     Form(payload): Form<SignInRequest>,
 ) -> Response {
@@ -200,8 +238,8 @@ pub async fn signin(
         }
     };
 
-    let password = match PasswordRepositoryImpl::find(&mut transaction, user.id).await {
-        Ok(password) => password,
+    let account = match AccountRepositoryImpl::find_by_user(&mut transaction, user.id).await {
+        Ok(acccount) => acccount,
         Err(err) => {
             error!("{}", err);
             if let sqlx::error::Error::RowNotFound = err {
@@ -217,7 +255,22 @@ pub async fn signin(
         return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
     }
 
-    match password.password.strip_suffix(&password.salt) {
+    let password = match account.password {
+        Some(password) => password,
+        None => {
+            error!("Credentials Account does not have password");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+    let salt = match account.salt {
+        Some(salt) => salt,
+        None => {
+            error!("Credentials Account does not have salt");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+        }
+    };
+
+    match password.strip_suffix(&salt) {
         Some(password) => match bcrypt::verify(payload.password, password) {
             Ok(verified) => verified,
             Err(err) => {
@@ -246,10 +299,21 @@ pub async fn signin(
         }
     };
 
+    let (fingerprint, fingerprint_hash) = match generate_fingerprint() {
+        Ok((fingerprint, fingerprint_hash)) => (fingerprint, fingerprint_hash),
+        Err(err) => {
+            error!("fingerprint error {}", err);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Unable to genereate tokens",
+            )
+                .into_response();
+        }
+    };
+
     let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
         user_id: user.id,
-        role: user.role,
-        access_token: access_token.clone(),
+        fingerprint: fingerprint_hash,
     }) {
         Ok(refresh_token) => refresh_token,
         Err(error) => {
@@ -262,13 +326,22 @@ pub async fn signin(
         }
     };
 
-    let access_token_cookie: Cookie = Cookie::build((
-        &CONFIG.cookie.access_token.name,
-        format!("{}.{}", CONFIG.cookie.salt, access_token.clone(),),
+    // let access_token_cookie: Cookie = Cookie::build((
+    //     &CONFIG.cookie.access_token.name,
+    //     format!("{}.{}", CONFIG.cookie.salt, access_token.clone(),),
+    // ))
+    // .http_only(true)
+    // .same_site(SameSite::Lax)
+    // .max_age(Duration::minutes(CONFIG.cookie.access_token.duration))
+    // .into();
+
+    let fingerprint_cookie: Cookie = Cookie::build((
+        &CONFIG.cookie.fingerprint.name,
+        format!("{}.{}", CONFIG.cookie.salt, fingerprint),
     ))
     .http_only(true)
     .same_site(SameSite::Lax)
-    .max_age(Duration::minutes(CONFIG.cookie.access_token.duration))
+    .max_age(Duration::minutes(CONFIG.cookie.fingerprint.duration))
     .into();
 
     let refresh_token_cookie: Cookie = Cookie::build((
@@ -281,10 +354,10 @@ pub async fn signin(
     .into();
 
     let cookies = CookieJar::new()
-        .add(access_token_cookie)
-        .add(refresh_token_cookie);
+        .add(refresh_token_cookie)
+        .add(fingerprint_cookie);
 
-    (StatusCode::OK, cookies).into_response()
+    (StatusCode::OK, cookies, access_token).into_response()
 }
 
 // TODO activiaton links

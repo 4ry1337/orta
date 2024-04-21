@@ -6,17 +6,17 @@ use axum::{
     Extension,
 };
 
-use crate::models::{enums::Role, user_model::User};
+use crate::{models::enums::Role, utils::jwt::AccessTokenPayload};
 
 pub async fn role_middleware(
-    Extension(user): Extension<User>,
+    Extension(user): Extension<AccessTokenPayload>,
     State(state): State<Role>,
     req: Request,
     next: Next,
 ) -> Response {
     //TODO: better logic for roles
-    if user.role != state {
-        return (StatusCode::FORBIDDEN).into_response();
+    if user.role == state || user.role == Role::Admin {
+        return next.run(req).await;
     }
-    next.run(req).await
+    (StatusCode::FORBIDDEN).into_response()
 }

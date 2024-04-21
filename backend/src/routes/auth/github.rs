@@ -108,7 +108,7 @@ async fn callback(
     {
         Ok(token_response) => token_response,
         Err(error) => {
-            error!(name: "AUTH","unable to get response from client: \n{}", error);
+            error!("unable to get response from client: \n{}", error);
             return (StatusCode::BAD_REQUEST, "Something went wrong").into_response();
         }
     };
@@ -123,7 +123,7 @@ async fn callback(
     {
         Ok(github_user) => github_user,
         Err(error) => {
-            error!(name: "AUTH","unable to get response from github:\n{}", error);
+            error!("unable to get response from github:\n{}", error);
             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
         }
     };
@@ -207,7 +207,7 @@ async fn callback(
             match UserRepositoryImpl::create(&mut transaction, &create_user).await {
                 Ok(user) => user,
                 Err(error) => {
-                    error!(name: "OAUTH","unable to create user:\n{}", error);
+                    error!("unable to create user:\n{}", error);
                     if let Some(database_error) = error.as_database_error() {
                         if let Some(constraint) = database_error.constraint() {
                             if constraint == "users_email_key" {

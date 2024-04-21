@@ -1,4 +1,6 @@
-use backend::{application::Application, configuration::CONFIG};
+use backend::{
+    application::Application, configuration::CONFIG, utils::fingerprint::generate_fingerprint,
+};
 
 //TODO: add multithreading
 //TODO: add rate limiter? mb middleware
