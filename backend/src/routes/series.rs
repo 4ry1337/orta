@@ -9,14 +9,10 @@ use axum::{
 use axum_core::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
+use shared::{models::prelude::*, repositories::prelude::*};
 use tracing::error;
 
-use crate::{
-    application::AppState,
-    models::series_model::{CreateSeries, UpdateSeries},
-    repositories::series_repository::{SeriesRepository, SeriesRepositoryImpl},
-    utils::params::PathParams,
-};
+use crate::{application::AppState, utils::params::PathParams};
 
 pub async fn get_series(State(state): State<Arc<AppState>>) -> Response {
     let mut transaction = match state.db.begin().await {

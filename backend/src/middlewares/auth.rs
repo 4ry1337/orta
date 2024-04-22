@@ -7,7 +7,7 @@ use axum::{
 use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 use tracing::error;
 
-use crate::utils::jwt::{AccessToken, JWT};
+use shared::utils::jwt::{AccessToken, JWT};
 
 pub async fn auth_middleware(mut req: Request, next: Next) -> Response {
     let token = match req.headers().typed_get::<Authorization<Bearer>>() {

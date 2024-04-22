@@ -9,14 +9,10 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::json;
+use shared::{models::prelude::*, repositories::prelude::*};
 use tracing::error;
 
-use crate::{
-    application::AppState,
-    models::user_model::{CreateUser, UpdateUser},
-    repositories::user_repository::{UserRepository, UserRepositoryImpl},
-    utils::params::PathParams,
-};
+use crate::{application::AppState, utils::params::PathParams};
 
 pub async fn get_users(State(state): State<Arc<AppState>>) -> Response {
     let mut transaction = match state.db.begin().await {

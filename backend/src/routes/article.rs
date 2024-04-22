@@ -9,14 +9,10 @@ use axum::{
 use axum_core::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
+use shared::{models::prelude::*, repositories::prelude::*};
 use tracing::error;
 
-use crate::{
-    application::AppState,
-    models::article_model::{AddAuthor, CreateArticle, DeleteAuthor, UpdateArticle},
-    repositories::article_repository::{ArticleRepository, ArticleRepositoryImpl},
-    utils::params::PathParams,
-};
+use crate::{application::AppState, utils::params::PathParams};
 
 pub async fn get_articles(State(state): State<Arc<AppState>>) -> Response {
     let mut transaction = match state.db.begin().await {

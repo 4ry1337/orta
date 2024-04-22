@@ -9,21 +9,10 @@ use axum::{
 use axum_core::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
+use shared::{models::prelude::*, repositories::prelude::*};
 use tracing::error;
 
-use crate::{
-    application::AppState,
-    models::{
-        enums::Visibility,
-        list_model::{CreateList, UpdateList},
-    },
-    repositories::{
-        article_repository::{ArticleRepository, ArticleRepositoryImpl},
-        list_repository::{ListRepository, ListRepositoryImpl},
-        user_repository::{UserRepository, UserRepositoryImpl},
-    },
-    utils::params::PathParams,
-};
+use crate::{application::AppState, utils::params::PathParams};
 
 pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {
     let mut transaction = match state.db.begin().await {

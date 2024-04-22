@@ -1,0 +1,42 @@
+[package]
+name = "shared"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tonic.workspace = true
+async-trait.workspace = true
+
+# Environment variables:
+dotenv.workspace = true
+dotenv_codegen.workspace = true
+
+# Database:
+sqlx.workspace = true
+
+# Auth:
+jsonwebtoken = "9.3.0"
+
+# Time:
+chrono.workspace = true
+time.workspace = true
+
+# Serialisation/Deserialisation:
+prost.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde-aux = "4.5.0"
+
+# Utils
+rand = { version = "0.8.5", features = ["min_const_gen"] }
+lazy_static.workspace = true
+slug.workspace = true
+secrecy.workspace = true
+config = { version = "0.14", default-features = false, features = ["yaml"] }
+
+[build-dependencies]
+tonic-build.workspace = true
+

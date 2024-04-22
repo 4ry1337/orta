@@ -1,8 +1,6 @@
-use backend::application::Application;
+use auth::application::Application;
 use shared::configuration::CONFIG;
-
-//TODO: add multithreading
-//TODO: add rate limiter? mb middleware
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

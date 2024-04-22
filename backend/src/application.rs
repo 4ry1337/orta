@@ -6,7 +6,7 @@ use std::{
 
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
-use dotenv::dotenv;
+use shared::configuration::{DatabaseSettings, Settings};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tokio::{net::TcpListener, signal};
 use tower_http::{
@@ -16,17 +16,12 @@ use tower_http::{
     timeout::{RequestBodyTimeoutLayer, TimeoutLayer},
 };
 
-use crate::{
-    configuration::{DatabaseSettings, Settings},
-    routes,
-    services::Services,
-};
+use crate::routes;
 
 #[derive(Clone)]
 pub struct AppState {
     pub key: Key,
     pub db: PgPool,
-    pub services: Services,
 }
 
 impl FromRef<AppState> for Key {
@@ -35,25 +30,15 @@ impl FromRef<AppState> for Key {
     }
 }
 
-impl FromRef<AppState> for Services {
-    fn from_ref(state: &AppState) -> Self {
-        state.services.clone()
-    }
-}
-
 pub struct Application {
     port: u16,
     listener: TcpListener,
-    // address: SocketAddr,
     appstate: Arc<AppState>,
 }
 
 impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
-        dotenv().ok();
-
         let pool = get_connection_pool(&configuration.database).await;
-        // let email_client = configuration.email_client.client();
 
         let port = configuration.application.port;
 
@@ -62,7 +47,6 @@ impl Application {
         let appstate = Arc::new(AppState {
             key: Key::generate(),
             db: pool,
-            services: Services::new(),
         });
 
         let listener = TcpListener::bind(&address).await?;

@@ -6,7 +6,7 @@ use axum::{
     Extension,
 };
 
-use crate::{models::enums::Role, utils::jwt::AccessTokenPayload};
+use shared::{models::enums::Role, utils::jwt::AccessTokenPayload};
 
 pub async fn role_middleware(
     Extension(user): Extension<AccessTokenPayload>,

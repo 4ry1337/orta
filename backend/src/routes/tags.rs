@@ -8,17 +8,11 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use shared::{models::prelude::*, repositories::prelude::*};
+
 use tracing::error;
 
-use crate::{
-    application::AppState,
-    models::{
-        enums::TagStatus,
-        tag_model::{CreateTag, GetTags, UpdateTag},
-    },
-    repositories::tag_repository::{TagRepository, TagRepositoryImpl},
-    utils::params::PathParams,
-};
+use crate::{application::AppState, utils::params::PathParams};
 
 #[derive(Deserialize)]
 pub struct GetTagsQuery {

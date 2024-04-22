@@ -8,17 +8,10 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use shared::{models::prelude::*, repositories::prelude::*};
 use tracing::error;
 
-use crate::{
-    application::AppState,
-    models::comment_model::{CreateComment, UpdateComment},
-    repositories::{
-        article_repository::{ArticleRepository, ArticleRepositoryImpl},
-        comment_repository::{CommentRepository, CommentRepositoryImpl},
-    },
-    utils::params::PathParams,
-};
+use crate::{application::AppState, utils::params::PathParams};
 
 pub async fn get_comments(
     State(state): State<Arc<AppState>>,

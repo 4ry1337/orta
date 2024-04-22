@@ -9,11 +9,7 @@ use axum::{
 
 use axum_prometheus::PrometheusMetricLayer;
 
-use crate::{
-    application::AppState,
-    middlewares::{auth::auth_middleware, role::role_middleware},
-    models::enums::Role,
-};
+use crate::{application::AppState, middlewares::auth::auth_middleware};
 
 use self::{
     admin::health_checker,
@@ -45,7 +41,6 @@ pub mod user;
 
 pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
-
     Router::new()
         .nest(
             "/api",
@@ -66,7 +61,6 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
                         )
                         .route("/healthchecker", get(health_checker))
                         .route("/metrics", get(|| async move { metric_handle.render() }))
-                        .layer(middleware::from_fn_with_state(Role::Admin, role_middleware))
                         .layer(middleware::from_fn_with_state(
                             state.clone(),
                             auth_middleware,

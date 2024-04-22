@@ -1,0 +1,57 @@
+[workspace]
+members = [
+  "notification",
+  "backend",
+  "shared",
+  "auth"
+  ]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Rakhat Yskak yskak.rakhat@gmail.com"]
+
+[workspace.dependencies]
+tonic = "0.11.0"
+tonic-reflection = "0.11"
+
+# Async Runtime:
+async-trait = "0.1.80"
+tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread", "signal"] }
+
+# Serialisation/Deserialisation:
+prost = "0.12.4"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.115"
+serde-aux = "4.5.0"
+
+# Database:
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "macros", "uuid", "json", "chrono", "migrate", "postgres"] }
+
+# Environment variables:
+dotenv = "0.15.0"
+dotenv_codegen = "0.15.0"
+
+# Logging:
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+# Time:
+chrono = { version = "0.4.37", features = ["clock", "serde"] }
+time = "0.3.34"
+
+# Error:
+thiserror = "1.0.58"
+anyhow = "1.0.82"
+
+# Utils
+slug = "0.1.5"
+lazy_static = "1.4.0"
+secrecy = { version = "0.8", features = ["serde"] }
+
+# Dev:
+sqlx-cli = "0.7.4"
+cargo-watch = "8.5.2"
+wiremock = "0.6"
+tonic-build = "0.11.0"

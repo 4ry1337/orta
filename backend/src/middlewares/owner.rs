@@ -7,19 +7,11 @@ use axum::{
     response::{IntoResponse, Response},
     Extension,
 };
+use shared::repositories::prelude::*;
+use shared::utils::jwt::AccessTokenPayload;
 use tracing::error;
 
-use crate::{
-    application::AppState,
-    repositories::{
-        article_repository::{ArticleRepository, ArticleRepositoryImpl},
-        comment_repository::{CommentRepository, CommentRepositoryImpl},
-        list_repository::{ListRepository, ListRepositoryImpl},
-        series_repository::{SeriesRepository, SeriesRepositoryImpl},
-        user_repository::{UserRepository, UserRepositoryImpl},
-    },
-    utils::jwt::AccessTokenPayload,
-};
+use crate::application::AppState;
 
 #[derive(Clone)]
 pub enum ContentType {

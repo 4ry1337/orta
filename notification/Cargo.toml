@@ -1,0 +1,13 @@
+[package]
+name = "notification"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+[dev-dependencies]
+sqlx-cli.workspace = true
+cargo-watch.workspace = true
