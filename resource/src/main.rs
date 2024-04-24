@@ -1,4 +1,4 @@
-use auth::application::Application;
+use resource::application::Application;
 use shared::configuration::CONFIG;
 
 #[tokio::main]

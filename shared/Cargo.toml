@@ -18,7 +18,7 @@ dotenv_codegen.workspace = true
 sqlx.workspace = true
 
 # Auth:
-jsonwebtoken = "9.3.0"
+jsonwebtoken.workspace = true
 
 # Time:
 chrono.workspace = true
@@ -26,6 +26,8 @@ time.workspace = true
 
 # Serialisation/Deserialisation:
 prost.workspace = true
+prost-types.workspace = true
+prost-derive = "0.12.4"
 serde.workspace = true
 serde_json.workspace = true
 serde-aux = "4.5.0"

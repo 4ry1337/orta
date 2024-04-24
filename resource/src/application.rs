@@ -4,14 +4,14 @@ use std::{
 };
 
 use shared::{
-    auth_proto::auth_service_server::AuthServiceServer,
     configuration::{DatabaseSettings, Settings},
+    resource_proto::user_service_server::UserServiceServer,
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tonic::transport::{server::Router, Server};
 use tracing::info;
 
-use crate::service::AuthServiceImpl;
+use crate::services::user_service::UserServiceImpl;
 
 pub struct AppState {
     pub db: PgPool,
@@ -35,11 +35,11 @@ impl Application {
 
         let state = Arc::new(AppState { db: pool });
 
-        let auth_service = AuthServiceImpl {
+        let user_service = UserServiceImpl {
             state: state.clone(),
         };
 
-        let server = Server::builder().add_service(AuthServiceServer::new(auth_service));
+        let server = Server::builder().add_service(UserServiceServer::new(user_service));
 
         info!("Finished user service build");
 

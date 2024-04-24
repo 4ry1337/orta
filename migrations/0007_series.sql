@@ -3,6 +3,7 @@ CREATE TABLE Series (
   user_id INTEGER NOT NULL REFERENCES Users (id) ON UPDATE CASCADE ON DELETE CASCADE,
   label TEXT NOT NULL,
   image TEXT,
+  article_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   updated_at TIMESTAMPTZ
 );

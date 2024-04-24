@@ -1,3 +1,2 @@
 pub mod cookie;
 pub mod errors;
-pub mod params;

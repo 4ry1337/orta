@@ -178,6 +178,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                 u.email_verified,
                 u.image,
                 u.role AS "role: Role",
+                u.bio,
+                u.urls,
                 u.follower_count,
                 u.following_count,
                 u.approved_at,

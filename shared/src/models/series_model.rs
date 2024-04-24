@@ -8,6 +8,7 @@ pub struct Series {
     pub user_id: i32,
     pub label: String,
     pub image: Option<String>,
+    pub article_count: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
 }

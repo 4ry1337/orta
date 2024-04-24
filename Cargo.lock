@@ -616,7 +616,6 @@ dependencies = [
  "serde_json",
  "shared",
  "slug",
- "sqlx",
  "sqlx-cli",
  "thiserror",
  "time",
@@ -3575,6 +3574,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "resource"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "prost",
+ "prost-types",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "shared",
+ "slug",
+ "sqlx",
+ "thiserror",
+ "time",
+ "tokio",
+ "tonic",
+ "tonic-reflection",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ring"
 version = "0.17.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3918,6 +3940,8 @@ dependencies = [
  "jsonwebtoken",
  "lazy_static",
  "prost",
+ "prost-derive",
+ "prost-types",
  "rand",
  "secrecy",
  "serde",

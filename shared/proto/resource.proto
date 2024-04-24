@@ -1,0 +1,170 @@
+syntax = "proto3";
+
+package resource;
+
+import "google/protobuf/timestamp.proto";
+
+message IntParam {
+  int32 value = 1;
+}
+
+message StringParam {
+  string value = 1;
+}
+
+message QueryParams {
+  optional string query = 1;
+  optional string order_by = 2;
+  optional int64 page = 3;
+  optional int64 per_page = 4;
+}
+
+message User {
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+  optional google.protobuf.Timestamp email_verified = 4;
+  optional string image = 5;
+  Role role = 6;
+  int32 follower_count = 7;
+  int32 following_count = 8;
+  optional google.protobuf.Timestamp approved_at = 9;
+  optional google.protobuf.Timestamp deleted_at = 10;
+}
+
+message UserVec {
+  int64 total = 1;
+  repeated User users = 2;
+}
+
+enum Role {
+  ADMIN = 0;
+  USER = 1;
+  MANAGER = 2;
+}
+
+message UpdateUserRequest {
+  int32 id = 1;
+  optional string username = 2;
+  optional bytes image = 3;
+  optional string bio = 4;
+  repeated string url = 5;
+}
+
+message FollowUserRequest {
+  int32 id = 1;
+  int32 target_id = 2;
+}
+
+service UserService {
+  rpc GetUsers(QueryParams) returns (UserVec);
+  rpc GetUser(StringParam) returns (User);
+  rpc UpdateUser(UpdateUserRequest) returns(User);
+  rpc DeleteUser(IntParam) returns (User);
+  rpc VerifyEmail(StringParam) returns (User);
+  rpc FollowUser(FollowUserRequest) returns (User);
+}
+
+// message Article {
+//   int32 id = 1;
+//   string title = 2;
+//   string slug = 3;
+//   int32 like_count = 4;
+//   int32 comment_count = 5;
+//   google.protobuf.Timestamp created_at = 6;
+//   optional google.protobuf.Timestamp updated_at = 7;
+//   optional google.protobuf.Timestamp published_at = 8;
+// }
+//
+// message ArticleVec {
+//   uint32 total = 1;
+//   repeated Article articles = 2;
+// }
+//
+// message UpdateArticle {
+//   int32 id = 1;
+//   optional string title = 2;
+// }
+//
+// message Comment {
+//   int32 id = 1;
+//   string content = 2;
+//   int32 commenter_id = 3;
+//   optional int32 article_id = 4;
+//   optional int32 series_id = 5;
+//   optional int32 list_id = 6;
+//   google.protobuf.Timestamp created_at = 7;
+//   optional google.protobuf.Timestamp updated_at = 8;
+// }
+//
+// message CommentVec {
+//   int64 total = 1;
+//   repeated Comment comments = 2;
+// }
+//
+// message List {
+//   int32 id = 1;
+//   int32 user_id = 2;
+//   string slug = 3;
+//   string label = 4;
+//   optional string image = 5;
+//   Visibility visibility = 6;
+//   int32 article_count = 7;
+//   google.protobuf.Timestamp created_at = 8;
+//   optional google.protobuf.Timestamp updated_at = 9;
+// }
+//
+// enum Visibility {
+//   PRIVATE = 0;
+//   PUBLIC = 1;
+//   BYLINK = 2;
+// }
+//
+// message List {
+//   int32 id = 1;
+//   optional int32 user_id = 2;
+//   optional string slug = 3;
+//   optional string label = 4;
+//   optional string image = 5;
+//   optional Visibility visibility = 6;
+//   optional int32 article_count = 7;
+// }
+//
+// message ListVec {
+//   int64 total = 1;
+//   repeated List lists = 2;
+// }
+//
+// message Series {
+//   int32 id = 1;
+//   int32 user_id = 2;
+//   string label = 3;
+//   optional string image = 4;
+//   int32 article_count = 5;
+//   google.protobuf.Timestamp created_at = 6;
+//   optional google.protobuf.Timestamp updated_at = 7;
+// }
+//
+// enum TagStatus {
+//   APPROVED = 0;
+//   BANNED = 1;
+//   WAITING = 2;
+// }
+//
+// message SeriesVec {
+//   int64 total = 1;
+//   repeated Series series = 2;
+// }
+// service ArticleService {
+//   rpc GetArticles(QueryParams) returns (ArticleVec);
+//   rpc GetArticle(StringParam) returns (Article);
+//   rpc UpdateArticle(OptionalArticle) returns(Article);
+//   rpc DeleteArticle(IntParam) returns (Article);
+// }
+//
+// service ListService {
+//   rpc GetLists(QueryParams) returns (ListVec);
+//   rpc GetList(StringParam) returns (List);
+//   rpc UpdateList(OptionalList) returns(List);
+//   rpc DeleteList(IntParam) returns (List);
+// }

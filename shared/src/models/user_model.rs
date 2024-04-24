@@ -11,6 +11,8 @@ pub struct User {
     pub email_verified: Option<DateTime<Utc>>,
     pub image: Option<String>,
     pub role: Role,
+    pub bio: String,
+    pub urls: Vec<String>,
     pub follower_count: i32,
     pub following_count: i32,
     pub approved_at: Option<DateTime<Utc>>,
@@ -34,6 +36,8 @@ impl<'r> sqlx::Decode<'r, Postgres> for User {
         let email_verified = decoder.try_decode()?;
         let image = decoder.try_decode()?;
         let role = decoder.try_decode()?;
+        let bio = decoder.try_decode()?;
+        let urls = decoder.try_decode()?;
         let follower_count = decoder.try_decode()?;
         let following_count = decoder.try_decode()?;
         let approved_at = decoder.try_decode()?;
@@ -45,6 +49,8 @@ impl<'r> sqlx::Decode<'r, Postgres> for User {
             email_verified,
             image,
             role,
+            bio,
+            urls,
             follower_count,
             following_count,
             approved_at,

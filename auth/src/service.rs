@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use shared::{
-    authproto::{
-        auth_server::Auth, AuthResponse, RefreshRequest, RefreshResponse, SigninRequest,
-        SignupRequest,
+    auth_proto::{
+        auth_service_server::AuthService, AuthResponse, RefreshRequest, RefreshResponse,
+        SigninRequest, SignupRequest,
     },
     models::prelude::*,
     repositories::prelude::*,
@@ -21,12 +21,12 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct AuthService {
+pub struct AuthServiceImpl {
     pub state: Arc<AppState>,
 }
 
 #[tonic::async_trait]
-impl Auth for AuthService {
+impl AuthService for AuthServiceImpl {
     async fn signup(
         &self,
         request: Request<SignupRequest>,

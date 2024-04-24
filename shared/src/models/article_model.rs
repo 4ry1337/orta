@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
 pub struct Article {
     pub id: i32,
-    pub title: Option<String>,
+    pub title: String,
     pub slug: String,
     pub like_count: i32,
     pub comment_count: i32,

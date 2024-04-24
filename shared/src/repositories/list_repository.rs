@@ -63,6 +63,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 label,
                 image,
                 visibility AS "visibility: Visibility",
+                article_count,
                 created_at,
                 updated_at
             FROM lists
@@ -87,6 +88,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 label,
                 image,
                 visibility AS "visibility: Visibility",
+                article_count,
                 created_at,
                 updated_at
             FROM lists
@@ -113,6 +115,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 label,
                 image,
                 visibility AS "visibility: Visibility",
+                article_count,
                 created_at,
                 updated_at
             FROM lists
@@ -147,6 +150,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 label,
                 image,
                 visibility AS "visibility: Visibility",
+                article_count,
                 created_at,
                 updated_at
             "#n,
@@ -180,6 +184,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 label,
                 image,
                 visibility AS "visibility: Visibility",
+                article_count,
                 created_at,
                 updated_at
             "#n,
@@ -212,6 +217,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 label,
                 image,
                 visibility AS "visibility: Visibility",
+                article_count,
                 created_at,
                 updated_at
             "#n,

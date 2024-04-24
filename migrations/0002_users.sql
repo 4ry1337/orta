@@ -11,8 +11,8 @@ CREATE TABLE Users (
   email_verified TIMESTAMPTZ,
   image TEXT,
   role Role NOT NULL DEFAULT 'USER',
-  bio TEXT,
-  urls TEXT[],
+  bio TEXT NOT NULL DEFAULT '',
+  urls TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
   follower_count INTEGER NOT NULL DEFAULT 0,
   following_count INTEGER NOT NULL DEFAULT 0,
   approved_at TIMESTAMPTZ,
@@ -34,6 +34,14 @@ CREATE TABLE Accounts (
   session_state TEXT,
   password TEXT,
   salt TEXT 
+);
+
+CREATE TABLE Verification_token (
+  identifier TEXT NOT NULL,
+  expires TIMESTAMPTZ NOT NULL,
+  token TEXT NOT NULL,
+
+  PRIMARY KEY (identifier, token)
 );
 
 CREATE UNIQUE INDEX Account_provider_provider_account_id_key ON Accounts(provider, provider_account_id);

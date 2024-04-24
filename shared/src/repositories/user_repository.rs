@@ -1,9 +1,12 @@
 use async_trait::async_trait;
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::models::{
-    enums::Role,
-    user_model::{CreateUser, UpdateUser, User},
+use crate::{
+    models::{
+        enums::Role,
+        user_model::{CreateUser, UpdateUser, User},
+    },
+    utils::params::Filter,
 };
 
 #[async_trait]
@@ -11,7 +14,11 @@ pub trait UserRepository<DB, E>
 where
     DB: Database,
 {
-    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<User>, E>;
+    async fn total(transaction: &mut Transaction<'_, DB>) -> Result<Option<i64>, E>;
+    async fn find_all(
+        transaction: &mut Transaction<'_, DB>,
+        filters: &Filter,
+    ) -> Result<Vec<User>, E>;
     async fn find_by_email(
         transaction: &mut Transaction<'_, DB>,
         user_email: &str,
@@ -46,7 +53,15 @@ pub struct UserRepositoryImpl;
 
 #[async_trait]
 impl UserRepository<Postgres, Error> for UserRepositoryImpl {
-    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<User>, Error> {
+    async fn total(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<i64>, Error> {
+        sqlx::query_scalar!("SELECT COUNT(*) FROM users")
+            .fetch_one(&mut **transaction)
+            .await
+    }
+    async fn find_all(
+        transaction: &mut Transaction<'_, Postgres>,
+        filters: &Filter,
+    ) -> Result<Vec<User>, Error> {
         sqlx::query_as!(
             User,
             r#"
@@ -57,12 +72,20 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
                 deleted_at
             FROM users
-            "#n
+            ORDER BY $1
+            LIMIT $2
+            OFFSET $3
+            "#n,
+            filters.order_by,
+            filters.limit,
+            filters.offset
         )
         .fetch_all(&mut **transaction)
         .await
@@ -82,6 +105,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -108,6 +133,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -135,6 +162,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -163,6 +192,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 u.email_verified,
                 u.image,
                 u.role AS "role: Role",
+                u.bio,
+                u.urls,
                 u.follower_count,
                 u.following_count,
                 u.approved_at,
@@ -194,6 +225,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -228,6 +261,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -260,6 +295,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -290,6 +327,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -320,6 +359,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -350,6 +391,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,
@@ -377,6 +420,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 email_verified,
                 image,
                 role AS "role: Role",
+                bio,
+                urls,
                 follower_count,
                 following_count,
                 approved_at,

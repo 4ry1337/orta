@@ -5,18 +5,18 @@ use std::str::FromStr;
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize, sqlx::Type)]
 #[sqlx(type_name = "role", rename_all = "UPPERCASE")]
 pub enum Role {
-    Admin,
-    User,
-    Manager,
+    Admin = 0,
+    User = 1,
+    Manager = 2,
 }
 
 impl FromStr for Role {
     type Err = Box<dyn Error>;
     fn from_str(input: &str) -> Result<Role, Self::Err> {
         match input.to_lowercase().trim() {
-            "admin" => Ok(Role::Admin),
-            "user" => Ok(Role::User),
-            "manager" => Ok(Role::Manager),
+            "ADMIN" => Ok(Role::Admin),
+            "USER" => Ok(Role::User),
+            "MANAGER" => Ok(Role::Manager),
             _ => Err(format!("Can not parse {} into Role Enum", input).into()),
         }
     }
@@ -34,9 +34,9 @@ impl FromStr for TagStatus {
     type Err = Box<dyn Error>;
     fn from_str(input: &str) -> Result<TagStatus, Self::Err> {
         match input.to_lowercase().trim() {
-            "approved" => Ok(TagStatus::Approved),
-            "banned" => Ok(TagStatus::Banned),
-            "waiting" => Ok(TagStatus::Waiting),
+            "APPROVED" => Ok(TagStatus::Approved),
+            "BANNED" => Ok(TagStatus::Banned),
+            "WAITING" => Ok(TagStatus::Waiting),
             _ => Err(format!("Can not parse {} into Tag Status Enum", input).into()),
         }
     }
@@ -47,16 +47,16 @@ impl FromStr for TagStatus {
 pub enum Visibility {
     Private,
     Public,
-    Bulink,
+    Bylink,
 }
 
 impl FromStr for Visibility {
     type Err = Box<dyn Error>;
     fn from_str(input: &str) -> Result<Visibility, Self::Err> {
         match input.to_lowercase().trim() {
-            "private" => Ok(Visibility::Private),
-            "public" => Ok(Visibility::Public),
-            "bulink" => Ok(Visibility::Bulink),
+            "PRIVATE" => Ok(Visibility::Private),
+            "PUBLIC" => Ok(Visibility::Public),
+            "BYLINK" => Ok(Visibility::Bylink),
             _ => Err(format!("Can not parse {} into Visibility Enum", input).into()),
         }
     }
