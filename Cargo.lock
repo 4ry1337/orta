@@ -3580,7 +3580,6 @@ dependencies = [
  "anyhow",
  "chrono",
  "prost",
- "prost-types",
  "secrecy",
  "serde",
  "serde_json",
@@ -3592,6 +3591,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-reflection",
+ "tonic-types",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3952,6 +3952,7 @@ dependencies = [
  "time",
  "tonic",
  "tonic-build",
+ "tonic-types",
 ]
 
 [[package]]
@@ -4699,6 +4700,17 @@ dependencies = [
  "prost-types",
  "tokio",
  "tokio-stream",
+ "tonic",
+]
+
+[[package]]
+name = "tonic-types"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4aa089471d8d4c60ec3aef047739713a4695f0b309d4cea0073bc55201064f4"
+dependencies = [
+ "prost",
+ "prost-types",
  "tonic",
 ]
 

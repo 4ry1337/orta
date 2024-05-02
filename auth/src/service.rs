@@ -3,7 +3,7 @@ use std::sync::Arc;
 use shared::{
     auth_proto::{
         auth_service_server::AuthService, AuthResponse, RefreshRequest, RefreshResponse,
-        SigninRequest, SignupRequest,
+        SigninRequest, SignupRequest, VerifyEmailRequest, VerifyEmailResponse,
     },
     models::prelude::*,
     repositories::prelude::*,
@@ -330,5 +330,11 @@ impl AuthService for AuthServiceImpl {
         };
 
         Ok(Response::new(RefreshResponse { access_token }))
+    }
+    async fn verify_email(
+        &self,
+        request: Request<VerifyEmailRequest>,
+    ) -> Result<Response<VerifyEmailResponse>, Status> {
+        unimplemented!()
     }
 }

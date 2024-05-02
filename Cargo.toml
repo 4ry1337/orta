@@ -14,7 +14,8 @@ authors = ["Rakhat Yskak yskak.rakhat@gmail.com"]
 
 [workspace.dependencies]
 tonic = "0.11.0"
-tonic-reflection = "0.11"
+tonic-types = "0.11.0"
+tonic-reflection = "0.11.0"
 
 # Async Runtime:
 async-trait = "0.1.80"
@@ -53,6 +54,9 @@ anyhow = "1.0.82"
 slug = "0.1.5"
 lazy_static = "1.4.0"
 secrecy = { version = "0.8", features = ["serde"] }
+
+# Tests
+interop = "0.1.0-tmp"
 
 # Dev:
 sqlx-cli = "0.7.4"

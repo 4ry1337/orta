@@ -1,4 +1,5 @@
-use chrono::prelude::*;
+use crate::models::user_model::User;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
@@ -11,6 +12,19 @@ pub struct Article {
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
+}
+
+#[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
+pub struct ArticleWithAuthors {
+    pub id: i32,
+    pub title: String,
+    pub slug: String,
+    pub like_count: i32,
+    pub comment_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub authors: Option<Vec<User>>,
 }
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]

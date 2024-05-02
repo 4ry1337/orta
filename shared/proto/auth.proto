@@ -2,10 +2,13 @@ syntax = "proto3";
 
 package auth;
 
+import "google/protobuf/empty.proto";
+
 service AuthService {
   rpc Signup(SignupRequest) returns (AuthResponse);
   rpc Signin(SigninRequest) returns (AuthResponse);
   rpc Refresh(RefreshRequest) returns (RefreshResponse);
+  rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse);
 }
 
 message SignupRequest {
@@ -34,3 +37,9 @@ message RefreshResponse {
   string access_token = 1;
 }
 
+message VerifyEmailRequest {
+  string token = 1;
+}
+message VerifyEmailResponse {
+  string token = 1;
+}

@@ -1,10 +1,10 @@
 use crate::{
     models::{
         article_model::{AddAuthor, Article, CreateArticle, DeleteAuthor, UpdateArticle},
-        enums::Role,
+        prelude::ArticleWithAuthors,
         user_model::User,
     },
-    utils::random_string::generate,
+    utils::{params::Filter, random_string::generate},
 };
 use async_trait::async_trait;
 use slug::slugify;
@@ -15,25 +15,36 @@ pub trait ArticleRepository<DB, E>
 where
     DB: Database,
 {
+    async fn total(transaction: &mut Transaction<'_, DB>) -> Result<Option<i64>, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_article: &CreateArticle,
     ) -> Result<Article, E>;
-    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<Article>, E>;
-    async fn find(transaction: &mut Transaction<'_, DB>, article_id: i32) -> Result<Article, E>;
+    async fn find_all(
+        transaction: &mut Transaction<'_, DB>,
+        filters: &Filter,
+    ) -> Result<Vec<ArticleWithAuthors>, E>;
+    async fn find(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: i32,
+    ) -> Result<ArticleWithAuthors, E>;
+    async fn find_by_slug(
+        transaction: &mut Transaction<'_, DB>,
+        slug: &str,
+    ) -> Result<ArticleWithAuthors, E>;
     async fn find_by_authors(
         transaction: &mut Transaction<'_, DB>,
-        users: &[i32],
-    ) -> Result<Vec<Article>, E>;
+        user_usernames: Vec<String>,
+    ) -> Result<Vec<ArticleWithAuthors>, E>;
     async fn update(
         transaction: &mut Transaction<'_, DB>,
         update_article: &UpdateArticle,
     ) -> Result<Article, E>;
     async fn delete(transaction: &mut Transaction<'_, DB>, article_id: i32) -> Result<Article, E>;
-    async fn get_authors(
-        transaction: &mut Transaction<'_, DB>,
-        article_id: i32,
-    ) -> Result<Vec<User>, E>;
+    // async fn get_authors(
+    //     transaction: &mut Transaction<'_, DB>,
+    //     article_id: i32,
+    // ) -> Result<Vec<User>, E>;
     async fn add_author(
         transaction: &mut Transaction<'_, DB>,
         add_author: &AddAuthor,
@@ -49,27 +60,48 @@ pub struct ArticleRepositoryImpl;
 
 #[async_trait]
 impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
-    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<Article>, Error> {
+    async fn total(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<i64>, Error> {
+        sqlx::query_scalar!("SELECT COUNT(*) FROM articles")
+            .fetch_one(&mut **transaction)
+            .await
+    }
+    async fn find_all(
+        transaction: &mut Transaction<'_, Postgres>,
+        filters: &Filter,
+    ) -> Result<Vec<ArticleWithAuthors>, Error> {
         sqlx::query_as!(
-            Article,
+            ArticleWithAuthors,
             r#"
-            SELECT *
-            FROM articles
-            "#n
+            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
+            FROM articles a
+            JOIN authors au ON a.id = au.article_id
+            JOIN users u ON au.author_id = u.id
+            GROUP BY a.id
+            ORDER BY $1
+            LIMIT $2
+            OFFSET $3
+            "#n,
+            filters.order_by,
+            filters.limit,
+            filters.offset,
         )
         .fetch_all(&mut **transaction)
         .await
     }
+
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: i32,
-    ) -> Result<Article, Error> {
+    ) -> Result<ArticleWithAuthors, Error> {
         sqlx::query_as!(
-            Article,
+            ArticleWithAuthors,
             r#"
-            SELECT *
-            FROM articles
-            WHERE id = $1
+            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
+            FROM articles a
+            JOIN authors au ON a.id = au.article_id
+            JOIN users u ON au.author_id = u.id
+            WHERE a.id = $1
+            GROUP BY a.id
             "#n,
             article_id
         )
@@ -77,20 +109,41 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         .await
     }
 
-    async fn find_by_authors(
+    async fn find_by_slug(
         transaction: &mut Transaction<'_, Postgres>,
-        users: &[i32],
-    ) -> Result<Vec<Article>, Error> {
+        slug: &str,
+    ) -> Result<ArticleWithAuthors, Error> {
         sqlx::query_as!(
-            Article,
+            ArticleWithAuthors,
             r#"
-            SELECT a.*
+            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
             FROM articles a
             JOIN authors au ON a.id = au.article_id
+            JOIN users u ON au.author_id = u.id
+            WHERE a.slug = $1
             GROUP BY a.id
-            HAVING array_agg(au.author_id) @> $1;
             "#n,
-            &users
+            slug
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn find_by_authors(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_usernames: Vec<String>,
+    ) -> Result<Vec<ArticleWithAuthors>, Error> {
+        sqlx::query_as!(
+            ArticleWithAuthors,
+            r#"
+            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
+            FROM articles a
+            JOIN authors au ON a.id = au.article_id
+            JOIN users u ON au.author_id = u.id
+            GROUP BY a.id
+            HAVING array_agg(u.username) @> $1;
+            "#n,
+            &user_usernames
         )
         .fetch_all(&mut **transaction)
         .await
@@ -164,35 +217,35 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         .await
     }
 
-    async fn get_authors(
-        transaction: &mut Transaction<'_, Postgres>,
-        article_id: i32,
-    ) -> Result<Vec<User>, Error> {
-        sqlx::query_as!(
-            User,
-            r#"
-            SELECT
-                u.id,
-                u.username,
-                u.email,
-                u.email_verified,
-                u.image,
-                u.role AS "role: Role",
-                u.bio,
-                u.urls,
-                u.follower_count,
-                u.following_count,
-                u.approved_at,
-                u.deleted_at
-            FROM authors a
-            JOIN users u on a.author_id = u.id
-            WHERE a.article_id = $1
-            "#n,
-            article_id
-        )
-        .fetch_all(&mut **transaction)
-        .await
-    }
+    // async fn get_authors(
+    //     transaction: &mut Transaction<'_, Postgres>,
+    //     article_id: i32,
+    // ) -> Result<Vec<User>, Error> {
+    //     sqlx::query_as!(
+    //         User,
+    //         r#"
+    //         SELECT
+    //             u.id,
+    //             u.username,
+    //             u.email,
+    //             u.email_verified,
+    //             u.image,
+    //             u.role AS "role: Role",
+    //             u.bio,
+    //             u.urls,
+    //             u.follower_count,
+    //             u.following_count,
+    //             u.approved_at,
+    //             u.deleted_at
+    //         FROM authors a
+    //         JOIN users u on a.author_id = u.id
+    //         WHERE a.article_id = $1
+    //         "#n,
+    //         article_id
+    //     )
+    //     .fetch_all(&mut **transaction)
+    //     .await
+    // }
 
     async fn add_author(
         transaction: &mut Transaction<'_, Postgres>,

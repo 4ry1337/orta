@@ -45,7 +45,7 @@ impl JWT<AccessTokenPayload> for AccessToken {
         let claims = Claims {
             iat: now.timestamp(),
             exp: expiration.timestamp(),
-            iss: CONFIG.application.host.to_string(),
+            iss: CONFIG.api_server.host.to_string(),
             sub: payload.user_id,
             payload,
         };
@@ -59,7 +59,7 @@ impl JWT<AccessTokenPayload> for AccessToken {
 
     fn validate(token: &str) -> Result<Claims<AccessTokenPayload>, Error> {
         let mut validation = Validation::new(Algorithm::HS256);
-        validation.set_issuer(&[&CONFIG.application.host]);
+        validation.set_issuer(&[&CONFIG.api_server.host]);
         validation.validate_exp = true;
 
         decode::<Claims<AccessTokenPayload>>(
@@ -92,7 +92,7 @@ impl JWT<RefreshTokenPayload> for RefreshToken {
         let claims = Claims {
             iat: now.timestamp(),
             exp: expiration.timestamp(),
-            iss: CONFIG.application.host.to_string(),
+            iss: CONFIG.api_server.host.to_string(),
             sub: payload.user_id,
             payload,
         };
@@ -108,7 +108,7 @@ impl JWT<RefreshTokenPayload> for RefreshToken {
 
     fn validate(token: &str) -> Result<Claims<RefreshTokenPayload>, Error> {
         let mut validation = Validation::new(Algorithm::HS512);
-        validation.set_issuer(&[&CONFIG.application.host]);
+        validation.set_issuer(&[&CONFIG.api_server.host]);
         validation.validate_exp = true;
 
         decode::<Claims<RefreshTokenPayload>>(

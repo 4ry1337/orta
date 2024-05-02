@@ -4,19 +4,10 @@ package resource;
 
 import "google/protobuf/timestamp.proto";
 
-message IntParam {
-  int32 value = 1;
-}
-
-message StringParam {
-  string value = 1;
-}
-
 message QueryParams {
-  optional string query = 1;
-  optional string order_by = 2;
-  optional int64 page = 3;
-  optional int64 per_page = 4;
+  optional string order_by = 1;
+  optional int64 page = 2;
+  optional int64 per_page = 3;
 }
 
 message User {
@@ -25,67 +16,313 @@ message User {
   string email = 3;
   optional google.protobuf.Timestamp email_verified = 4;
   optional string image = 5;
-  Role role = 6;
+  string role = 6;
   int32 follower_count = 7;
   int32 following_count = 8;
   optional google.protobuf.Timestamp approved_at = 9;
   optional google.protobuf.Timestamp deleted_at = 10;
 }
 
-message UserVec {
+message GetUsersRequest {
+  optional string query = 1;
+  QueryParams params = 2;
+}
+
+message GetUsersResponse {
   int64 total = 1;
   repeated User users = 2;
 }
 
-enum Role {
-  ADMIN = 0;
-  USER = 1;
-  MANAGER = 2;
+message GetUserRequest {
+  string username = 1;
 }
 
 message UpdateUserRequest {
-  int32 id = 1;
-  optional string username = 2;
-  optional bytes image = 3;
-  optional string bio = 4;
-  repeated string url = 5;
+  int32 user_id = 1;
+  int32 id = 2;
+  optional string username = 3;
+  optional bytes image = 4;
+  optional string bio = 5;
+  repeated string url = 6;
+}
+
+message UpdateUserResponse {
+  string message = 1;
+}
+
+message DeleteUserRequest {
+  int32 user_id = 1;
+  int32 id = 2;
+}
+
+message DeleteUserResponse {
+  string message = 1;
 }
 
 message FollowUserRequest {
-  int32 id = 1;
+  int32 user_id = 1;
   int32 target_id = 2;
 }
 
-service UserService {
-  rpc GetUsers(QueryParams) returns (UserVec);
-  rpc GetUser(StringParam) returns (User);
-  rpc UpdateUser(UpdateUserRequest) returns(User);
-  rpc DeleteUser(IntParam) returns (User);
-  rpc VerifyEmail(StringParam) returns (User);
-  rpc FollowUser(FollowUserRequest) returns (User);
+message FollowUserResponse {
+  string message = 1;
 }
 
-// message Article {
-//   int32 id = 1;
-//   string title = 2;
-//   string slug = 3;
-//   int32 like_count = 4;
-//   int32 comment_count = 5;
-//   google.protobuf.Timestamp created_at = 6;
-//   optional google.protobuf.Timestamp updated_at = 7;
-//   optional google.protobuf.Timestamp published_at = 8;
-// }
-//
-// message ArticleVec {
-//   uint32 total = 1;
-//   repeated Article articles = 2;
-// }
-//
-// message UpdateArticle {
-//   int32 id = 1;
-//   optional string title = 2;
-// }
-//
+message UnfollowUserRequest {
+  int32 user_id = 1;
+  int32 target_id = 2;
+}
+
+message UnfollowUserResponse {
+  string message = 1;
+}
+
+service UserService {
+  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+  rpc GetUser(GetUserRequest) returns (User);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
+  rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
+}
+
+message Article {
+  int32 id = 1;
+  string title = 2;
+  string slug = 3;
+  int32 like_count = 4;
+  int32 comment_count = 5;
+  google.protobuf.Timestamp created_at = 6;
+  optional google.protobuf.Timestamp updated_at = 7;
+  optional google.protobuf.Timestamp published_at = 8;
+}
+
+message ArticleWithAuthors {
+  int32 id = 1;
+  string title = 2;
+  string slug = 3;
+  int32 like_count = 4;
+  int32 comment_count = 5;
+  google.protobuf.Timestamp created_at = 6;
+  optional google.protobuf.Timestamp updated_at = 7;
+  optional google.protobuf.Timestamp published_at = 8;
+  repeated User authors = 9;
+}
+
+message GetArticlesRequest {
+  optional string query = 1;
+  QueryParams params = 2;
+}
+
+message GetArticlesResponse {
+  int64 total = 1;
+  repeated ArticleWithAuthors articles = 2;
+}
+
+message GetArticleRequest {
+  string article_slug = 1;
+}
+
+message CreateArticleRequest {
+  int32 user_id = 1;
+  string title = 2;
+}
+
+message UpdateArticleRequest {
+  int32 user_id = 1;
+  int32 article_id = 2;
+  optional string title = 3;
+}
+
+message UpdateArticleResponse {
+  string message = 1;
+}
+
+message DeleteArticleRequest {
+  int32 user_id = 1;
+  int32 article_id = 2;
+}
+
+message DeleteArticleResponse {
+  string message = 1;
+}
+
+message AddAuthorRequest {
+  int32 user_id = 1;
+  int32 article_id = 2;
+}
+
+message AddAuthorResponse {
+  string message = 1;
+}
+
+message RemoveAuthorRequest {
+  int32 user_id = 1;
+  int32 article_id = 2;
+}
+
+message RemoveAuthorResponse {
+  string message = 1;
+}
+
+service ArticleService {
+  rpc CreateArticle(CreateArticleRequest) returns (Article);
+  rpc GetArticles(GetArticlesRequest) returns (GetArticlesResponse);
+  rpc GetArticle(GetArticleRequest) returns (ArticleWithAuthors);
+  rpc UpdateArticle(UpdateArticleRequest) returns(UpdateArticleResponse);
+  rpc DeleteArticle(DeleteArticleRequest) returns (DeleteArticleResponse);
+  rpc AddAuthor(AddAuthorRequest) returns (AddAuthorResponse);
+  rpc RemoveAuthor(RemoveAuthorRequest) returns (RemoveAuthorResponse);
+}
+
+message List {
+  int32 id = 1;
+  int32 user_id = 2;
+  string slug = 3;
+  string label = 4;
+  optional string image = 5;
+  string visibility = 6;
+  int32 article_count = 7;
+  google.protobuf.Timestamp created_at = 8;
+  optional google.protobuf.Timestamp updated_at = 9;
+}
+
+message CreateListRequest {
+  int32 user_id = 1;
+  int32 id = 2;
+  string label = 3;
+  optional string image = 4;
+  string visibility = 5;
+}
+
+message GetListsRequest {
+  optional string query = 1;
+  QueryParams params = 2;
+}
+
+message GetListsResponse {
+  int64 total = 1;
+  repeated List lists = 2;
+}
+
+message GetListRequest {
+  string list_slug = 1;
+}
+
+message UpdateListRequest {
+  int32 user_id = 1;
+  int32 list_id = 2;
+  optional string label = 3;
+  optional string image = 4;
+  optional string visibility = 5;
+}
+
+message UpdateListResponse {
+  string message = 1;
+}
+
+message DeleteListRequest {
+  int32 user_id = 1;
+  int32 list_id = 2;
+}
+
+message DeleteListResponse {
+  string message = 1;
+}
+
+message AddArticleListRequest {
+  int32 user_id = 1;
+  int32 list_id = 2;
+  int32 article_id = 3;
+}
+
+message AddArticleListResponse {
+  string message = 1;
+}
+
+message RemoveArticleListRequest {
+  int32 user_id = 1;
+  int32 list_id = 2;
+  int32 article_id = 3;
+}
+
+message RemoveArticleListResponse {
+  string message = 1;
+}
+
+service ListService {
+  rpc CreateList(CreateListRequest) returns (List);
+  rpc GetLists(GetListsRequest) returns (GetListsResponse);
+  rpc GetList(GetListRequest) returns (List);
+  rpc UpdateList(UpdateListRequest) returns(UpdateListResponse);
+  rpc DeleteList(DeleteListRequest) returns (DeleteArticleResponse);
+  rpc AddArticle(AddArticleListRequest) returns (AddArticleListResponse);
+  rpc RemoveArticle(RemoveArticleListRequest) returns (RemoveArticleListResponse);
+}
+
+message Series {
+  int32 id = 1;
+  int32 user_id = 2;
+  string label = 3;
+  optional string image = 4;
+  int32 article_count = 5;
+  google.protobuf.Timestamp created_at = 6;
+  optional google.protobuf.Timestamp updated_at = 7;
+}
+
+message CreateSeriesRequest {
+  int32 user_id = 1;
+  string label = 2;
+  optional string image = 3;
+}
+
+message GetSeriesesRequest {
+  optional string query = 1;
+  QueryParams params = 2;
+}
+
+message GetSeriesesResponse {
+  int64 total = 1;
+  repeated Series series = 2;
+}
+
+message GetSeriesRequest {
+  string series_slug = 1;
+}
+
+message GetSeriesResponse {
+  Series series = 1;
+  repeated Article articles = 2;
+}
+
+message UpdateSeriesRequest {
+  int32 user_id = 1;
+  int32 series_id = 2;
+  optional string label = 3;
+  optional string image = 4;
+}
+
+message UpdateSeriesResponse {
+  string message = 1;
+}
+
+message DeleteSeriesRequest {
+  int32 user_id = 1;
+  int32 series_id = 2;
+}
+
+message DeleteSeriesResponse {
+  string message = 1;
+}
+
+service SeriesService {
+  rpc CreateSeries(CreateSeriesRequest) returns (Series);
+  rpc GetSerieses(GetSeriesesRequest) returns (GetSeriesesResponse);
+  rpc GetSeries(GetSeriesRequest) returns (GetSeriesResponse);
+  rpc UpdateSeries(UpdateSeriesRequest) returns (UpdateSeriesResponse);
+  rpc DeleteSeries(DeleteSeriesRequest) returns (DeleteSeriesResponse);
+}
+
 // message Comment {
 //   int32 id = 1;
 //   string content = 2;
@@ -100,71 +337,4 @@ service UserService {
 // message CommentVec {
 //   int64 total = 1;
 //   repeated Comment comments = 2;
-// }
-//
-// message List {
-//   int32 id = 1;
-//   int32 user_id = 2;
-//   string slug = 3;
-//   string label = 4;
-//   optional string image = 5;
-//   Visibility visibility = 6;
-//   int32 article_count = 7;
-//   google.protobuf.Timestamp created_at = 8;
-//   optional google.protobuf.Timestamp updated_at = 9;
-// }
-//
-// enum Visibility {
-//   PRIVATE = 0;
-//   PUBLIC = 1;
-//   BYLINK = 2;
-// }
-//
-// message List {
-//   int32 id = 1;
-//   optional int32 user_id = 2;
-//   optional string slug = 3;
-//   optional string label = 4;
-//   optional string image = 5;
-//   optional Visibility visibility = 6;
-//   optional int32 article_count = 7;
-// }
-//
-// message ListVec {
-//   int64 total = 1;
-//   repeated List lists = 2;
-// }
-//
-// message Series {
-//   int32 id = 1;
-//   int32 user_id = 2;
-//   string label = 3;
-//   optional string image = 4;
-//   int32 article_count = 5;
-//   google.protobuf.Timestamp created_at = 6;
-//   optional google.protobuf.Timestamp updated_at = 7;
-// }
-//
-// enum TagStatus {
-//   APPROVED = 0;
-//   BANNED = 1;
-//   WAITING = 2;
-// }
-//
-// message SeriesVec {
-//   int64 total = 1;
-//   repeated Series series = 2;
-// }
-// service ArticleService {
-//   rpc GetArticles(QueryParams) returns (ArticleVec);
-//   rpc GetArticle(StringParam) returns (Article);
-//   rpc UpdateArticle(OptionalArticle) returns(Article);
-//   rpc DeleteArticle(IntParam) returns (Article);
-// }
-//
-// service ListService {
-//   rpc GetLists(QueryParams) returns (ListVec);
-//   rpc GetList(StringParam) returns (List);
-//   rpc UpdateList(OptionalList) returns(List);
-//   rpc DeleteList(IntParam) returns (List);
 // }

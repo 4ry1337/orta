@@ -52,7 +52,3 @@ pub struct UpdateTag {
     pub label: Option<String>,
     pub tag_status: Option<TagStatus>,
 }
-
-pub struct GetTags {
-    pub tag_status: Option<TagStatus>,
-}

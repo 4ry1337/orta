@@ -1,5 +1,13 @@
-api:
+api_server:
   port: 5000
+  host: "localhost"
+
+resource_server:
+  port: 5002
+  host: "localhost"
+
+auth_server:
+  port: 5001
   host: "localhost"
 
 database:
@@ -11,7 +19,6 @@ database:
   require_ssl: false
 
 auth:
-  port: 5001
   secret: secret
   hmac_secret: ""
   google:
@@ -21,8 +28,7 @@ auth:
     client_id: client_id
     client_secret: client_secret
 
-resource:
-  port: 5002
+query:
   per_page: 25
 
 cookies:

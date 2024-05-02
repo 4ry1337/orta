@@ -1,5 +1,3 @@
-use prost;
-use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::resource_proto::QueryParams;
@@ -26,33 +24,36 @@ pub struct Filter {
     pub offset: i64,
 }
 
-impl Metadata {
-    fn from(total: i64, page: i64, per_page: i64) -> Self {
-        let last_page = (total as f64 / per_page as f64).ceil() as i64;
-        Self {
-            total,
-            page,
-            per_page,
-            first_page: 1,
-            last_page,
-        }
-    }
-}
+// impl Metadata {
+//     fn from(total: i64, page: i64, per_page: i64) -> Self {
+//         let last_page = (total as f64 / per_page as f64).ceil() as i64;
+//         Self {
+//             total,
+//             page,
+//             per_page,
+//             first_page: 1,
+//             last_page,
+//         }
+//     }
+// }
 
-impl Filter {
-    pub fn from(query_params: &QueryParams) -> Self {
-        let page = match query_params.page {
-            Some(page) => page,
-            None => 1,
-        };
-        let per_page = match query_params.per_page {
-            Some(per_page) => per_page,
-            None => 10,
-        };
-        Self {
-            order_by: query_params.order_by.clone(),
-            limit: per_page,
-            offset: (page - 1) * per_page,
+impl From<&Option<QueryParams>> for Filter {
+    fn from(value: &Option<QueryParams>) -> Self {
+        match value {
+            Some(query_params) => {
+                let page = query_params.page.unwrap_or(1);
+                let per_page = query_params.per_page.unwrap_or(10);
+                Self {
+                    order_by: query_params.order_by.clone(),
+                    limit: per_page,
+                    offset: (page - 1) * per_page,
+                }
+            }
+            None => Self {
+                order_by: None,
+                limit: 10,
+                offset: 0,
+            },
         }
     }
 }

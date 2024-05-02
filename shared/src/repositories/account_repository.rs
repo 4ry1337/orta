@@ -1,14 +1,20 @@
 use async_trait::async_trait;
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::models::account_model::{Account, CreateAccount, UpdateAccount};
+use crate::{
+    models::account_model::{Account, CreateAccount, UpdateAccount},
+    utils::params::Filter,
+};
 
 #[async_trait]
 pub trait AccountRepository<DB, E>
 where
     DB: Database,
 {
-    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<Account>, E>;
+    async fn find_all(
+        transaction: &mut Transaction<'_, DB>,
+        filters: &Filter,
+    ) -> Result<Vec<Account>, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, account_id: i32) -> Result<Account, E>;
     async fn find_by_user(
         transaction: &mut Transaction<'_, DB>,
@@ -30,13 +36,22 @@ pub struct AccountRepositoryImpl;
 
 #[async_trait]
 impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
-    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<Account>, Error> {
+    async fn find_all(
+        transaction: &mut Transaction<'_, Postgres>,
+        filters: &Filter,
+    ) -> Result<Vec<Account>, Error> {
         sqlx::query_as!(
             Account,
             r#"
             SELECT *
             FROM accounts
-            "#
+            ORDER BY $1
+            LIMIT $2
+            OFFSET $3
+            "#,
+            filters.order_by,
+            filters.limit,
+            filters.offset
         )
         .fetch_all(&mut **transaction)
         .await

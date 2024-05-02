@@ -8,7 +8,7 @@ pub trait CommentRepository<DB, E>
 where
     DB: Database,
 {
-    async fn find_all_by_article_id(
+    async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         article_id: i32,
     ) -> Result<Vec<Comment>, E>;
@@ -36,7 +36,7 @@ pub struct CommentRepositoryImpl;
 
 #[async_trait]
 impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
-    async fn find_all_by_article_id(
+    async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: i32,
     ) -> Result<Vec<Comment>, Error> {

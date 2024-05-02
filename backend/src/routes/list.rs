@@ -14,31 +14,7 @@ use tracing::error;
 
 use crate::{application::AppState, utils::params::PathParams};
 
-pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let lists = match ListRepositoryImpl::find_all(&mut transaction).await {
-        Ok(lists) => lists,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::OK, Json(json!(lists))).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    }
-}
+pub async fn get_lists(State(state): State<Arc<AppState>>) -> Response {}
 
 pub async fn get_list(
     State(state): State<Arc<AppState>>,
@@ -48,33 +24,6 @@ pub async fn get_list(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
-        Ok(list) => list,
-        Err(err) => {
-            error!("{:#?}", err);
-            if let sqlx::error::Error::RowNotFound = err {
-                return (StatusCode::NOT_FOUND, "List not found").into_response();
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::OK, Json(json!(list))).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,52 +38,6 @@ pub async fn post_list(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<PostListRequestBody>,
 ) -> Response {
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let list = match ListRepositoryImpl::create(
-        &mut transaction,
-        &CreateList {
-            user_id: payload.user_id,
-            label: payload.label,
-            image: payload.image,
-            visibility: payload.visibility,
-        },
-    )
-    .await
-    {
-        Ok(list) => list,
-        Err(err) => {
-            error!("{:#?}", err);
-            if let sqlx::error::Error::RowNotFound = err {
-                return (StatusCode::NOT_FOUND, "List not found").into_response();
-            }
-            if let Some(database_error) = err.as_database_error() {
-                if let Some(constraint) = database_error.constraint() {
-                    if constraint == "lists_user_id_fkey" {
-                        return (StatusCode::BAD_REQUEST, "User not found").into_response();
-                    }
-                    if constraint == "lists_slug_key" {
-                        return (StatusCode::BAD_REQUEST, "Retry").into_response();
-                    }
-                }
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::CREATED, Json(json!(list))).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,55 +56,6 @@ pub async fn patch_list(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
-        Ok(list) => list,
-        Err(err) => {
-            error!("{:#?}", err);
-            if let sqlx::error::Error::RowNotFound = err {
-                return (StatusCode::NOT_FOUND, "List not found").into_response();
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let update_list = UpdateList {
-        id: list.id,
-        label: payload.label,
-        image: payload.image,
-        visibility: payload.visibility,
-    };
-
-    let list = match ListRepositoryImpl::update(&mut transaction, &update_list).await {
-        Ok(list) => list,
-        Err(err) => {
-            error!("{:#?}", err);
-            if let Some(database_error) = err.as_database_error() {
-                if let Some(constraint) = database_error.constraint() {
-                    if constraint == "lists_slug_key" {
-                        return (StatusCode::BAD_REQUEST, "Retry").into_response();
-                    }
-                }
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::OK, Json(json!(list))).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    }
 }
 
 pub async fn delete_list(
@@ -212,41 +66,6 @@ pub async fn delete_list(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let list = match ListRepositoryImpl::find(&mut transaction, list_id).await {
-        Ok(list) => list,
-        Err(err) => {
-            error!("{:#?}", err);
-            if let sqlx::error::Error::RowNotFound = err {
-                return (StatusCode::NOT_FOUND, "List not found").into_response();
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let list = match ListRepositoryImpl::delete(&mut transaction, list.id).await {
-        Ok(list) => list,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::OK, format!("Deleted article: {}", list.id)).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    }
 }
 
 pub async fn get_list_by_user(

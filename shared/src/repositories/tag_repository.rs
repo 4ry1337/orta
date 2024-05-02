@@ -2,9 +2,12 @@ use async_trait::async_trait;
 use slug::slugify;
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::models::{
-    enums::TagStatus,
-    tag_model::{CreateTag, GetTags, Tag, UpdateTag},
+use crate::{
+    models::{
+        enums::TagStatus,
+        tag_model::{CreateTag, Tag, UpdateTag},
+    },
+    utils::params::Filter,
 };
 
 #[async_trait]
@@ -14,7 +17,8 @@ where
 {
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
-        get_tags: &GetTags,
+        tag_status: Option<TagStatus>,
+        filters: &Filter,
     ) -> Result<Vec<Tag>, E>;
     async fn find_by_article(
         transaction: &mut Transaction<'_, DB>,
@@ -50,7 +54,8 @@ pub struct TagRepositoryImpl;
 impl TagRepository<Postgres, Error> for TagRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        get_tags: &GetTags,
+        tag_status: Option<TagStatus>,
+        filters: &Filter,
     ) -> Result<Vec<Tag>, Error> {
         sqlx::query_as!(
             Tag,
@@ -64,8 +69,14 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
                 updated_at
             FROM tags
             WHERE tag_status = coalesce($1, tag_status)
+            ORDER BY $2
+            LIMIT $3
+            OFFSET $4
             "#n,
-            get_tags.tag_status as Option<TagStatus>
+            tag_status as Option<TagStatus>,
+            filters.order_by,
+            filters.limit,
+            filters.offset
         )
         .fetch_all(&mut **transaction)
         .await

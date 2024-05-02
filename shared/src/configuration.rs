@@ -76,7 +76,9 @@ impl TryFrom<String> for Environment {
 
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct Settings {
-    pub application: ApplicationSettings,
+    pub api_server: ApplicationSettings,
+    pub resource_server: ApplicationSettings,
+    pub auth_server: ApplicationSettings,
     pub database: DatabaseSettings,
     pub cookies: CookiesSettings,
     pub auth: AuthSettings,
@@ -142,8 +144,6 @@ pub struct CookieSettings {
 
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct AuthSettings {
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub port: u16,
     pub secret: Secret<String>,
     pub hmac_secret: Secret<String>,
     pub google: OAuthClientSettings,

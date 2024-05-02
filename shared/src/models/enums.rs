@@ -5,9 +5,19 @@ use std::str::FromStr;
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize, sqlx::Type)]
 #[sqlx(type_name = "role", rename_all = "UPPERCASE")]
 pub enum Role {
-    Admin = 0,
-    User = 1,
-    Manager = 2,
+    Admin,
+    User,
+    Manager,
+}
+
+impl std::fmt::Display for Role {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Role::Admin => write!(f, "ADMIN"),
+            Role::User => write!(f, "USER"),
+            Role::Manager => write!(f, "MANAGER"),
+        }
+    }
 }
 
 impl FromStr for Role {
@@ -30,6 +40,16 @@ pub enum TagStatus {
     Waiting,
 }
 
+impl std::fmt::Display for TagStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TagStatus::Approved => write!(f, "APPROVED"),
+            TagStatus::Banned => write!(f, "BANNED"),
+            TagStatus::Waiting => write!(f, "WAITING"),
+        }
+    }
+}
+
 impl FromStr for TagStatus {
     type Err = Box<dyn Error>;
     fn from_str(input: &str) -> Result<TagStatus, Self::Err> {
@@ -48,6 +68,16 @@ pub enum Visibility {
     Private,
     Public,
     Bylink,
+}
+
+impl std::fmt::Display for Visibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Visibility::Private => write!(f, "PRIVATE"),
+            Visibility::Public => write!(f, "PUBLIC"),
+            Visibility::Bylink => write!(f, "BYLINK"),
+        }
+    }
 }
 
 impl FromStr for Visibility {

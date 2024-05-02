@@ -1,9 +1,12 @@
 use async_trait::async_trait;
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::models::{
-    article_model::Article,
-    series_model::{CreateSeries, Series, UpdateSeries},
+use crate::{
+    models::{
+        article_model::Article,
+        series_model::{CreateSeries, Series, UpdateSeries},
+    },
+    utils::params::Filter,
 };
 
 #[async_trait]
@@ -11,7 +14,10 @@ pub trait SeriesRepository<DB, E>
 where
     DB: Database,
 {
-    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<Series>, E>;
+    async fn find_all(
+        transaction: &mut Transaction<'_, DB>,
+        filters: &Filter,
+    ) -> Result<Vec<Series>, E>;
     async fn find_by_user(
         transaction: &mut Transaction<'_, DB>,
         user_id: i32,
@@ -53,15 +59,22 @@ pub struct SeriesRepositoryImpl;
 
 #[async_trait]
 impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
-    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<Series>, Error> {
+    async fn find_all(
+        transaction: &mut Transaction<'_, Postgres>,
+        filters: &Filter,
+    ) -> Result<Vec<Series>, Error> {
         sqlx::query_as!(
             Series,
             r#"
             SELECT *
             FROM series
-            GROUP BY id, user_id
-            ORDER BY created_at DESC
-            "#n
+            ORDER BY $1
+            LIMIT $2
+            OFFSET $3
+            "#n,
+            filters.order_by,
+            filters.limit,
+            filters.offset
         )
         .fetch_all(&mut **transaction)
         .await

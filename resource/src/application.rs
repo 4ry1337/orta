@@ -29,7 +29,7 @@ impl Application {
 
         let pool = get_connection_pool(&configuration.database).await;
 
-        let port = configuration.auth.port;
+        let port = configuration.resource_server.port;
 
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 

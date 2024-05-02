@@ -8,7 +8,7 @@ use crate::{
         enums::Visibility,
         list_model::{CreateList, List, UpdateList},
     },
-    utils::random_string::generate,
+    utils::{params::Filter, random_string::generate},
 };
 
 #[async_trait]
@@ -16,12 +16,17 @@ pub trait ListRepository<DB, E>
 where
     DB: Database,
 {
-    async fn find_all(transaction: &mut Transaction<'_, DB>) -> Result<Vec<List>, E>;
+    async fn total(transaction: &mut Transaction<'_, DB>) -> Result<Option<i64>, E>;
+    async fn find_all(
+        transaction: &mut Transaction<'_, DB>,
+        filters: &Filter,
+    ) -> Result<Vec<List>, E>;
     async fn find_by_user(
         transaction: &mut Transaction<'_, DB>,
         user_id: i32,
     ) -> Result<Vec<List>, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, list_id: i32) -> Result<List, E>;
+    async fn find_by_slug(transaction: &mut Transaction<'_, DB>, slug: &str) -> Result<List, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_list: &CreateList,
@@ -52,7 +57,15 @@ pub struct ListRepositoryImpl;
 
 #[async_trait]
 impl ListRepository<Postgres, Error> for ListRepositoryImpl {
-    async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<List>, Error> {
+    async fn total(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<i64>, Error> {
+        sqlx::query_scalar!("SELECT COUNT(*) FROM lists")
+            .fetch_one(&mut **transaction)
+            .await
+    }
+    async fn find_all(
+        transaction: &mut Transaction<'_, Postgres>,
+        filters: &Filter,
+    ) -> Result<Vec<List>, Error> {
         sqlx::query_as!(
             List,
             r#"
@@ -67,8 +80,13 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 created_at,
                 updated_at
             FROM lists
-            ORDER BY created_at DESC
-            "#n
+            ORDER BY $1
+            LIMIT $2
+            OFFSET $3
+            "#n,
+            filters.order_by,
+            filters.limit,
+            filters.offset,
         )
         .fetch_all(&mut **transaction)
         .await
@@ -123,6 +141,32 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
             ORDER BY created_at DESC
             "#n,
             list_id,
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn find_by_slug(
+        transaction: &mut Transaction<'_, Postgres>,
+        slug: &str,
+    ) -> Result<List, Error> {
+        sqlx::query_as!(
+            List,
+            r#"
+            SELECT
+                id,
+                user_id,
+                slug,
+                label,
+                image,
+                visibility AS "visibility: Visibility",
+                article_count,
+                created_at,
+                updated_at
+            FROM lists
+            WHERE slug = $1
+            "#n,
+            slug
         )
         .fetch_one(&mut **transaction)
         .await
