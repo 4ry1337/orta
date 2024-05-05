@@ -5,11 +5,15 @@ use shared::{
         enums::Visibility,
         list_model::{CreateList, UpdateList},
     },
-    repositories::list_repository::{ListRepository, ListRepositoryImpl},
+    repositories::{
+        article_repository::{ArticleRepository, ArticleRepositoryImpl},
+        list_repository::{ListRepository, ListRepositoryImpl},
+    },
     resource_proto::{
-        list_service_server::ListService, ArticleWithAuthors, CreateListRequest, DeleteListRequest,
-        DeleteListResponse, GetListRequest, GetListResponse, GetListsRequest, GetListsResponse,
-        List, UpdateListRequest, UpdateListResponse,
+        list_service_server::ListService, AddArticleListRequest, AddArticleListResponse,
+        ArticleWithAuthors, CreateListRequest, DeleteListRequest, DeleteListResponse,
+        GetListRequest, GetListResponse, GetListsRequest, GetListsResponse, List,
+        RemoveArticleListRequest, RemoveArticleListResponse, UpdateListRequest, UpdateListResponse,
     },
     utils::params::Filter,
 };
@@ -77,7 +81,10 @@ impl ListService for ListServiceImpl {
         }
     }
 
-    async fn get_list(&self, request: Request<GetListRequest>) -> Result<Response<List>, Status> {
+    async fn get_list(
+        &self,
+        request: Request<GetListRequest>,
+    ) -> Result<Response<GetListResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -88,7 +95,8 @@ impl ListService for ListServiceImpl {
 
         let input = request.get_ref();
 
-        let list = match ListRepositoryImpl::find_by_slug(&mut transaction, &input.value).await {
+        let list = match ListRepositoryImpl::find_by_slug(&mut transaction, &input.list_slug).await
+        {
             Ok(list) => list,
             Err(err) => {
                 error!("{:#?}", err);
@@ -99,7 +107,7 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let articles = match ListRepositoryImpl::get_articles(&mut transaction, list.id).await {
+        let articles = match ListRepositoryImpl::find_articles(&mut transaction, list.id).await {
             Ok(articles) => articles,
             Err(err) => {
                 error!("{:#?}", err);
@@ -107,13 +115,16 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let articles = articles
+        let articles: Vec<ArticleWithAuthors> = articles
             .iter()
             .map(|article| ArticleWithAuthors::from(article))
             .collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(List::from(list))),
+            Ok(_) => Ok(Response::new(GetListResponse {
+                list: Some(List::from(&list)),
+                articles,
+            })),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -139,9 +150,9 @@ impl ListService for ListServiceImpl {
             &mut transaction,
             &CreateList {
                 user_id: input.user_id,
-                label: input.label,
-                image: input.image,
-                visibility: Visibility::from(input.visibility),
+                label: input.label.clone(),
+                image: input.image.clone(),
+                visibility: Visibility::Public,
             },
         )
         .await
@@ -164,7 +175,7 @@ impl ListService for ListServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(List::from(list))),
+            Ok(_) => Ok(Response::new(List::from(&list))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -212,9 +223,9 @@ impl ListService for ListServiceImpl {
             &mut transaction,
             &UpdateList {
                 id: input.list_id,
-                label: input.label,
-                image: input.image,
-                visibility: Visibility::from(input.visibility),
+                label: input.label.clone(),
+                image: input.image.clone(),
+                visibility: None,
             },
         )
         .await
@@ -290,6 +301,147 @@ impl ListService for ListServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(DeleteListResponse {
                 message: format!("Deleted list: {}", list.id),
+            })),
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn add_article(
+        &self,
+        request: Request<AddArticleListRequest>,
+    ) -> Result<Response<AddArticleListResponse>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        match is_owner(
+            &mut transaction,
+            ContentType::List,
+            input.user_id,
+            input.list_id,
+        )
+        .await
+        {
+            Ok(is_owner) => {
+                if !is_owner {
+                    return Err(Status::permission_denied("Forbidden"));
+                }
+            }
+            Err(err) => {
+                error!("{:#?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::unknown("List not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let article = match ArticleRepositoryImpl::find(&mut transaction, input.article_id).await {
+            Ok(article) => article,
+            Err(err) => {
+                error!("{:#?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::unknown("Article not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let reponse = match ListRepositoryImpl::add_article(
+            &mut transaction,
+            input.list_id,
+            article.id,
+        )
+        .await
+        {
+            Ok(reponse) => reponse,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        match transaction.commit().await {
+            Ok(()) => Ok(Response::new(AddArticleListResponse {
+                message: format!("Article {} added to List {}", reponse.1, reponse.0),
+            })),
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn remove_article(
+        &self,
+        request: Request<RemoveArticleListRequest>,
+    ) -> Result<Response<RemoveArticleListResponse>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        match is_owner(
+            &mut transaction,
+            ContentType::List,
+            input.user_id,
+            input.list_id,
+        )
+        .await
+        {
+            Ok(is_owner) => {
+                if !is_owner {
+                    return Err(Status::permission_denied("Forbidden"));
+                }
+            }
+            Err(err) => {
+                error!("{:#?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::unknown("List not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let article = match ArticleRepositoryImpl::find(&mut transaction, input.article_id).await {
+            Ok(article) => article,
+            Err(err) => {
+                error!("{:#?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::unknown("Article not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let reponse =
+            match ListRepositoryImpl::remove_article(&mut transaction, input.list_id, article.id)
+                .await
+            {
+                Ok(reponse) => reponse,
+                Err(err) => {
+                    error!("{:#?}", err);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
+
+        match transaction.commit().await {
+            Ok(()) => Ok(Response::new(RemoveArticleListResponse {
+                message: format!("Article {} removed to List {}", reponse.1, reponse.0),
             })),
             Err(err) => {
                 error!("{:#?}", err);

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use slug::slugify;
 use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{
@@ -6,7 +7,7 @@ use crate::{
         article_model::Article,
         series_model::{CreateSeries, Series, UpdateSeries},
     },
-    utils::params::Filter,
+    utils::{params::Filter, random_string::generate},
 };
 
 #[async_trait]
@@ -32,6 +33,7 @@ where
     ) -> Result<Series, E>;
     async fn delete(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
+    async fn find_by_slug(transaction: &mut Transaction<'_, DB>, slug: &str) -> Result<Series, E>;
     async fn find_articles(
         transaction: &mut Transaction<'_, DB>,
         series_id: i32,
@@ -79,6 +81,7 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         .fetch_all(&mut **transaction)
         .await
     }
+
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
         series_id: i32,
@@ -95,6 +98,24 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         .fetch_one(&mut **transaction)
         .await
     }
+
+    async fn find_by_slug(
+        transaction: &mut Transaction<'_, Postgres>,
+        slug: &str,
+    ) -> Result<Series, Error> {
+        sqlx::query_as!(
+            Series,
+            r#"
+            SELECT *
+            FROM series
+            WHERE slug = $1
+            "#n,
+            slug
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
     async fn find_by_user(
         transaction: &mut Transaction<'_, Postgres>,
         user_id: i32,
@@ -123,13 +144,15 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
             INSERT INTO series (
                 user_id,
                 label,
+                slug,
                 image
             )
-            VALUES ($1, $2, $3)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
             "#n,
             create_series.user_id,
             create_series.label,
+            slugify(format!("{}-{}", create_series.label, generate(12))),
             create_series.image
         )
         .fetch_one(&mut **transaction)
@@ -146,13 +169,18 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
             UPDATE series
             SET 
                 label = coalesce($2, series.label),
-                image = coalesce($3, series.image)
+                image = coalesce($3, series.image),
+                slug = coalesce($4, series.slug)
             WHERE id = $1
             RETURNING *
             "#n,
             update_series.id,
             update_series.label,
-            update_series.image
+            update_series.image,
+            update_series
+                .label
+                .clone()
+                .map(|v| slugify(format!("{}-{}", v, generate(12)))),
         )
         .fetch_one(&mut **transaction)
         .await

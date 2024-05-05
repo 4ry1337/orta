@@ -7,6 +7,8 @@ use crate::{
         article_model::Article,
         enums::Visibility,
         list_model::{CreateList, List, UpdateList},
+        prelude::ArticleWithAuthors,
+        user_model::User,
     },
     utils::{params::Filter, random_string::generate},
 };
@@ -39,7 +41,7 @@ where
     async fn find_articles(
         transaction: &mut Transaction<'_, DB>,
         list_id: i32,
-    ) -> Result<Vec<Article>, E>;
+    ) -> Result<Vec<ArticleWithAuthors>, E>;
     async fn add_article(
         transaction: &mut Transaction<'_, DB>,
         list_id: i32,
@@ -274,15 +276,17 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
     async fn find_articles(
         transaction: &mut Transaction<'_, Postgres>,
         list_id: i32,
-    ) -> Result<Vec<Article>, Error> {
+    ) -> Result<Vec<ArticleWithAuthors>, Error> {
         sqlx::query_as!(
-            Article,
+            ArticleWithAuthors,
             r#"
-            SELECT a.*
+            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
             FROM articles a
+            JOIN authors au ON a.id = au.article_id
+            JOIN users u ON au.author_id = u.id
             JOIN listarticle la ON a.id = la.article_id
             WHERE la.list_id = $1
-            ORDER BY la.created_at DESC
+            GROUP BY a.id
             "#n,
             list_id,
         )

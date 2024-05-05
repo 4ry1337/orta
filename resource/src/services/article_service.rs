@@ -366,6 +366,7 @@ impl ArticleService for ArticleServiceImpl {
             }
         }
     }
+
     async fn remove_author(
         &self,
         request: Request<RemoveAuthorRequest>,

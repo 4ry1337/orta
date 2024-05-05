@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 
-use crate::models::{article_model, list_model, user_model};
-use crate::resource_proto::{Article, ArticleWithAuthors, List, User};
+use crate::models::{article_model, list_model, series_model, user_model};
+use crate::resource_proto::{Article, ArticleWithAuthors, List, Series, User};
 
 struct W<T>(T);
 
@@ -88,6 +88,21 @@ impl From<&list_model::List> for List {
             slug: value.slug.clone(),
             image: value.image.clone(),
             visibility: value.visibility.to_string(),
+            article_count: value.article_count,
+            created_at: W(&value.created_at).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
+impl From<&series_model::Series> for Series {
+    fn from(value: &series_model::Series) -> Self {
+        Series {
+            id: value.id,
+            user_id: value.user_id,
+            label: value.label.clone(),
+            slug: value.slug.clone(),
+            image: value.image.clone(),
             article_count: value.article_count,
             created_at: W(&value.created_at).into(),
             updated_at: W(value.updated_at.as_ref()).into(),

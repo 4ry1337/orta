@@ -37,6 +37,13 @@ message GetUserRequest {
   string username = 1;
 }
 
+message GetUserResponse {
+  User user = 1;
+  repeated ArticleWithAuthors articles = 2;
+  repeated List lists = 3;
+  repeated Series serieses = 4;
+}
+
 message UpdateUserRequest {
   int32 user_id = 1;
   int32 id = 2;
@@ -79,7 +86,7 @@ message UnfollowUserResponse {
 
 service UserService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
-  rpc GetUser(GetUserRequest) returns (User);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
@@ -209,6 +216,11 @@ message GetListRequest {
   string list_slug = 1;
 }
 
+message GetListResponse {
+  List list = 1;
+  repeated ArticleWithAuthors articles = 2;
+}
+
 message UpdateListRequest {
   int32 user_id = 1;
   int32 list_id = 2;
@@ -253,9 +265,9 @@ message RemoveArticleListResponse {
 service ListService {
   rpc CreateList(CreateListRequest) returns (List);
   rpc GetLists(GetListsRequest) returns (GetListsResponse);
-  rpc GetList(GetListRequest) returns (List);
+  rpc GetList(GetListRequest) returns (GetListResponse);
   rpc UpdateList(UpdateListRequest) returns(UpdateListResponse);
-  rpc DeleteList(DeleteListRequest) returns (DeleteArticleResponse);
+  rpc DeleteList(DeleteListRequest) returns (DeleteListResponse);
   rpc AddArticle(AddArticleListRequest) returns (AddArticleListResponse);
   rpc RemoveArticle(RemoveArticleListRequest) returns (RemoveArticleListResponse);
 }
@@ -263,11 +275,12 @@ service ListService {
 message Series {
   int32 id = 1;
   int32 user_id = 2;
-  string label = 3;
-  optional string image = 4;
-  int32 article_count = 5;
-  google.protobuf.Timestamp created_at = 6;
-  optional google.protobuf.Timestamp updated_at = 7;
+  string slug = 3;
+  string label = 4;
+  optional string image = 5;
+  int32 article_count = 6;
+  google.protobuf.Timestamp created_at = 7;
+  optional google.protobuf.Timestamp updated_at = 8;
 }
 
 message CreateSeriesRequest {
