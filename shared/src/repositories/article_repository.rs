@@ -1,7 +1,9 @@
 use crate::{
     models::{
-        article_model::{AddAuthor, Article, CreateArticle, DeleteAuthor, UpdateArticle},
-        prelude::ArticleWithAuthors,
+        article_model::{
+            AddAuthor, Article, CreateArticle, DeleteAuthor, FullArticle, UpdateArticle,
+        },
+        tag_model::Tag,
         user_model::User,
     },
     utils::{params::Filter, random_string::generate},
@@ -23,19 +25,17 @@ where
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         filters: &Filter,
-    ) -> Result<Vec<ArticleWithAuthors>, E>;
-    async fn find(
-        transaction: &mut Transaction<'_, DB>,
-        article_id: i32,
-    ) -> Result<ArticleWithAuthors, E>;
+    ) -> Result<Vec<FullArticle>, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, article_id: i32)
+        -> Result<FullArticle, E>;
     async fn find_by_slug(
         transaction: &mut Transaction<'_, DB>,
         slug: &str,
-    ) -> Result<ArticleWithAuthors, E>;
+    ) -> Result<FullArticle, E>;
     async fn find_by_authors(
         transaction: &mut Transaction<'_, DB>,
         user_usernames: Vec<String>,
-    ) -> Result<Vec<ArticleWithAuthors>, E>;
+    ) -> Result<Vec<FullArticle>, E>;
     async fn update(
         transaction: &mut Transaction<'_, DB>,
         update_article: &UpdateArticle,
@@ -65,19 +65,25 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             .fetch_one(&mut **transaction)
             .await
     }
+
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         filters: &Filter,
-    ) -> Result<Vec<ArticleWithAuthors>, Error> {
+    ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
-            ArticleWithAuthors,
+            FullArticle,
             r#"
-            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
+            SELECT
+                a.*,
+                ARRAY_AGG(u.*) as "authors: Vec<User>",
+                ARRAY_AGG(t.*) as "tags: Vec<Tag>"
             FROM articles a
             JOIN authors au ON a.id = au.article_id
             JOIN users u ON au.author_id = u.id
+            JOIN articletags at ON a.id = at.article_id
+            JOIN tags t ON at.tag_id = t.id
             GROUP BY a.id
-            ORDER BY $1
+            ORDER BY $1 DESC
             LIMIT $2
             OFFSET $3
             "#n,
@@ -92,14 +98,19 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: i32,
-    ) -> Result<ArticleWithAuthors, Error> {
+    ) -> Result<FullArticle, Error> {
         sqlx::query_as!(
-            ArticleWithAuthors,
+            FullArticle,
             r#"
-            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
+            SELECT
+                a.*,
+                ARRAY_AGG(u.*) as "authors: Vec<User>",
+                ARRAY_AGG(t.*) as "tags: Vec<Tag>"
             FROM articles a
             JOIN authors au ON a.id = au.article_id
             JOIN users u ON au.author_id = u.id
+            JOIN articletags at ON a.id = at.article_id
+            JOIN tags t ON at.tag_id = t.id
             WHERE a.id = $1
             GROUP BY a.id
             "#n,
@@ -112,14 +123,19 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
     async fn find_by_slug(
         transaction: &mut Transaction<'_, Postgres>,
         slug: &str,
-    ) -> Result<ArticleWithAuthors, Error> {
+    ) -> Result<FullArticle, Error> {
         sqlx::query_as!(
-            ArticleWithAuthors,
+            FullArticle,
             r#"
-            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
+            SELECT
+                a.*,
+                ARRAY_AGG(u.*) as "authors: Vec<User>",
+                ARRAY_AGG(t.*) as "tags: Vec<Tag>"
             FROM articles a
             JOIN authors au ON a.id = au.article_id
             JOIN users u ON au.author_id = u.id
+            JOIN articletags at ON a.id = at.article_id
+            JOIN tags t ON at.tag_id = t.id
             WHERE a.slug = $1
             GROUP BY a.id
             "#n,
@@ -132,14 +148,19 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
     async fn find_by_authors(
         transaction: &mut Transaction<'_, Postgres>,
         user_usernames: Vec<String>,
-    ) -> Result<Vec<ArticleWithAuthors>, Error> {
+    ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
-            ArticleWithAuthors,
+            FullArticle,
             r#"
-            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
+            SELECT
+                a.*,
+                ARRAY_AGG(u.*) as "authors: Vec<User>",
+                ARRAY_AGG(t.*) as "tags: Vec<Tag>"
             FROM articles a
             JOIN authors au ON a.id = au.article_id
             JOIN users u ON au.author_id = u.id
+            JOIN articletags at ON a.id = at.article_id
+            JOIN tags t ON at.tag_id = t.id
             GROUP BY a.id
             HAVING array_agg(u.username) @> $1;
             "#n,

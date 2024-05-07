@@ -91,3 +91,33 @@ impl FromStr for Visibility {
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize, sqlx::Type)]
+#[sqlx(type_name = "CommentableType", rename_all = "UPPERCASE")]
+pub enum CommentableType {
+    Article,
+    List,
+    Series,
+}
+
+impl std::fmt::Display for CommentableType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CommentableType::Article => write!(f, "ARTICLE"),
+            CommentableType::List => write!(f, "LIST"),
+            CommentableType::Series => write!(f, "SERIES"),
+        }
+    }
+}
+
+impl FromStr for CommentableType {
+    type Err = Box<dyn Error>;
+    fn from_str(input: &str) -> Result<CommentableType, Self::Err> {
+        match input.to_lowercase().trim() {
+            "ARTICLE" => Ok(CommentableType::Article),
+            "LIST" => Ok(CommentableType::List),
+            "SERIES" => Ok(CommentableType::Series),
+            _ => Err(format!("Can not parse {} into CommentableType Enum", input).into()),
+        }
+    }
+}

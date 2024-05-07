@@ -23,77 +23,44 @@ pub async fn get_tags(
     State(state): State<Arc<AppState>>,
     get_tags_query: Query<GetTagsQuery>,
 ) -> Response {
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let tags = match TagRepositoryImpl::find_all(
-        &mut transaction,
-        &GetTags {
-            tag_status: get_tags_query
-                .tag_status
-                .as_ref()
-                .and_then(|s| TagStatus::from_str(s).ok()),
-        },
-    )
-    .await
-    {
-        Ok(tags) => tags,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::OK, Json(json!(tags))).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    }
 }
 
-pub async fn get_tag(
-    State(state): State<Arc<AppState>>,
-    Path(params): Path<PathParams>,
-) -> Response {
-    let tag_id = match params.tag_id {
-        Some(v) => v,
-        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
-    };
-
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let tag = match TagRepositoryImpl::find(&mut transaction, tag_id).await {
-        Ok(tag) => tag,
-        Err(err) => {
-            error!("{:#?}", err);
-            if let sqlx::error::Error::RowNotFound = err {
-                return (StatusCode::NOT_FOUND, "Tag not found").into_response();
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::OK, Json(json!(tag))).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    }
-}
+// pub async fn get_tag(
+//     State(state): State<Arc<AppState>>,
+//     Path(params): Path<PathParams>,
+// ) -> Response {
+//     let tag_id = match params.tag_id {
+//         Some(v) => v,
+//         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+//     };
+//
+//     let mut transaction = match state.db.begin().await {
+//         Ok(transaction) => transaction,
+//         Err(err) => {
+//             error!("{:#?}", err);
+//             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+//         }
+//     };
+//
+//     let tag = match TagRepositoryImpl::find(&mut transaction, tag_id).await {
+//         Ok(tag) => tag,
+//         Err(err) => {
+//             error!("{:#?}", err);
+//             if let sqlx::error::Error::RowNotFound = err {
+//                 return (StatusCode::NOT_FOUND, "Tag not found").into_response();
+//             }
+//             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+//         }
+//     };
+//
+//     match transaction.commit().await {
+//         Ok(_) => (StatusCode::OK, Json(json!(tag))).into_response(),
+//         Err(err) => {
+//             error!("{:#?}", err);
+//             return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+//         }
+//     }
+// }
 
 #[derive(Debug, Deserialize)]
 pub struct PostTagRequestBody {

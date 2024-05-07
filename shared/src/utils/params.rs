@@ -66,4 +66,8 @@ pub struct PathParams {
     pub series_id: Option<i32>,
     pub tag_id: Option<i32>,
     pub list_id: Option<i32>,
+    pub username: Option<String>,
+    pub article_slug: Option<String>,
+    pub list_slug: Option<String>,
+    pub series_slug: Option<String>,
 }

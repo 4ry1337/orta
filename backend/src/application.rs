@@ -4,51 +4,82 @@ use std::{
     time::Duration,
 };
 
-use axum::{extract::FromRef, Router};
+use axum::{extract::FromRef, Extension};
 use axum_extra::extract::cookie::Key;
-use shared::configuration::Settings;
+use shared::{auth_proto::auth_service_client::AuthServiceClient, configuration::Settings};
 use tokio::{net::TcpListener, signal};
+use tonic::transport::Channel;
 use tower_http::{
     catch_panic::CatchPanicLayer,
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
     timeout::{RequestBodyTimeoutLayer, TimeoutLayer},
 };
+use tracing::info;
+
+use crate::routes;
 
 #[derive(Clone)]
-pub struct AppState {
+pub struct State {
     pub key: Key,
+    pub auth_server: Channel,
+    pub resource_server: Channel,
 }
 
-impl FromRef<AppState> for Key {
-    fn from_ref(state: &AppState) -> Self {
+impl FromRef<State> for Key {
+    fn from_ref(state: &State) -> Self {
         state.key.clone()
     }
 }
 
+pub type AppState = Arc<State>;
+
 pub struct Application {
     port: u16,
     listener: TcpListener,
-    appstate: Arc<AppState>,
+    state: AppState,
+    auth_server: Channel,
+    resource_server: Channel,
 }
 
 impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
-        let port = configuration.application.port;
+        info!("Building api gateway service");
+
+        let port = configuration.api_server.port;
 
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
-        let appstate = Arc::new(AppState {
+        let auth_server = Channel::from_shared(format!(
+            "http://localhost:{}",
+            configuration.auth_server.port
+        ))?
+        .connect()
+        .await?;
+        let resource_server = Channel::from_shared(format!(
+            "http://localhost:{}",
+            configuration.resource_server.port
+        ))?
+        .connect()
+        .await?;
+
+        let state = Arc::new(State {
             key: Key::generate(),
+            auth_server: auth_server.clone(),
+            resource_server: resource_server.clone(),
         });
 
         let listener = TcpListener::bind(&address).await?;
+
+        info!("Finished api gateway service build");
 
         Ok(Self {
             port,
             listener,
             // address,
-            appstate,
+            auth_server,
+            resource_server,
+            state,
         })
     }
 
@@ -64,13 +95,15 @@ impl Application {
             .layer(TimeoutLayer::new(Duration::from_secs(30)))
             .layer(CatchPanicLayer::new());
 
+        info!("Server is running on {}", self.port);
+
         axum::serve(
             self.listener,
-            // routes::router(self.appstate.clone())
-            Router::new()
+            routes::router(self.state.clone())
+                .layer(Extension(AuthServiceClient::new(self.auth_server)))
                 .layer(middleware)
                 .layer(cors)
-                .with_state(self.appstate),
+                .with_state(self.state),
         )
         .with_graceful_shutdown(shutdown_signal())
         .await

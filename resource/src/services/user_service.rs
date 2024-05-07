@@ -4,9 +4,9 @@ use shared::{
     models::prelude::*,
     repositories::prelude::*,
     resource_proto::{
-        user_service_server::UserService, ArticleWithAuthors, DeleteUserRequest,
-        DeleteUserResponse, FollowUserRequest, FollowUserResponse, GetUserRequest, GetUserResponse,
-        GetUsersRequest, GetUsersResponse, List, Series, UnfollowUserRequest, UnfollowUserResponse,
+        user_service_server::UserService, DeleteUserRequest, DeleteUserResponse, FollowUserRequest,
+        FollowUserResponse, FullArticle, GetUserRequest, GetUserResponse, GetUsersRequest,
+        GetUsersResponse, List, Series, Tag, UnfollowUserRequest, UnfollowUserResponse,
         UpdateUserRequest, UpdateUserResponse, User,
     },
     utils::params::Filter,
@@ -113,7 +113,7 @@ impl UserService for UserServiceImpl {
 
         let articles = articles
             .iter()
-            .map(|article| ArticleWithAuthors::from(article))
+            .map(|article| FullArticle::from(article))
             .collect();
 
         let lists = match ListRepositoryImpl::find_by_user(&mut transaction, user.id).await {
@@ -136,9 +136,20 @@ impl UserService for UserServiceImpl {
 
         let serieses = serieses.iter().map(|series| Series::from(series)).collect();
 
+        let tags = match TagRepositoryImpl::find_by_user(&mut transaction, user.id).await {
+            Ok(tags) => tags,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let interests = tags.iter().map(|tag| Tag::from(tag)).collect();
+
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(GetUserResponse {
                 user: Some(User::from(&user)),
+                interests,
                 articles,
                 lists,
                 serieses,

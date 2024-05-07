@@ -20,6 +20,10 @@ where
         tag_status: Option<TagStatus>,
         filters: &Filter,
     ) -> Result<Vec<Tag>, E>;
+    async fn find_by_user(
+        transaction: &mut Transaction<'_, DB>,
+        user_id: i32,
+    ) -> Result<Vec<Tag>, E>;
     async fn find_by_article(
         transaction: &mut Transaction<'_, DB>,
         article_id: i32,
@@ -63,6 +67,7 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
             SELECT
                 id,
                 label,
+                slug,
                 article_count,
                 tag_status AS "tag_status: TagStatus",
                 created_at,
@@ -89,6 +94,7 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
             SELECT
                 id,
                 label,
+                slug,
                 article_count,
                 tag_status AS "tag_status: TagStatus",
                 created_at,
@@ -102,6 +108,32 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
         .await
     }
 
+    async fn find_by_user(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: i32,
+    ) -> Result<Vec<Tag>, Error> {
+        sqlx::query_as!(
+            Tag,
+            r#"
+            SELECT
+                t.id,
+                t.label,
+                t.slug,
+                t.article_count,
+                t.tag_status AS "tag_status: TagStatus",
+                t.created_at,
+                t.updated_at
+            FROM tags t
+            JOIN interests i ON t.id = i.tag_id
+            WHERE i.user_id = $1 AND t.tag_status = 'APPROVED'
+            ORDER BY i.created_at DESC
+            "#n,
+            user_id
+        )
+        .fetch_all(&mut **transaction)
+        .await
+    }
+
     async fn find_by_article(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: i32,
@@ -109,8 +141,10 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
         sqlx::query_as!(
             Tag,
             r#"
-            SELECT t.id,
+            SELECT
+                t.id,
                 t.label,
+                t.slug,
                 t.article_count,
                 t.tag_status AS "tag_status: TagStatus",
                 t.created_at,
@@ -133,16 +167,18 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
         sqlx::query_as!(
             Tag,
             r#"
-            INSERT INTO tags (label, tag_status)
-            VALUES ($1, $2)
+            INSERT INTO tags (label, slug, tag_status)
+            VALUES ($1, $2, $3)
             RETURNING
                 id,
                 label,
+                slug,
                 article_count,
                 tag_status AS "tag_status: TagStatus",
                 created_at,
                 updated_at
             "#n,
+            create_tag.label,
             slugify(format!("{}", create_tag.label)),
             create_tag.tag_status as TagStatus
         )
@@ -192,11 +228,13 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
             UPDATE tags
             SET
                 label = coalesce($2, tags.label),
-                tag_status = coalesce($3, tags.tag_status)
+                tag_status = coalesce($3, tags.tag_status),
+                slug = coalesce($4, tags.slug)
             WHERE id = $1
             RETURNING
                 id,
                 label,
+                slug,
                 article_count,
                 tag_status AS "tag_status: TagStatus",
                 created_at,
@@ -204,7 +242,8 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
             "#n,
             update_tag.id,
             label,
-            update_tag.tag_status as Option<TagStatus>
+            update_tag.tag_status as Option<TagStatus>,
+            update_tag.label.clone().map(|v| slugify(v))
         )
         .fetch_one(&mut **transaction)
         .await
@@ -222,6 +261,7 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
             RETURNING
                 id,
                 label,
+                slug,
                 article_count,
                 tag_status AS "tag_status: TagStatus",
                 created_at,

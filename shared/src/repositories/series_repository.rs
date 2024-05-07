@@ -4,8 +4,10 @@ use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{
     models::{
-        article_model::Article,
+        article_model::FullArticle,
         series_model::{CreateSeries, Series, UpdateSeries},
+        tag_model::Tag,
+        user_model::User,
     },
     utils::{params::Filter, random_string::generate},
 };
@@ -15,6 +17,7 @@ pub trait SeriesRepository<DB, E>
 where
     DB: Database,
 {
+    async fn total(transaction: &mut Transaction<'_, DB>) -> Result<Option<i64>, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         filters: &Filter,
@@ -37,7 +40,7 @@ where
     async fn find_articles(
         transaction: &mut Transaction<'_, DB>,
         series_id: i32,
-    ) -> Result<Vec<Article>, E>;
+    ) -> Result<Vec<FullArticle>, E>;
     async fn add_article(
         transaction: &mut Transaction<'_, DB>,
         series_id: i32,
@@ -61,6 +64,12 @@ pub struct SeriesRepositoryImpl;
 
 #[async_trait]
 impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
+    async fn total(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<i64>, Error> {
+        sqlx::query_scalar!("SELECT COUNT(*) FROM series")
+            .fetch_one(&mut **transaction)
+            .await
+    }
+
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         filters: &Filter,
@@ -206,12 +215,23 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
     async fn find_articles(
         transaction: &mut Transaction<'_, Postgres>,
         series_id: i32,
-    ) -> Result<Vec<Article>, Error> {
+    ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
-            Article,
+            FullArticle,
             r#"
             SELECT a.*
-            FROM articles a
+            FROM (
+                SELECT
+                    a.*,
+                    ARRAY_AGG(u.*) as "authors: Vec<User>",
+                    ARRAY_AGG(t.*) as "tags: Vec<Tag>"
+                FROM articles a
+                JOIN authors au ON a.id = au.article_id
+                JOIN users u ON au.author_id = u.id
+                JOIN articletags at ON a.id = at.article_id
+                JOIN tags t ON at.tag_id = t.id
+                GROUP BY a.id
+            ) a
             JOIN seriesarticle sa ON a.id = sa.article_id
             WHERE sa.series_id = $1
             ORDER BY sa."order" ASC

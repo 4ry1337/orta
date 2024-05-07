@@ -11,9 +11,9 @@ use shared::{
     },
     resource_proto::{
         list_service_server::ListService, AddArticleListRequest, AddArticleListResponse,
-        ArticleWithAuthors, CreateListRequest, DeleteListRequest, DeleteListResponse,
-        GetListRequest, GetListResponse, GetListsRequest, GetListsResponse, List,
-        RemoveArticleListRequest, RemoveArticleListResponse, UpdateListRequest, UpdateListResponse,
+        CreateListRequest, DeleteListRequest, DeleteListResponse, FullArticle, GetListRequest,
+        GetListResponse, GetListsRequest, GetListsResponse, List, RemoveArticleListRequest,
+        RemoveArticleListResponse, UpdateListRequest, UpdateListResponse,
     },
     utils::params::Filter,
 };
@@ -115,9 +115,9 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let articles: Vec<ArticleWithAuthors> = articles
+        let articles = articles
             .iter()
-            .map(|article| ArticleWithAuthors::from(article))
+            .map(|article| FullArticle::from(article))
             .collect();
 
         match transaction.commit().await {

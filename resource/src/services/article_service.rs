@@ -5,9 +5,10 @@ use shared::{
     repositories::article_repository::{ArticleRepository, ArticleRepositoryImpl},
     resource_proto::{
         article_service_server::ArticleService, AddAuthorRequest, AddAuthorResponse, Article,
-        ArticleWithAuthors, CreateArticleRequest, DeleteArticleRequest, DeleteArticleResponse,
+        CreateArticleRequest, DeleteArticleRequest, DeleteArticleResponse, FullArticle,
         GetArticleRequest, GetArticlesRequest, GetArticlesResponse, RemoveAuthorRequest,
-        RemoveAuthorResponse, UpdateArticleRequest, UpdateArticleResponse,
+        RemoveAuthorResponse, UpdateArticleRequest, UpdateArticleResponse, UpdateTagsRequest,
+        UpdateTagsResponse,
     },
     utils::params::Filter,
 };
@@ -113,7 +114,7 @@ impl ArticleService for ArticleServiceImpl {
 
         let articles = articles
             .iter()
-            .map(|article| ArticleWithAuthors::from(article))
+            .map(|article| FullArticle::from(article))
             .collect();
 
         match transaction.commit().await {
@@ -128,7 +129,7 @@ impl ArticleService for ArticleServiceImpl {
     async fn get_article(
         &self,
         request: Request<GetArticleRequest>,
-    ) -> Result<Response<ArticleWithAuthors>, Status> {
+    ) -> Result<Response<FullArticle>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -156,7 +157,7 @@ impl ArticleService for ArticleServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(ArticleWithAuthors::from(&article))),
+            Ok(_) => Ok(Response::new(FullArticle::from(&article))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -440,5 +441,12 @@ impl ArticleService for ArticleServiceImpl {
                 return Err(Status::internal("Something went wrong"));
             }
         }
+    }
+
+    async fn update_tags(
+        &self,
+        request: Request<UpdateTagsRequest>,
+    ) -> Result<Response<UpdateTagsResponse>, Status> {
+        Err(Status::unimplemented("unimplemented"))
     }
 }

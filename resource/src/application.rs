@@ -5,13 +5,21 @@ use std::{
 
 use shared::{
     configuration::{DatabaseSettings, Settings},
-    resource_proto::user_service_server::UserServiceServer,
+    resource_proto::{
+        article_service_server::ArticleServiceServer, comment_service_server::CommentServiceServer,
+        list_service_server::ListServiceServer, series_service_server::SeriesServiceServer,
+        tag_service_server::TagServiceServer, user_service_server::UserServiceServer,
+    },
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tonic::transport::{server::Router, Server};
 use tracing::info;
 
-use crate::services::user_service::UserServiceImpl;
+use crate::services::{
+    article_service::ArticleServiceImpl, comment_service::CommentServiceImpl,
+    list_service::ListServiceImpl, series_service::SeriesServiceImpl, tag_service::TagServiceImpl,
+    user_service::UserServiceImpl,
+};
 
 pub struct AppState {
     pub db: PgPool,
@@ -25,7 +33,7 @@ pub struct Application {
 
 impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
-        info!("Building user service");
+        info!("Building resource service");
 
         let pool = get_connection_pool(&configuration.database).await;
 
@@ -35,13 +43,27 @@ impl Application {
 
         let state = Arc::new(AppState { db: pool });
 
-        let user_service = UserServiceImpl {
-            state: state.clone(),
-        };
+        let server = Server::builder()
+            .add_service(UserServiceServer::new(UserServiceImpl {
+                state: state.clone(),
+            }))
+            .add_service(ArticleServiceServer::new(ArticleServiceImpl {
+                state: state.clone(),
+            }))
+            .add_service(ListServiceServer::new(ListServiceImpl {
+                state: state.clone(),
+            }))
+            .add_service(SeriesServiceServer::new(SeriesServiceImpl {
+                state: state.clone(),
+            }))
+            .add_service(CommentServiceServer::new(CommentServiceImpl {
+                state: state.clone(),
+            }))
+            .add_service(TagServiceServer::new(TagServiceImpl {
+                state: state.clone(),
+            }));
 
-        let server = Server::builder().add_service(UserServiceServer::new(user_service));
-
-        info!("Finished user service build");
+        info!("Finished resource service build");
 
         Ok(Self {
             port,

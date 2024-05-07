@@ -151,6 +151,7 @@ impl AuthService for AuthServiceImpl {
             fingerprint,
         }))
     }
+
     async fn signin(
         &self,
         request: Request<SigninRequest>,
@@ -331,6 +332,7 @@ impl AuthService for AuthServiceImpl {
 
         Ok(Response::new(RefreshResponse { access_token }))
     }
+
     async fn verify_email(
         &self,
         request: Request<VerifyEmailRequest>,

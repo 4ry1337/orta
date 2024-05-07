@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 
-use crate::models::{article_model, list_model, series_model, user_model};
-use crate::resource_proto::{Article, ArticleWithAuthors, List, Series, User};
+use crate::models::{
+    article_model, comment_model, list_model, series_model, tag_model, user_model,
+};
+use crate::resource_proto::{Article, Comment, FullArticle, List, Series, Tag, User};
 
 struct W<T>(T);
 
@@ -60,9 +62,9 @@ impl From<&article_model::Article> for Article {
     }
 }
 
-impl From<&article_model::ArticleWithAuthors> for ArticleWithAuthors {
-    fn from(value: &article_model::ArticleWithAuthors) -> Self {
-        ArticleWithAuthors {
+impl From<&article_model::FullArticle> for FullArticle {
+    fn from(value: &article_model::FullArticle) -> Self {
+        FullArticle {
             id: value.id,
             title: value.title.clone(),
             slug: value.slug.clone(),
@@ -73,6 +75,10 @@ impl From<&article_model::ArticleWithAuthors> for ArticleWithAuthors {
             published_at: W(value.published_at.as_ref()).into(),
             authors: match &value.authors {
                 Some(authors) => authors.iter().map(|user| User::from(user)).collect(),
+                None => vec![],
+            },
+            tags: match &value.tags {
+                Some(tags) => tags.iter().map(|tag| Tag::from(tag)).collect(),
                 None => vec![],
             },
         }
@@ -103,6 +109,34 @@ impl From<&series_model::Series> for Series {
             label: value.label.clone(),
             slug: value.slug.clone(),
             image: value.image.clone(),
+            article_count: value.article_count,
+            created_at: W(&value.created_at).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
+impl From<&comment_model::Comment> for Comment {
+    fn from(value: &comment_model::Comment) -> Self {
+        Comment {
+            id: value.id,
+            commenter_id: value.commenter_id,
+            target_id: value.target_id,
+            r#type: value.r#type.to_string(),
+            content: value.content.clone(),
+            created_at: W(&value.created_at).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
+impl From<&tag_model::Tag> for Tag {
+    fn from(value: &tag_model::Tag) -> Self {
+        Tag {
+            id: value.id,
+            label: value.label.clone(),
+            slug: value.slug.clone(),
+            tag_status: value.tag_status.to_string(),
             article_count: value.article_count,
             created_at: W(&value.created_at).into(),
             updated_at: W(value.updated_at.as_ref()).into(),

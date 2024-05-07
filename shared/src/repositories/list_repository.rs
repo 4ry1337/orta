@@ -4,10 +4,10 @@ use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{
     models::{
-        article_model::Article,
+        article_model::FullArticle,
         enums::Visibility,
         list_model::{CreateList, List, UpdateList},
-        prelude::ArticleWithAuthors,
+        tag_model::Tag,
         user_model::User,
     },
     utils::{params::Filter, random_string::generate},
@@ -41,7 +41,7 @@ where
     async fn find_articles(
         transaction: &mut Transaction<'_, DB>,
         list_id: i32,
-    ) -> Result<Vec<ArticleWithAuthors>, E>;
+    ) -> Result<Vec<FullArticle>, E>;
     async fn add_article(
         transaction: &mut Transaction<'_, DB>,
         list_id: i32,
@@ -276,17 +276,25 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
     async fn find_articles(
         transaction: &mut Transaction<'_, Postgres>,
         list_id: i32,
-    ) -> Result<Vec<ArticleWithAuthors>, Error> {
+    ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
-            ArticleWithAuthors,
+            FullArticle,
             r#"
-            SELECT a.*, ARRAY_AGG(u.*) as "authors: Vec<User>"
-            FROM articles a
-            JOIN authors au ON a.id = au.article_id
-            JOIN users u ON au.author_id = u.id
+            SELECT a.*
+            FROM (
+                SELECT
+                    a.*,
+                    ARRAY_AGG(u.*) as "authors: Vec<User>",
+                    ARRAY_AGG(t.*) as "tags: Vec<Tag>"
+                FROM articles a
+                JOIN authors au ON a.id = au.article_id
+                JOIN users u ON au.author_id = u.id
+                JOIN articletags at ON a.id = at.article_id
+                JOIN tags t ON at.tag_id = t.id
+                GROUP BY a.id
+            ) a
             JOIN listarticle la ON a.id = la.article_id
             WHERE la.list_id = $1
-            GROUP BY a.id
             "#n,
             list_id,
         )

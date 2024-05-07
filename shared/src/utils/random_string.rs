@@ -1,4 +1,4 @@
-use rand::{distributions::Alphanumeric, Rng};
+use rand::Rng;
 
 // pub fn generate(len: usize) -> String {
 //     rand::thread_rng()

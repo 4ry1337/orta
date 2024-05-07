@@ -15,10 +15,7 @@ message User {
   string username = 2;
   string email = 3;
   optional google.protobuf.Timestamp email_verified = 4;
-  optional string image = 5;
-  string role = 6;
-  int32 follower_count = 7;
-  int32 following_count = 8;
+  optional string image = 5; string role = 6; int32 follower_count = 7; int32 following_count = 8;
   optional google.protobuf.Timestamp approved_at = 9;
   optional google.protobuf.Timestamp deleted_at = 10;
 }
@@ -39,9 +36,10 @@ message GetUserRequest {
 
 message GetUserResponse {
   User user = 1;
-  repeated ArticleWithAuthors articles = 2;
+  repeated FullArticle articles = 2;
   repeated List lists = 3;
   repeated Series serieses = 4;
+  repeated Tag interests = 5;
 }
 
 message UpdateUserRequest {
@@ -104,7 +102,7 @@ message Article {
   optional google.protobuf.Timestamp published_at = 8;
 }
 
-message ArticleWithAuthors {
+message FullArticle {
   int32 id = 1;
   string title = 2;
   string slug = 3;
@@ -114,6 +112,7 @@ message ArticleWithAuthors {
   optional google.protobuf.Timestamp updated_at = 7;
   optional google.protobuf.Timestamp published_at = 8;
   repeated User authors = 9;
+  repeated Tag tags = 10;
 }
 
 message GetArticlesRequest {
@@ -123,7 +122,7 @@ message GetArticlesRequest {
 
 message GetArticlesResponse {
   int64 total = 1;
-  repeated ArticleWithAuthors articles = 2;
+  repeated FullArticle articles = 2;
 }
 
 message GetArticleRequest {
@@ -172,14 +171,23 @@ message RemoveAuthorResponse {
   string message = 1;
 }
 
+message UpdateTagsRequest {
+  repeated int32 tags = 1;
+}
+
+message UpdateTagsResponse {
+  string message = 1;
+}
+
 service ArticleService {
   rpc CreateArticle(CreateArticleRequest) returns (Article);
   rpc GetArticles(GetArticlesRequest) returns (GetArticlesResponse);
-  rpc GetArticle(GetArticleRequest) returns (ArticleWithAuthors);
+  rpc GetArticle(GetArticleRequest) returns (FullArticle);
   rpc UpdateArticle(UpdateArticleRequest) returns(UpdateArticleResponse);
   rpc DeleteArticle(DeleteArticleRequest) returns (DeleteArticleResponse);
   rpc AddAuthor(AddAuthorRequest) returns (AddAuthorResponse);
   rpc RemoveAuthor(RemoveAuthorRequest) returns (RemoveAuthorResponse);
+  rpc UpdateTags(UpdateTagsRequest) returns (UpdateTagsResponse);
 }
 
 message List {
@@ -218,7 +226,7 @@ message GetListRequest {
 
 message GetListResponse {
   List list = 1;
-  repeated ArticleWithAuthors articles = 2;
+  repeated FullArticle articles = 2;
 }
 
 message UpdateListRequest {
@@ -305,7 +313,7 @@ message GetSeriesRequest {
 
 message GetSeriesResponse {
   Series series = 1;
-  repeated Article articles = 2;
+  repeated FullArticle articles = 2;
 }
 
 message UpdateSeriesRequest {
@@ -328,26 +336,110 @@ message DeleteSeriesResponse {
   string message = 1;
 }
 
+message AddArticleSeriesRequest {
+  int32 user_id = 1;
+  int32 series_id = 2;
+  int32 article_id = 3;
+}
+
+message AddArticleSeriesResponse {
+  string message = 1;
+}
+
+message RemoveArticleSeriesRequest {
+  int32 user_id = 1;
+  int32 series_id = 2;
+  int32 article_id = 3;
+}
+
+message RemoveArticleSeriesResponse {
+  string message = 1;
+}
+
 service SeriesService {
   rpc CreateSeries(CreateSeriesRequest) returns (Series);
   rpc GetSerieses(GetSeriesesRequest) returns (GetSeriesesResponse);
   rpc GetSeries(GetSeriesRequest) returns (GetSeriesResponse);
   rpc UpdateSeries(UpdateSeriesRequest) returns (UpdateSeriesResponse);
   rpc DeleteSeries(DeleteSeriesRequest) returns (DeleteSeriesResponse);
+  rpc AddArticle(AddArticleSeriesRequest) returns (AddArticleSeriesResponse);
+  rpc RemoveArticle(RemoveArticleSeriesRequest) returns (RemoveArticleSeriesResponse);
 }
 
-// message Comment {
-//   int32 id = 1;
-//   string content = 2;
-//   int32 commenter_id = 3;
-//   optional int32 article_id = 4;
-//   optional int32 series_id = 5;
-//   optional int32 list_id = 6;
-//   google.protobuf.Timestamp created_at = 7;
-//   optional google.protobuf.Timestamp updated_at = 8;
-// }
-//
-// message CommentVec {
-//   int64 total = 1;
-//   repeated Comment comments = 2;
-// }
+message Comment {
+  int32 id = 1;
+  string content = 2;
+  int32 commenter_id = 3;
+  int32 target_id = 4;
+  string type = 5;
+  google.protobuf.Timestamp created_at = 7;
+  optional google.protobuf.Timestamp updated_at = 8;
+}
+
+message CreateCommentRequest {
+  int32 user_id = 1;
+  int32 target_id = 2;
+  string content = 3;
+  string type = 4;
+}
+
+message GetCommentsRequest {
+  int32 target_id = 1;
+  string type = 2;
+  QueryParams params = 3;
+  optional int32 user_id = 4;
+}
+
+message GetCommentsResponse {
+  int64 total = 1;
+  repeated Comment comments = 2;
+}
+
+message UpdateCommentRequest {
+  int32 user_id = 1;
+  int32 comment_id = 2;
+  optional string content = 3;
+}
+
+message UpdateCommentResponse {
+  string message = 1;
+}
+
+message DeleteCommentRequest {
+  int32 user_id = 1;
+  int32 comment_id = 2;
+}
+
+message DeleteCommentResponse {
+  string message = 1;
+}
+
+service CommentService {
+  rpc CreateComment(CreateCommentRequest) returns (Comment);
+  rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
+  rpc UpdateComment(UpdateCommentRequest) returns (UpdateCommentResponse);
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
+}
+
+message Tag {
+  int32 id = 1;
+  string label = 2;
+  string slug = 3;
+  int32 article_count = 4;
+  string tag_status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  optional google.protobuf.Timestamp updated_at = 7;
+}
+
+message GetTagsRequest {
+  string tag_status = 1;
+  QueryParams params = 2;
+}
+
+message GetTagsResponse {
+  repeated Tag tags = 1;
+}
+
+service TagService {
+  rpc GetTags(GetTagsRequest) returns (GetTagsResponse);
+}

@@ -25,7 +25,7 @@ pub struct Application {
 
 impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
-        info!("Building user service");
+        info!("Building auth service");
 
         let pool = get_connection_pool(&configuration.database).await;
 
@@ -41,7 +41,7 @@ impl Application {
 
         let server = Server::builder().add_service(AuthServiceServer::new(auth_service));
 
-        info!("Finished user service build");
+        info!("Finished auth service build");
 
         Ok(Self {
             port,

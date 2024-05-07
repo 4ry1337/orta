@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     extract::State,
     http::StatusCode,
@@ -9,9 +7,8 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use shared::{
+    auth_proto::{auth_service_client::AuthServiceClient, RefreshRequest},
     configuration::CONFIG,
-    repositories::prelude::*,
-    utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, JWT},
 };
 use tracing::error;
 
@@ -20,14 +17,14 @@ use crate::application::AppState;
 pub mod credential;
 // pub mod github;
 // pub mod google;
+//
+// #[derive(Debug, serde::Deserialize)]
+// pub struct AuthRequest {
+//     code: String,
+//     state: String,
+// }
 
-#[derive(Debug, serde::Deserialize)]
-pub struct AuthRequest {
-    code: String,
-    state: String,
-}
-
-pub fn router() -> Router<Arc<AppState>> {
+pub fn router() -> Router<AppState> {
     Router::new()
         .merge(credential::router())
         .route("/auth/refresh", get(refresh))
@@ -35,7 +32,7 @@ pub fn router() -> Router<Arc<AppState>> {
 
 //TODO: should i add secure?
 
-pub async fn refresh(cookies: CookieJar, State(state): State<Arc<AppState>>) -> Response {
+pub async fn refresh(cookies: CookieJar, State(state): State<AppState>) -> Response {
     let refresh_token_with_prefix = match cookies.get(&CONFIG.cookies.refresh_token.name) {
         Some(refresh_token_cookie) => refresh_token_cookie.value(),
         None => return (StatusCode::UNAUTHORIZED, "Invalid credentails").into_response(),
@@ -46,17 +43,30 @@ pub async fn refresh(cookies: CookieJar, State(state): State<Arc<AppState>>) -> 
     };
     let refresh_token =
         match refresh_token_with_prefix.strip_prefix(&(CONFIG.cookies.salt.clone() + ".")) {
-            Some(token) => token,
+            Some(token) => token.to_string(),
             None => return (StatusCode::BAD_REQUEST, "Invalid token").into_response(),
         };
 
     let fingerprint =
         match fingerprint_with_prefix.strip_prefix(&(CONFIG.cookies.salt.clone() + ".")) {
-            Some(token) => token,
+            Some(token) => token.to_string(),
             None => return (StatusCode::BAD_REQUEST, "Invalid token").into_response(),
         };
 
-    unimplemented!();
-    //
-    // (StatusCode::OK, access_token).into_response()
+    match AuthServiceClient::new(state.auth_server.clone())
+        .refresh(RefreshRequest {
+            fingerprint,
+            refresh_token,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (StatusCode::OK, res.access_token.to_owned()).into_response()
+        }
+        Err(err) => {
+            error!("{:#?}", err);
+            (StatusCode::INTERNAL_SERVER_ERROR, "unknown error").into_response()
+        }
+    }
 }

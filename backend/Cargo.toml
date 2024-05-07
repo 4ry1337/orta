@@ -30,6 +30,7 @@ bcrypt = "0.15.1"
 
 # Async Runtime:
 tokio.workspace = true
+tonic.workspace = true
 async-trait.workspace = true
 
 # Logging:

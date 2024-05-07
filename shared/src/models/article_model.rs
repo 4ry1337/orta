@@ -1,4 +1,4 @@
-use crate::models::user_model::User;
+use crate::models::{tag_model::Tag, user_model::User};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,7 @@ pub struct Article {
 }
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
-pub struct ArticleWithAuthors {
+pub struct FullArticle {
     pub id: i32,
     pub title: String,
     pub slug: String,
@@ -25,6 +25,7 @@ pub struct ArticleWithAuthors {
     pub updated_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
     pub authors: Option<Vec<User>>,
+    pub tags: Option<Vec<Tag>>,
 }
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]

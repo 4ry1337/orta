@@ -620,6 +620,7 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
+ "tonic",
  "tower",
  "tower-http",
  "tracing",
