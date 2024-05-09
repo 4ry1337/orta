@@ -2,7 +2,7 @@ CREATE TYPE Role AS ENUM ('USER', 'ADMIN', 'MANAGER');
 
 CREATE TABLE Users (
   id SERIAL NOT NULL PRIMARY KEY,
-  username TEXT NOT NULL,
+  username TEXT UNIQUE NOT NULL,
   email TEXT UNIQUE NOT NULL,
   email_verified TIMESTAMPTZ,
   image TEXT,

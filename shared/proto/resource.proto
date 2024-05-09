@@ -15,9 +15,20 @@ message User {
   string username = 2;
   string email = 3;
   optional google.protobuf.Timestamp email_verified = 4;
-  optional string image = 5; string role = 6; int32 follower_count = 7; int32 following_count = 8;
-  optional google.protobuf.Timestamp approved_at = 9;
-  optional google.protobuf.Timestamp deleted_at = 10;
+  optional string image = 5;
+  Role role = 6;
+  string bio = 7;
+  repeated string urls = 8;
+  int32 follower_count = 9;
+  int32 following_count = 10;
+  optional google.protobuf.Timestamp approved_at = 11;
+  optional google.protobuf.Timestamp deleted_at = 12;
+}
+
+enum Role {
+  USER = 0;
+  ADMIN = 1;
+  MANAGER = 2;
 }
 
 message GetUsersRequest {
@@ -34,21 +45,20 @@ message GetUserRequest {
   string username = 1;
 }
 
-message GetUserResponse {
-  User user = 1;
-  repeated FullArticle articles = 2;
-  repeated List lists = 3;
-  repeated Series serieses = 4;
-  repeated Tag interests = 5;
-}
+// message GetUserResponse {
+//   User user = 1;
+//   repeated FullArticle articles = 2;
+//   repeated List lists = 3;
+//   repeated Series serieses = 4;
+//   repeated Tag interests = 5;
+// }
 
 message UpdateUserRequest {
-  int32 user_id = 1;
-  int32 id = 2;
-  optional string username = 3;
-  optional bytes image = 4;
-  optional string bio = 5;
-  repeated string url = 6;
+  int32 id = 1;
+  optional string username = 2;
+  optional bytes image = 3;
+  optional string bio = 4;
+  repeated string url = 5;
 }
 
 message UpdateUserResponse {
@@ -84,7 +94,7 @@ message UnfollowUserResponse {
 
 service UserService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
-  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetUser(GetUserRequest) returns (User);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
@@ -116,8 +126,10 @@ message FullArticle {
 }
 
 message GetArticlesRequest {
-  optional string query = 1;
-  QueryParams params = 2;
+  repeated string usernames = 1;
+  optional int32 list_id = 2;
+  optional int32 series_id = 3;
+  QueryParams params = 4;
 }
 
 message GetArticlesResponse {
@@ -156,6 +168,7 @@ message DeleteArticleResponse {
 message AddAuthorRequest {
   int32 user_id = 1;
   int32 article_id = 2;
+  int32 author_id = 3;
 }
 
 message AddAuthorResponse {
@@ -165,6 +178,7 @@ message AddAuthorResponse {
 message RemoveAuthorRequest {
   int32 user_id = 1;
   int32 article_id = 2;
+  int32 author_id = 3;
 }
 
 message RemoveAuthorResponse {
@@ -196,23 +210,29 @@ message List {
   string slug = 3;
   string label = 4;
   optional string image = 5;
-  string visibility = 6;
+  Visibility visibility = 6;
   int32 article_count = 7;
   google.protobuf.Timestamp created_at = 8;
   optional google.protobuf.Timestamp updated_at = 9;
 }
 
+enum Visibility {
+  PRIVATE = 0;
+  PUBLIC = 1;
+  BYLINK = 2;
+}
+
 message CreateListRequest {
   int32 user_id = 1;
-  int32 id = 2;
-  string label = 3;
-  optional string image = 4;
-  string visibility = 5;
+  string label = 2;
+  optional string image = 3;
+  Visibility visibility = 4;
 }
 
 message GetListsRequest {
   optional string query = 1;
   QueryParams params = 2;
+  optional int32 user_id = 3;
 }
 
 message GetListsResponse {
@@ -224,17 +244,17 @@ message GetListRequest {
   string list_slug = 1;
 }
 
-message GetListResponse {
-  List list = 1;
-  repeated FullArticle articles = 2;
-}
+// message GetListResponse {
+//   List list = 1;
+//   repeated FullArticle articles = 2;
+// }
 
 message UpdateListRequest {
   int32 user_id = 1;
   int32 list_id = 2;
   optional string label = 3;
   optional string image = 4;
-  optional string visibility = 5;
+  optional Visibility visibility = 5;
 }
 
 message UpdateListResponse {
@@ -273,7 +293,7 @@ message RemoveArticleListResponse {
 service ListService {
   rpc CreateList(CreateListRequest) returns (List);
   rpc GetLists(GetListsRequest) returns (GetListsResponse);
-  rpc GetList(GetListRequest) returns (GetListResponse);
+  rpc GetList(GetListRequest) returns (List);
   rpc UpdateList(UpdateListRequest) returns(UpdateListResponse);
   rpc DeleteList(DeleteListRequest) returns (DeleteListResponse);
   rpc AddArticle(AddArticleListRequest) returns (AddArticleListResponse);
@@ -300,6 +320,7 @@ message CreateSeriesRequest {
 message GetSeriesesRequest {
   optional string query = 1;
   QueryParams params = 2;
+  optional int32 user_id = 3;
 }
 
 message GetSeriesesResponse {
@@ -311,10 +332,10 @@ message GetSeriesRequest {
   string series_slug = 1;
 }
 
-message GetSeriesResponse {
-  Series series = 1;
-  repeated FullArticle articles = 2;
-}
+// message GetSeriesResponse {
+//   Series series = 1;
+//   repeated FullArticle articles = 2;
+// }
 
 message UpdateSeriesRequest {
   int32 user_id = 1;
@@ -359,7 +380,7 @@ message RemoveArticleSeriesResponse {
 service SeriesService {
   rpc CreateSeries(CreateSeriesRequest) returns (Series);
   rpc GetSerieses(GetSeriesesRequest) returns (GetSeriesesResponse);
-  rpc GetSeries(GetSeriesRequest) returns (GetSeriesResponse);
+  rpc GetSeries(GetSeriesRequest) returns (Series);
   rpc UpdateSeries(UpdateSeriesRequest) returns (UpdateSeriesResponse);
   rpc DeleteSeries(DeleteSeriesRequest) returns (DeleteSeriesResponse);
   rpc AddArticle(AddArticleSeriesRequest) returns (AddArticleSeriesResponse);
@@ -371,21 +392,27 @@ message Comment {
   string content = 2;
   int32 commenter_id = 3;
   int32 target_id = 4;
-  string type = 5;
+  CommentableType type = 5;
   google.protobuf.Timestamp created_at = 7;
   optional google.protobuf.Timestamp updated_at = 8;
+}
+
+enum CommentableType {
+  ARTICLE = 0;
+  LIST = 1;
+  SERIES = 2;
 }
 
 message CreateCommentRequest {
   int32 user_id = 1;
   int32 target_id = 2;
   string content = 3;
-  string type = 4;
+  CommentableType type = 4;
 }
 
 message GetCommentsRequest {
   int32 target_id = 1;
-  string type = 2;
+  CommentableType type = 2;
   QueryParams params = 3;
   optional int32 user_id = 4;
 }
@@ -426,13 +453,20 @@ message Tag {
   string label = 2;
   string slug = 3;
   int32 article_count = 4;
-  string tag_status = 5;
+  TagStatus tag_status = 5;
   google.protobuf.Timestamp created_at = 6;
   optional google.protobuf.Timestamp updated_at = 7;
 }
 
+enum TagStatus {
+  APPROVED = 0;
+  BANNED = 1;
+  WAITING = 2;
+}
+
+
 message GetTagsRequest {
-  string tag_status = 1;
+  optional TagStatus tag_status = 1;
   QueryParams params = 2;
 }
 

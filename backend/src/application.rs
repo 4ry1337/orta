@@ -4,9 +4,9 @@ use std::{
     time::Duration,
 };
 
-use axum::{extract::FromRef, Extension};
+use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
-use shared::{auth_proto::auth_service_client::AuthServiceClient, configuration::Settings};
+use shared::configuration::Settings;
 use tokio::{net::TcpListener, signal};
 use tonic::transport::Channel;
 use tower_http::{
@@ -38,8 +38,6 @@ pub struct Application {
     port: u16,
     listener: TcpListener,
     state: AppState,
-    auth_server: Channel,
-    resource_server: Channel,
 }
 
 impl Application {
@@ -65,8 +63,8 @@ impl Application {
 
         let state = Arc::new(State {
             key: Key::generate(),
-            auth_server: auth_server.clone(),
-            resource_server: resource_server.clone(),
+            auth_server,
+            resource_server,
         });
 
         let listener = TcpListener::bind(&address).await?;
@@ -77,8 +75,6 @@ impl Application {
             port,
             listener,
             // address,
-            auth_server,
-            resource_server,
             state,
         })
     }
@@ -100,7 +96,6 @@ impl Application {
         axum::serve(
             self.listener,
             routes::router(self.state.clone())
-                .layer(Extension(AuthServiceClient::new(self.auth_server)))
                 .layer(middleware)
                 .layer(cors)
                 .with_state(self.state),

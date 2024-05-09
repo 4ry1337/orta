@@ -82,6 +82,7 @@ pub struct Settings {
     pub database: DatabaseSettings,
     pub cookies: CookiesSettings,
     pub auth: AuthSettings,
+    pub query: QuerySettings,
     // pub email_client: EmailClientSettings,
     // pub redis_uri: Secret<String>,
 }
@@ -154,6 +155,11 @@ pub struct AuthSettings {
 pub struct OAuthClientSettings {
     pub client_id: Secret<String>,
     pub client_secret: Secret<String>,
+}
+
+#[derive(Debug, serde::Deserialize, Clone)]
+pub struct QuerySettings {
+    pub per_page: i64,
 }
 
 // #[derive(serde::Deserialize, Clone)]

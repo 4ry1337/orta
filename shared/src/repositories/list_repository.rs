@@ -4,11 +4,8 @@ use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{
     models::{
-        article_model::FullArticle,
         enums::Visibility,
         list_model::{CreateList, List, UpdateList},
-        tag_model::Tag,
-        user_model::User,
     },
     utils::{params::Filter, random_string::generate},
 };
@@ -18,10 +15,14 @@ pub trait ListRepository<DB, E>
 where
     DB: Database,
 {
-    async fn total(transaction: &mut Transaction<'_, DB>) -> Result<Option<i64>, E>;
+    async fn total(
+        transaction: &mut Transaction<'_, DB>,
+        user_id: Option<i32>,
+    ) -> Result<Option<i64>, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         filters: &Filter,
+        user_id: Option<i32>,
     ) -> Result<Vec<List>, E>;
     async fn find_by_user(
         transaction: &mut Transaction<'_, DB>,
@@ -38,10 +39,10 @@ where
         update_list: &UpdateList,
     ) -> Result<List, E>;
     async fn delete(transaction: &mut Transaction<'_, DB>, list_id: i32) -> Result<List, E>;
-    async fn find_articles(
-        transaction: &mut Transaction<'_, DB>,
-        list_id: i32,
-    ) -> Result<Vec<FullArticle>, E>;
+    // async fn find_articles(
+    //     transaction: &mut Transaction<'_, DB>,
+    //     list_id: i32,
+    // ) -> Result<Vec<FullArticle>, E>;
     async fn add_article(
         transaction: &mut Transaction<'_, DB>,
         list_id: i32,
@@ -59,14 +60,21 @@ pub struct ListRepositoryImpl;
 
 #[async_trait]
 impl ListRepository<Postgres, Error> for ListRepositoryImpl {
-    async fn total(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<i64>, Error> {
-        sqlx::query_scalar!("SELECT COUNT(*) FROM lists")
-            .fetch_one(&mut **transaction)
-            .await
+    async fn total(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: Option<i32>,
+    ) -> Result<Option<i64>, Error> {
+        sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM lists WHERE user_id = COALESCE($1, user_id)",
+            user_id
+        )
+        .fetch_one(&mut **transaction)
+        .await
     }
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         filters: &Filter,
+        user_id: Option<i32>,
     ) -> Result<Vec<List>, Error> {
         sqlx::query_as!(
             List,
@@ -82,6 +90,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 created_at,
                 updated_at
             FROM lists
+            WHERE user_id = COALESCE($4, user_id)
             ORDER BY $1
             LIMIT $2
             OFFSET $3
@@ -89,6 +98,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
             filters.order_by,
             filters.limit,
             filters.offset,
+            user_id
         )
         .fetch_all(&mut **transaction)
         .await
@@ -273,34 +283,34 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
         .await
     }
 
-    async fn find_articles(
-        transaction: &mut Transaction<'_, Postgres>,
-        list_id: i32,
-    ) -> Result<Vec<FullArticle>, Error> {
-        sqlx::query_as!(
-            FullArticle,
-            r#"
-            SELECT a.*
-            FROM (
-                SELECT
-                    a.*,
-                    ARRAY_AGG(u.*) as "authors: Vec<User>",
-                    ARRAY_AGG(t.*) as "tags: Vec<Tag>"
-                FROM articles a
-                JOIN authors au ON a.id = au.article_id
-                JOIN users u ON au.author_id = u.id
-                JOIN articletags at ON a.id = at.article_id
-                JOIN tags t ON at.tag_id = t.id
-                GROUP BY a.id
-            ) a
-            JOIN listarticle la ON a.id = la.article_id
-            WHERE la.list_id = $1
-            "#n,
-            list_id,
-        )
-        .fetch_all(&mut **transaction)
-        .await
-    }
+    // async fn find_articles(
+    //     transaction: &mut Transaction<'_, Postgres>,
+    //     list_id: i32,
+    // ) -> Result<Vec<FullArticle>, Error> {
+    //     sqlx::query_as!(
+    //         FullArticle,
+    //         r#"
+    //         SELECT a.*
+    //         FROM (
+    //             SELECT
+    //                 a.*,
+    //                 ARRAY_AGG(u.*) as "authors: Vec<User>",
+    //                 ARRAY_AGG(t.*) as "tags: Vec<Tag>"
+    //             FROM articles a
+    //             JOIN authors au ON a.id = au.article_id
+    //             JOIN users u ON au.author_id = u.id
+    //             JOIN articletags at ON a.id = at.article_id
+    //             JOIN tags t ON at.tag_id = t.id
+    //             GROUP BY a.id
+    //         ) a
+    //         JOIN listarticle la ON a.id = la.article_id
+    //         WHERE la.list_id = $1
+    //         "#n,
+    //         list_id,
+    //     )
+    //     .fetch_all(&mut **transaction)
+    //     .await
+    // }
 
     async fn add_article(
         transaction: &mut Transaction<'_, Postgres>,

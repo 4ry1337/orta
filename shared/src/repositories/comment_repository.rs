@@ -4,7 +4,7 @@ use sqlx::{Database, Error, Postgres, Transaction};
 use crate::{
     models::{
         comment_model::{Comment, CreateComment, UpdateComment},
-        prelude::CommentableType,
+        enums::CommentableType,
     },
     utils::params::Filter,
 };

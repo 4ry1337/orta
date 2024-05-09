@@ -613,6 +613,7 @@ dependencies = [
  "reqwest 0.12.4",
  "secrecy",
  "serde",
+ "serde-aux",
  "serde_json",
  "shared",
  "slug",

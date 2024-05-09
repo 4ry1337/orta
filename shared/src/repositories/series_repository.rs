@@ -3,12 +3,7 @@ use slug::slugify;
 use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{
-    models::{
-        article_model::FullArticle,
-        series_model::{CreateSeries, Series, UpdateSeries},
-        tag_model::Tag,
-        user_model::User,
-    },
+    models::series_model::{CreateSeries, Series, UpdateSeries},
     utils::{params::Filter, random_string::generate},
 };
 
@@ -37,10 +32,10 @@ where
     async fn delete(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
     async fn find_by_slug(transaction: &mut Transaction<'_, DB>, slug: &str) -> Result<Series, E>;
-    async fn find_articles(
-        transaction: &mut Transaction<'_, DB>,
-        series_id: i32,
-    ) -> Result<Vec<FullArticle>, E>;
+    // async fn find_articles(
+    //     transaction: &mut Transaction<'_, DB>,
+    //     series_id: i32,
+    // ) -> Result<Vec<FullArticle>, E>;
     async fn add_article(
         transaction: &mut Transaction<'_, DB>,
         series_id: i32,
@@ -212,35 +207,35 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         .await
     }
 
-    async fn find_articles(
-        transaction: &mut Transaction<'_, Postgres>,
-        series_id: i32,
-    ) -> Result<Vec<FullArticle>, Error> {
-        sqlx::query_as!(
-            FullArticle,
-            r#"
-            SELECT a.*
-            FROM (
-                SELECT
-                    a.*,
-                    ARRAY_AGG(u.*) as "authors: Vec<User>",
-                    ARRAY_AGG(t.*) as "tags: Vec<Tag>"
-                FROM articles a
-                JOIN authors au ON a.id = au.article_id
-                JOIN users u ON au.author_id = u.id
-                JOIN articletags at ON a.id = at.article_id
-                JOIN tags t ON at.tag_id = t.id
-                GROUP BY a.id
-            ) a
-            JOIN seriesarticle sa ON a.id = sa.article_id
-            WHERE sa.series_id = $1
-            ORDER BY sa."order" ASC
-            "#n,
-            series_id,
-        )
-        .fetch_all(&mut **transaction)
-        .await
-    }
+    // async fn find_articles(
+    //     transaction: &mut Transaction<'_, Postgres>,
+    //     series_id: i32,
+    // ) -> Result<Vec<FullArticle>, Error> {
+    //     sqlx::query_as!(
+    //         FullArticle,
+    //         r#"
+    //         SELECT a.*
+    //         FROM (
+    //             SELECT
+    //                 a.*,
+    //                 ARRAY_AGG(u.*) as "authors: Vec<User>",
+    //                 ARRAY_AGG(t.*) as "tags: Vec<Tag>"
+    //             FROM articles a
+    //             JOIN authors au ON a.id = au.article_id
+    //             JOIN users u ON au.author_id = u.id
+    //             JOIN articletags at ON a.id = at.article_id
+    //             JOIN tags t ON at.tag_id = t.id
+    //             GROUP BY a.id
+    //         ) a
+    //         JOIN seriesarticle sa ON a.id = sa.article_id
+    //         WHERE sa.series_id = $1
+    //         ORDER BY sa."order" ASC
+    //         "#n,
+    //         series_id,
+    //     )
+    //     .fetch_all(&mut **transaction)
+    //     .await
+    // }
 
     //TODO: test following
     async fn add_article(

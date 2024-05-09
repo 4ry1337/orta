@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
-    Extension, Form, Router,
+    Form, Router,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use cookie::SameSite;
@@ -13,7 +13,6 @@ use shared::{
     configuration::CONFIG,
 };
 use time::Duration;
-use tonic::transport::Channel;
 use tracing::error;
 use validator::Validate;
 
@@ -97,12 +96,8 @@ pub async fn signin(State(state): State<AppState>, Form(payload): Form<SignInReq
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();
-            return (
-                StatusCode::from_u16(err.to_http().status().as_u16())
-                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR),
-                message,
-            )
-                .into_response();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
         }
     };
     let fingerprint_cookie: Cookie = Cookie::build((

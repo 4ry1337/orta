@@ -1,168 +1,174 @@
-use std::sync::Arc;
-
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use serde::Deserialize;
 use serde_json::json;
-use shared::{models::prelude::*, repositories::prelude::*};
+use shared::{
+    models::{comment_model::Comment, enums::CommentableType},
+    resource_proto::{
+        self, comment_service_client::CommentServiceClient, CreateCommentRequest,
+        DeleteCommentRequest, GetCommentsRequest, QueryParams, UpdateCommentRequest,
+    },
+    utils::jwt::AccessTokenPayload,
+};
 use tracing::error;
 
-use crate::{application::AppState, utils::params::PathParams};
+use crate::{
+    application::AppState,
+    utils::{
+        mapper::code_to_statudecode,
+        params::{Metadata, Pagination, PathParams, ResultPaging},
+    },
+};
+
+#[derive(Debug, Deserialize)]
+pub struct CommentsQueryParams {
+    id: i32,
+    r#type: CommentableType,
+}
 
 pub async fn get_comments(
-    State(state): State<Arc<AppState>>,
-    Path(params): Path<PathParams>,
+    State(state): State<AppState>,
+    Query(query): Query<CommentsQueryParams>,
+    Query(pagination): Query<Pagination>,
 ) -> Response {
-    let article_id = match params.article_id {
-        Some(v) => v,
-        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
-    };
-
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+    match CommentServiceClient::new(state.resource_server.clone())
+        .get_comments(GetCommentsRequest {
+            user_id: None,
+            target_id: query.id,
+            r#type: resource_proto::CommentableType::from(query.r#type) as i32,
+            params: Some(QueryParams {
+                order_by: None,
+                per_page: Some(pagination.per_page),
+                page: Some(pagination.page),
+            }),
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<Comment> {
+                    total: res.total,
+                    pagination: Metadata::new(res.total, pagination.per_page, pagination.page),
+                    items: res
+                        .comments
+                        .iter()
+                        .map(|comment| Comment::from(comment))
+                        .collect()
+                })),
+            )
+                .into_response()
         }
-    };
-
-    let article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
-        Ok(article) => article,
         Err(err) => {
             error!("{:#?}", err);
-            if let sqlx::error::Error::RowNotFound = err {
-                return (StatusCode::NOT_FOUND, "Article not found").into_response();
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let comments =
-        match CommentRepositoryImpl::find_all_by_article_id(&mut transaction, article.id).await {
-            Ok(comments) => comments,
-            Err(err) => {
-                error!("{:#?}", err);
-
-                return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-            }
-        };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::OK, Json(json!(comments))).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
         }
     }
 }
 
-pub async fn get_comment(
-    State(state): State<Arc<AppState>>,
-    Path(params): Path<PathParams>,
-) -> Response {
-    let article_id = match params.article_id {
-        Some(v) => v,
-        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
-    };
-
-    let comment_id = match params.comment_id {
-        Some(v) => v,
-        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
-    };
-
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let _article = match ArticleRepositoryImpl::find(&mut transaction, article_id).await {
-        Ok(article) => article,
-        Err(err) => {
-            error!("{:#?}", err);
-            if let sqlx::error::Error::RowNotFound = err {
-                return (StatusCode::NOT_FOUND, "Article not found").into_response();
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    let comment = match CommentRepositoryImpl::find(&mut transaction, comment_id).await {
-        Ok(comment) => comment,
-        Err(err) => {
-            error!("{:#?}", err);
-            if let sqlx::error::Error::RowNotFound = err {
-                return (StatusCode::NOT_FOUND, "Comment not found").into_response();
-            }
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(_) => (StatusCode::OK, Json(json!(comment))).into_response(),
-        Err(err) => {
-            error!("{:#?}", err);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
-        }
-    }
-}
+// pub async fn get_comment(
+//     Extension(user): Extension<AccessTokenPayload>,
+//     State(state): State<AppState>,
+//     Path(params): Path<PathParams>,
+// ) -> Response {
+//     let comment_id = match params.comment_id {
+//         Some(v) => v,
+//         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+//     };
+// }
 
 #[derive(Debug, Deserialize)]
 pub struct PostCommentRequestBody {
-    user_id: i32,
     content: String,
 }
 
 pub async fn post_comment(
-    State(state): State<Arc<AppState>>,
-    Path(params): Path<PathParams>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(state): State<AppState>,
+    Query(query): Query<CommentsQueryParams>,
     Json(payload): Json<PostCommentRequestBody>,
 ) -> Response {
-    let article_id = match params.article_id {
-        Some(v) => v,
-        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
-    };
+    match CommentServiceClient::new(state.resource_server.clone())
+        .create_comment(CreateCommentRequest {
+            user_id: user.user_id,
+            target_id: query.id,
+            r#type: resource_proto::CommentableType::from(query.r#type) as i32,
+            content: payload.content,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, Json(json!(Comment::from(res.get_ref())))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct PatchCommentRequestBody {
-    pub user_id: i32,
     pub content: Option<String>,
 }
 
 pub async fn patch_comment(
-    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<PatchCommentRequestBody>,
 ) -> Response {
-    let article_id = match params.article_id {
-        Some(v) => v,
-        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
-    };
-
     let comment_id = match params.comment_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
+    match CommentServiceClient::new(state.resource_server.clone())
+        .update_comment(UpdateCommentRequest {
+            comment_id,
+            user_id: user.user_id,
+            content: payload.content,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
 }
 
 pub async fn delete_comment(
-    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let article_id = match params.article_id {
-        Some(v) => v,
-        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
-    };
-
     let comment_id = match params.comment_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
+    match CommentServiceClient::new(state.resource_server.clone())
+        .delete_comment(DeleteCommentRequest {
+            comment_id,
+            user_id: user.user_id,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
 }

@@ -11,9 +11,9 @@ use shared::{
     },
     resource_proto::{
         list_service_server::ListService, AddArticleListRequest, AddArticleListResponse,
-        CreateListRequest, DeleteListRequest, DeleteListResponse, FullArticle, GetListRequest,
-        GetListResponse, GetListsRequest, GetListsResponse, List, RemoveArticleListRequest,
-        RemoveArticleListResponse, UpdateListRequest, UpdateListResponse,
+        CreateListRequest, DeleteListRequest, DeleteListResponse, GetListRequest, GetListsRequest,
+        GetListsResponse, List, RemoveArticleListRequest, RemoveArticleListResponse,
+        UpdateListRequest, UpdateListResponse,
     },
     utils::params::Filter,
 };
@@ -22,7 +22,7 @@ use tracing::error;
 
 use crate::{
     application::AppState,
-    permissions::{is_owner, ContentType},
+    utils::permissions::{is_owner, ContentType},
 };
 
 #[derive(Clone)]
@@ -46,7 +46,7 @@ impl ListService for ListServiceImpl {
 
         let input = request.get_ref();
 
-        let total = match ListRepositoryImpl::total(&mut transaction).await {
+        let total = match ListRepositoryImpl::total(&mut transaction, input.user_id).await {
             Ok(total) => match total {
                 Some(total) => total,
                 None => 0,
@@ -60,6 +60,7 @@ impl ListService for ListServiceImpl {
         let lists = match ListRepositoryImpl::find_all(
             &mut transaction,
             &Filter::from(&input.params),
+            input.user_id,
         )
         .await
         {
@@ -81,10 +82,7 @@ impl ListService for ListServiceImpl {
         }
     }
 
-    async fn get_list(
-        &self,
-        request: Request<GetListRequest>,
-    ) -> Result<Response<GetListResponse>, Status> {
+    async fn get_list(&self, request: Request<GetListRequest>) -> Result<Response<List>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -107,24 +105,21 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let articles = match ListRepositoryImpl::find_articles(&mut transaction, list.id).await {
-            Ok(articles) => articles,
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
-
-        let articles = articles
-            .iter()
-            .map(|article| FullArticle::from(article))
-            .collect();
+        // let articles = match ListRepositoryImpl::find_articles(&mut transaction, list.id).await {
+        //     Ok(articles) => articles,
+        //     Err(err) => {
+        //         error!("{:#?}", err);
+        //         return Err(Status::internal("Something went wrong"));
+        //     }
+        // };
+        //
+        // let articles = articles
+        //     .iter()
+        //     .map(|article| FullArticle::from(article))
+        //     .collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetListResponse {
-                list: Some(List::from(&list)),
-                articles,
-            })),
+            Ok(_) => Ok(Response::new(List::from(&list))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));

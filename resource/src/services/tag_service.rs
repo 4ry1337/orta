@@ -1,7 +1,6 @@
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use shared::{
-    models::enums::TagStatus,
     repositories::tag_repository::{TagRepository, TagRepositoryImpl},
     resource_proto::{tag_service_server::TagService, GetTagsRequest, GetTagsResponse, Tag},
     utils::params::Filter,
@@ -34,7 +33,7 @@ impl TagService for TagServiceImpl {
 
         let tags = match TagRepositoryImpl::find_all(
             &mut transaction,
-            TagStatus::from_str(&input.tag_status).ok(),
+            input.tag_status.map(|_| input.tag_status().into()),
             &Filter::from(&input.params),
         )
         .await

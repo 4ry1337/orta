@@ -43,6 +43,7 @@ axum-prometheus = "0.6.1"
 # Serialisation/Deserialisation:
 serde.workspace = true
 serde_json.workspace = true
+serde-aux.workspace = true
 
 # Validation:
 axum-valid = "0.18.0"

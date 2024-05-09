@@ -9,6 +9,7 @@ pub fn code_to_statudecode(code: Code) -> StatusCode {
         Code::NotFound => StatusCode::NOT_FOUND,
         Code::Unimplemented => StatusCode::NOT_IMPLEMENTED,
         Code::Unauthenticated => StatusCode::UNAUTHORIZED,
+        Code::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }

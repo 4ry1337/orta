@@ -1,4 +1,10 @@
-use shared::repositories::prelude::*;
+use shared::repositories::{
+    article_repository::{ArticleRepository, ArticleRepositoryImpl},
+    comment_repository::{CommentRepository, CommentRepositoryImpl},
+    list_repository::{ListRepository, ListRepositoryImpl},
+    series_repository::{SeriesRepository, SeriesRepositoryImpl},
+    user_repository::{UserRepository, UserRepositoryImpl},
+};
 use sqlx::{Postgres, Transaction};
 
 #[derive(Clone)]

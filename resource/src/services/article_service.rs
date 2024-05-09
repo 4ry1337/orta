@@ -13,11 +13,11 @@ use shared::{
     utils::params::Filter,
 };
 use tonic::{Request, Response, Status};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
-    permissions::{is_owner, ContentType},
+    utils::permissions::{is_owner, ContentType},
 };
 
 #[derive(Clone)]
@@ -90,7 +90,16 @@ impl ArticleService for ArticleServiceImpl {
 
         let input = request.get_ref();
 
-        let total = match ArticleRepositoryImpl::total(&mut transaction).await {
+        info!("{:#?}", input);
+
+        let total = match ArticleRepositoryImpl::total(
+            &mut transaction,
+            input.usernames.to_owned(),
+            input.list_id,
+            input.series_id,
+        )
+        .await
+        {
             Ok(total) => match total {
                 Some(total) => total,
                 None => 0,
@@ -101,16 +110,21 @@ impl ArticleService for ArticleServiceImpl {
             }
         };
 
-        let articles =
-            match ArticleRepositoryImpl::find_all(&mut transaction, &Filter::from(&input.params))
-                .await
-            {
-                Ok(articles) => articles,
-                Err(err) => {
-                    error!("{:#?}", err);
-                    return Err(Status::internal("Something went wrong"));
-                }
-            };
+        let articles = match ArticleRepositoryImpl::find_all(
+            &mut transaction,
+            &Filter::from(&input.params),
+            input.usernames.to_owned(),
+            input.list_id,
+            input.series_id,
+        )
+        .await
+        {
+            Ok(articles) => articles,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
 
         let articles = articles
             .iter()
@@ -150,7 +164,7 @@ impl ArticleService for ArticleServiceImpl {
             Err(err) => {
                 error!("{:#?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
-                    return Err(Status::not_found("User not found"));
+                    return Err(Status::not_found("Article not found"));
                 }
                 return Err(Status::internal("Something went wrong"));
             }
@@ -310,7 +324,7 @@ impl ArticleService for ArticleServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::Article,
-            input.user_id,
+            input.author_id,
             input.article_id,
         )
         .await
@@ -385,7 +399,7 @@ impl ArticleService for ArticleServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::Article,
-            input.user_id,
+            input.author_id,
             input.article_id,
         )
         .await

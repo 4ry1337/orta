@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use shared::{
-    models::prelude::*,
-    repositories::prelude::*,
+    models::user_model::UpdateUser,
+    repositories::user_repository::{UserRepository, UserRepositoryImpl},
     resource_proto::{
         user_service_server::UserService, DeleteUserRequest, DeleteUserResponse, FollowUserRequest,
-        FollowUserResponse, FullArticle, GetUserRequest, GetUserResponse, GetUsersRequest,
-        GetUsersResponse, List, Series, Tag, UnfollowUserRequest, UnfollowUserResponse,
-        UpdateUserRequest, UpdateUserResponse, User,
+        FollowUserResponse, GetUserRequest, GetUsersRequest, GetUsersResponse, UnfollowUserRequest,
+        UnfollowUserResponse, UpdateUserRequest, UpdateUserResponse, User,
     },
     utils::params::Filter,
 };
@@ -72,10 +71,7 @@ impl UserService for UserServiceImpl {
         }
     }
 
-    async fn get_user(
-        &self,
-        request: Request<GetUserRequest>,
-    ) -> Result<Response<GetUserResponse>, Status> {
+    async fn get_user(&self, request: Request<GetUserRequest>) -> Result<Response<User>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -98,62 +94,56 @@ impl UserService for UserServiceImpl {
                 }
             };
 
-        let articles = match ArticleRepositoryImpl::find_by_authors(
-            &mut transaction,
-            vec![user.username.clone()],
-        )
-        .await
-        {
-            Ok(articles) => articles,
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
-
-        let articles = articles
-            .iter()
-            .map(|article| FullArticle::from(article))
-            .collect();
-
-        let lists = match ListRepositoryImpl::find_by_user(&mut transaction, user.id).await {
-            Ok(lists) => lists,
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
-
-        let lists = lists.iter().map(|list| List::from(list)).collect();
-
-        let serieses = match SeriesRepositoryImpl::find_by_user(&mut transaction, user.id).await {
-            Ok(serieses) => serieses,
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
-
-        let serieses = serieses.iter().map(|series| Series::from(series)).collect();
-
-        let tags = match TagRepositoryImpl::find_by_user(&mut transaction, user.id).await {
-            Ok(tags) => tags,
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
-
-        let interests = tags.iter().map(|tag| Tag::from(tag)).collect();
+        // let articles = match ArticleRepositoryImpl::find_by_authors(
+        //     &mut transaction,
+        //     vec![user.username.clone()],
+        // )
+        // .await
+        // {
+        //     Ok(articles) => articles,
+        //     Err(err) => {
+        //         error!("{:#?}", err);
+        //         return Err(Status::internal("Something went wrong"));
+        //     }
+        // };
+        //
+        // let articles = articles
+        //     .iter()
+        //     .map(|article| FullArticle::from(article))
+        //     .collect();
+        //
+        // let lists = match ListRepositoryImpl::find_by_user(&mut transaction, user.id).await {
+        //     Ok(lists) => lists,
+        //     Err(err) => {
+        //         error!("{:#?}", err);
+        //         return Err(Status::internal("Something went wrong"));
+        //     }
+        // };
+        //
+        // let lists = lists.iter().map(|list| List::from(list)).collect();
+        //
+        // let serieses = match SeriesRepositoryImpl::find_by_user(&mut transaction, user.id).await {
+        //     Ok(serieses) => serieses,
+        //     Err(err) => {
+        //         error!("{:#?}", err);
+        //         return Err(Status::internal("Something went wrong"));
+        //     }
+        // };
+        //
+        // let serieses = serieses.iter().map(|series| Series::from(series)).collect();
+        //
+        // let tags = match TagRepositoryImpl::find_by_user(&mut transaction, user.id).await {
+        //     Ok(tags) => tags,
+        //     Err(err) => {
+        //         error!("{:#?}", err);
+        //         return Err(Status::internal("Something went wrong"));
+        //     }
+        // };
+        //
+        // let interests = tags.iter().map(|tag| Tag::from(tag)).collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetUserResponse {
-                user: Some(User::from(&user)),
-                interests,
-                articles,
-                lists,
-                serieses,
-            })),
+            Ok(_) => Ok(Response::new(User::from(&user))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));

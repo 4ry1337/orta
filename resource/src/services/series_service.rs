@@ -5,10 +5,9 @@ use shared::{
     repositories::series_repository::{SeriesRepository, SeriesRepositoryImpl},
     resource_proto::{
         series_service_server::SeriesService, AddArticleSeriesRequest, AddArticleSeriesResponse,
-        CreateSeriesRequest, DeleteSeriesRequest, DeleteSeriesResponse, FullArticle,
-        GetSeriesRequest, GetSeriesResponse, GetSeriesesRequest, GetSeriesesResponse,
-        RemoveArticleSeriesRequest, RemoveArticleSeriesResponse, Series, UpdateSeriesRequest,
-        UpdateSeriesResponse,
+        CreateSeriesRequest, DeleteSeriesRequest, DeleteSeriesResponse, GetSeriesRequest,
+        GetSeriesesRequest, GetSeriesesResponse, RemoveArticleSeriesRequest,
+        RemoveArticleSeriesResponse, Series, UpdateSeriesRequest, UpdateSeriesResponse,
     },
     utils::params::Filter,
 };
@@ -17,7 +16,7 @@ use tracing::error;
 
 use crate::{
     application::AppState,
-    permissions::{is_owner, ContentType},
+    utils::permissions::{is_owner, ContentType},
 };
 
 #[derive(Clone)]
@@ -80,7 +79,7 @@ impl SeriesService for SeriesServiceImpl {
     async fn get_series(
         &self,
         request: Request<GetSeriesRequest>,
-    ) -> Result<Response<GetSeriesResponse>, Status> {
+    ) -> Result<Response<Series>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -103,25 +102,22 @@ impl SeriesService for SeriesServiceImpl {
                 }
             };
 
-        let articles = match SeriesRepositoryImpl::find_articles(&mut transaction, series.id).await
-        {
-            Ok(articles) => articles,
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
-
-        let articles = articles
-            .iter()
-            .map(|article| FullArticle::from(article))
-            .collect();
+        // let articles = match SeriesRepositoryImpl::find_articles(&mut transaction, series.id).await
+        // {
+        //     Ok(articles) => articles,
+        //     Err(err) => {
+        //         error!("{:#?}", err);
+        //         return Err(Status::internal("Something went wrong"));
+        //     }
+        // };
+        //
+        // let articles = articles
+        //     .iter()
+        //     .map(|article| FullArticle::from(article))
+        //     .collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetSeriesResponse {
-                series: Some(Series::from(&series)),
-                articles,
-            })),
+            Ok(_) => Ok(Response::new(Series::from(&series))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));

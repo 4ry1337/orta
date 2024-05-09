@@ -17,7 +17,12 @@ pub trait ArticleRepository<DB, E>
 where
     DB: Database,
 {
-    async fn total(transaction: &mut Transaction<'_, DB>) -> Result<Option<i64>, E>;
+    async fn total(
+        transaction: &mut Transaction<'_, DB>,
+        usernames: Vec<String>,
+        list_id: Option<i32>,
+        series_id: Option<i32>,
+    ) -> Result<Option<i64>, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_article: &CreateArticle,
@@ -25,6 +30,9 @@ where
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         filters: &Filter,
+        usernames: Vec<String>,
+        list_id: Option<i32>,
+        series_id: Option<i32>,
     ) -> Result<Vec<FullArticle>, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, article_id: i32)
         -> Result<FullArticle, E>;
@@ -32,10 +40,10 @@ where
         transaction: &mut Transaction<'_, DB>,
         slug: &str,
     ) -> Result<FullArticle, E>;
-    async fn find_by_authors(
-        transaction: &mut Transaction<'_, DB>,
-        user_usernames: Vec<String>,
-    ) -> Result<Vec<FullArticle>, E>;
+    // async fn find_by_authors(
+    //     transaction: &mut Transaction<'_, DB>,
+    //     usernames: Vec<String>,
+    // ) -> Result<Vec<FullArticle>, E>;
     async fn update(
         transaction: &mut Transaction<'_, DB>,
         update_article: &UpdateArticle,
@@ -60,15 +68,40 @@ pub struct ArticleRepositoryImpl;
 
 #[async_trait]
 impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
-    async fn total(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<i64>, Error> {
-        sqlx::query_scalar!("SELECT COUNT(*) FROM articles")
-            .fetch_one(&mut **transaction)
-            .await
+    async fn total(
+        transaction: &mut Transaction<'_, Postgres>,
+        usernames: Vec<String>,
+        list_id: Option<i32>,
+        series_id: Option<i32>,
+    ) -> Result<Option<i64>, Error> {
+        sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*)
+            FROM articles a
+            JOIN authors au ON a.id = au.article_id
+            JOIN users u ON au.author_id = u.id
+            JOIN articletags at ON a.id = at.article_id
+            JOIN tags t ON at.tag_id = t.id
+            JOIN listarticle la ON a.id = la.article_id
+            JOIN seriesarticle sa ON a.id = sa.article_id
+            WHERE la.list_id = COALESCE($2, la.list_id) OR sa.series_id = COALESCE($3, sa.series_id)
+            GROUP BY a.id
+            HAVING array_agg(u.username) @> $1
+            "#,
+        )
+        .bind(&usernames)
+        .bind(list_id)
+        .bind(series_id)
+        .fetch_optional(&mut **transaction)
+        .await
     }
 
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         filters: &Filter,
+        usernames: Vec<String>,
+        list_id: Option<i32>,
+        series_id: Option<i32>,
     ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
             FullArticle,
@@ -82,14 +115,21 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             JOIN users u ON au.author_id = u.id
             JOIN articletags at ON a.id = at.article_id
             JOIN tags t ON at.tag_id = t.id
+            JOIN listarticle la ON a.id = la.article_id
+            JOIN seriesarticle sa ON a.id = sa.article_id
+            WHERE la.list_id = COALESCE($5, la.list_id) OR sa.series_id = COALESCE($6, sa.series_id)
             GROUP BY a.id
+            HAVING array_agg(u.username) @> $4
             ORDER BY $1 DESC
             LIMIT $2
-            OFFSET $3
+            OFFSET $3;
             "#n,
             filters.order_by,
             filters.limit,
             filters.offset,
+            &usernames,
+            list_id,
+            series_id
         )
         .fetch_all(&mut **transaction)
         .await
@@ -144,31 +184,31 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         .fetch_one(&mut **transaction)
         .await
     }
-
-    async fn find_by_authors(
-        transaction: &mut Transaction<'_, Postgres>,
-        user_usernames: Vec<String>,
-    ) -> Result<Vec<FullArticle>, Error> {
-        sqlx::query_as!(
-            FullArticle,
-            r#"
-            SELECT
-                a.*,
-                ARRAY_AGG(u.*) as "authors: Vec<User>",
-                ARRAY_AGG(t.*) as "tags: Vec<Tag>"
-            FROM articles a
-            JOIN authors au ON a.id = au.article_id
-            JOIN users u ON au.author_id = u.id
-            JOIN articletags at ON a.id = at.article_id
-            JOIN tags t ON at.tag_id = t.id
-            GROUP BY a.id
-            HAVING array_agg(u.username) @> $1;
-            "#n,
-            &user_usernames
-        )
-        .fetch_all(&mut **transaction)
-        .await
-    }
+    //
+    // async fn find_by_authors(
+    //     transaction: &mut Transaction<'_, Postgres>,
+    //     user_usernames: Vec<String>,
+    // ) -> Result<Vec<FullArticle>, Error> {
+    //     sqlx::query_as!(
+    //         FullArticle,
+    //         r#"
+    //         SELECT
+    //             a.*,
+    //             ARRAY_AGG(u.*) as "authors: Vec<User>",
+    //             ARRAY_AGG(t.*) as "tags: Vec<Tag>"
+    //         FROM articles a
+    //         JOIN authors au ON a.id = au.article_id
+    //         JOIN users u ON au.author_id = u.id
+    //         JOIN articletags at ON a.id = at.article_id
+    //         JOIN tags t ON at.tag_id = t.id
+    //         GROUP BY a.id
+    // HAVING array_agg(u.username) @> $1;
+    //         "#n,
+    //         &user_usernames
+    //     )
+    //     .fetch_all(&mut **transaction)
+    //     .await
+    // }
 
     async fn create(
         transaction: &mut Transaction<'_, Postgres>,

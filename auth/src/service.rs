@@ -5,8 +5,11 @@ use shared::{
         auth_service_server::AuthService, AuthResponse, RefreshRequest, RefreshResponse,
         SigninRequest, SignupRequest, VerifyEmailRequest, VerifyEmailResponse,
     },
-    models::prelude::*,
-    repositories::prelude::*,
+    models::{account_model::CreateAccount, user_model::CreateUser},
+    repositories::{
+        account_repository::{AccountRepository, AccountRepositoryImpl},
+        user_repository::{UserRepository, UserRepositoryImpl},
+    },
     utils::{
         jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
         random_string::generate,

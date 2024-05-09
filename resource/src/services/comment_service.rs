@@ -1,10 +1,7 @@
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use shared::{
-    models::{
-        comment_model::{CreateComment, UpdateComment},
-        enums::CommentableType,
-    },
+    models::comment_model::{CreateComment, UpdateComment},
     repositories::comment_repository::{CommentRepository, CommentRepositoryImpl},
     resource_proto::{
         comment_service_server::CommentService, Comment, CreateCommentRequest,
@@ -18,7 +15,7 @@ use tracing::error;
 
 use crate::{
     application::AppState,
-    permissions::{is_owner, ContentType},
+    utils::permissions::{is_owner, ContentType},
 };
 
 #[derive(Clone)]
@@ -42,21 +39,13 @@ impl CommentService for CommentServiceImpl {
 
         let input = request.get_ref();
 
-        let commentable_type = match CommentableType::from_str(&input.r#type) {
-            Ok(commentable_type) => commentable_type,
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::invalid_argument(""));
-            }
-        };
-
         let comment = match CommentRepositoryImpl::create(
             &mut transaction,
             &CreateComment {
                 user_id: input.user_id,
                 target_id: input.target_id,
                 content: input.content.to_owned(),
-                r#type: commentable_type,
+                r#type: input.r#type().into(),
             },
         )
         .await
@@ -101,32 +90,27 @@ impl CommentService for CommentServiceImpl {
 
         let input = request.get_ref();
 
-        let commentable_type = match CommentableType::from_str(&input.r#type) {
-            Ok(commentable_type) => commentable_type,
+        let total = match CommentRepositoryImpl::total(
+            &mut transaction,
+            input.target_id,
+            input.r#type().into(),
+        )
+        .await
+        {
+            Ok(total) => match total {
+                Some(total) => total,
+                None => 0,
+            },
             Err(err) => {
                 error!("{:#?}", err);
-                return Err(Status::invalid_argument(""));
+                return Err(Status::internal("Something went wrong"));
             }
         };
-
-        let total =
-            match CommentRepositoryImpl::total(&mut transaction, input.target_id, commentable_type)
-                .await
-            {
-                Ok(total) => match total {
-                    Some(total) => total,
-                    None => 0,
-                },
-                Err(err) => {
-                    error!("{:#?}", err);
-                    return Err(Status::internal("Something went wrong"));
-                }
-            };
 
         let comments = match CommentRepositoryImpl::find_all(
             &mut transaction,
             input.target_id,
-            commentable_type,
+            input.r#type().into(),
             Filter::from(&input.params),
         )
         .await
