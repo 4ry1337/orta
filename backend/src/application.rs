@@ -4,7 +4,13 @@ use std::{
     time::Duration,
 };
 
-use axum::extract::FromRef;
+use axum::{
+    extract::FromRef,
+    http::{
+        header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
+        HeaderValue, Method,
+    },
+};
 use axum_extra::extract::cookie::Key;
 use shared::configuration::Settings;
 use tokio::{net::TcpListener, signal};
@@ -12,7 +18,7 @@ use tonic::transport::Channel;
 use tower_http::{
     catch_panic::CatchPanicLayer,
     compression::CompressionLayer,
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     timeout::{RequestBodyTimeoutLayer, TimeoutLayer},
 };
 use tracing::info;
@@ -81,9 +87,16 @@ impl Application {
 
     pub async fn run(self) -> Result<(), std::io::Error> {
         let cors = CorsLayer::new()
-            .allow_methods(Any)
-            .allow_headers(Any)
-            .allow_origin(["http://localhost:3000".parse().unwrap()]);
+            .allow_origin("http://localhost:3001".parse::<HeaderValue>().unwrap())
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PATCH,
+                Method::PUT,
+                Method::DELETE,
+            ])
+            .allow_credentials(true)
+            .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE]);
 
         let middleware = tower::ServiceBuilder::new()
             .layer(CompressionLayer::new().quality(tower_http::CompressionLevel::Fastest))

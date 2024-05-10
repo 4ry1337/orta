@@ -22,12 +22,6 @@ cookie = "0.18"
 tower = { version = "0.4.13", features = ["util", "timeout"] }
 tower-http = { version = "0.5.2", features = ["cors", "fs", "trace", "compression-full", "decompression-full", "catch-panic", "timeout"] }
 
-# Auth:
-oauth2 = "4.4.2"
-jsonwebtoken = "9.3.0"
-reqwest = { version = "0.12.2", features = ["json"] }
-bcrypt = "0.15.1"
-
 # Async Runtime:
 tokio.workspace = true
 tonic.workspace = true
@@ -58,8 +52,6 @@ thiserror.workspace = true
 anyhow.workspace = true
 
 # Utils:
-slug = "0.1.5"
-futures = "0.3.30"
 secrecy.workspace = true
 shared = { path = "../shared" }
 

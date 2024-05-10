@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
-    Form, Router,
+    Json, Router,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use cookie::SameSite;
@@ -13,15 +13,15 @@ use shared::{
     configuration::CONFIG,
 };
 use time::Duration;
-use tracing::error;
+use tracing::{error, info};
 use validator::Validate;
 
 use crate::{application::AppState, utils::mapper::code_to_statudecode};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/auth/credentail/signup", post(signup))
-        .route("/auth/credentail/signin", post(signin))
+        .route("/auth/credential/signup", post(signup))
+        .route("/auth/credential/signin", post(signin))
 }
 
 #[derive(Debug, Validate, Deserialize)]
@@ -33,7 +33,7 @@ pub struct SignUpRequest {
     pub password: String,
 }
 
-pub async fn signup(State(state): State<AppState>, Form(payload): Form<SignUpRequest>) -> Response {
+pub async fn signup(State(state): State<AppState>, Json(payload): Json<SignUpRequest>) -> Response {
     let res = match AuthServiceClient::new(state.auth_server.clone())
         .signup(SignupRequest {
             email: payload.email,
@@ -84,7 +84,8 @@ pub struct SignInRequest {
     pub password: String,
 }
 
-pub async fn signin(State(state): State<AppState>, Form(payload): Form<SignInRequest>) -> Response {
+pub async fn signin(State(state): State<AppState>, Json(payload): Json<SignInRequest>) -> Response {
+    info!("Sign In Request by: {}", payload.email);
     let res = match AuthServiceClient::new(state.auth_server.clone())
         .signin(SigninRequest {
             email: payload.email,
@@ -104,6 +105,7 @@ pub async fn signin(State(state): State<AppState>, Form(payload): Form<SignInReq
         &CONFIG.cookies.fingerprint.name,
         format!("{}.{}", CONFIG.cookies.salt, res.fingerprint),
     ))
+    .path("/")
     .http_only(true)
     .same_site(SameSite::Lax)
     .max_age(Duration::minutes(CONFIG.cookies.fingerprint.duration))
@@ -113,6 +115,7 @@ pub async fn signin(State(state): State<AppState>, Form(payload): Form<SignInReq
         &CONFIG.cookies.refresh_token.name,
         format!("{}.{}", CONFIG.cookies.salt, res.refresh_token),
     ))
+    .path("/")
     .http_only(true)
     .same_site(SameSite::Lax)
     .max_age(Duration::minutes(CONFIG.cookies.refresh_token.duration))
