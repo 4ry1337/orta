@@ -1,5 +1,4 @@
-"use client";
-
+import { signout } from "@/app/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,24 +7,32 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { Session } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ActivityLogIcon, ExitIcon, GearIcon } from "@radix-ui/react-icons";
 import Link from "next/link";
-import { HTMLAttributes } from "react";
+import { HTMLAttributes, useTransition } from "react";
 
-interface UserButtonProps extends HTMLAttributes<HTMLDivElement> { }
+interface UserButtonProps extends HTMLAttributes<HTMLDivElement> {
+  user: Session;
+}
 
-const UserButton = ({ className }: UserButtonProps) => {
-  const user = {
-    image: undefined,
-    username: "Rakhat",
+const UserButton = ({ className, user }: UserButtonProps) => {
+  const [pending, startTransition] = useTransition();
+  const onSubmit = async () => {
+    startTransition(async () => {
+      await signout();
+    });
   };
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
           variant={"outline"}
-          className={cn("w-14 p-2 xl:w-auto xl:justify-start", className)}
+          className={cn(
+            "h-14 rounded-full w-14 p-2 xl:w-auto xl:justify-start",
+            className,
+          )}
         >
           <Avatar>
             <AvatarImage src={user.image} alt="@avatar" />
@@ -49,7 +56,11 @@ const UserButton = ({ className }: UserButtonProps) => {
             </Link>
           </Button>
           <Separator />
-          <Button variant={"destructive"} className="justify-start">
+          <Button
+            onClick={() => onSubmit()}
+            variant={"destructive"}
+            className="justify-start"
+          >
             <ExitIcon className="mr-2" />
             Sign Out
           </Button>

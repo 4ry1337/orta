@@ -90,12 +90,11 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 created_at,
                 updated_at
             FROM lists
-            WHERE user_id = COALESCE($4, user_id)
-            ORDER BY $1
-            LIMIT $2
-            OFFSET $3
+            WHERE user_id = COALESCE($3, user_id)
+            ORDER BY created_at DESC
+            LIMIT $1
+            OFFSET $2
             "#n,
-            filters.order_by,
             filters.limit,
             filters.offset,
             user_id

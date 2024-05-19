@@ -29,3 +29,12 @@ export const SignInFormSchema = z.object({
     })
     .trim(),
 });
+
+export const CreateArticleSchema = z.object({
+  title: z.string().trim(),
+});
+
+export const CreateListSchema = z.object({
+  label: z.string().trim(),
+  visibility: z.string().trim(),
+});

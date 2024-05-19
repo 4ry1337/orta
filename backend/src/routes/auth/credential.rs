@@ -34,6 +34,7 @@ pub struct SignUpRequest {
 }
 
 pub async fn signup(State(state): State<AppState>, Json(payload): Json<SignUpRequest>) -> Response {
+    info!("Signup request");
     let res = match AuthServiceClient::new(state.auth_server.clone())
         .signup(SignupRequest {
             email: payload.email,
@@ -55,6 +56,7 @@ pub async fn signup(State(state): State<AppState>, Json(payload): Json<SignUpReq
         &CONFIG.cookies.fingerprint.name,
         format!("{}.{}", CONFIG.cookies.salt, res.fingerprint),
     ))
+    .path("/")
     .http_only(true)
     .same_site(SameSite::Lax)
     .max_age(Duration::minutes(CONFIG.cookies.refresh_token.duration))
@@ -64,6 +66,7 @@ pub async fn signup(State(state): State<AppState>, Json(payload): Json<SignUpReq
         &CONFIG.cookies.refresh_token.name,
         format!("{}.{}", CONFIG.cookies.salt, res.refresh_token),
     ))
+    .path("/")
     .http_only(true)
     .same_site(SameSite::Lax)
     .max_age(Duration::minutes(CONFIG.cookies.refresh_token.duration))
@@ -85,7 +88,7 @@ pub struct SignInRequest {
 }
 
 pub async fn signin(State(state): State<AppState>, Json(payload): Json<SignInRequest>) -> Response {
-    info!("Sign In Request by: {}", payload.email);
+    info!("Signin request");
     let res = match AuthServiceClient::new(state.auth_server.clone())
         .signin(SigninRequest {
             email: payload.email,

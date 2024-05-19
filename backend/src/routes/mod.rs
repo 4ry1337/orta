@@ -41,7 +41,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .nest(
             "/api",
             Router::new()
-                .merge(auth::router())
+                .merge(auth::router(state.clone()))
                 .nest(
                     "/admin",
                     Router::new()

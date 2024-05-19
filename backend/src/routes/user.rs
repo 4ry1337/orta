@@ -14,7 +14,7 @@ use shared::{
     },
     utils::jwt::AccessTokenPayload,
 };
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
@@ -58,6 +58,7 @@ pub async fn get_users(Query(query): Query<Pagination>, State(state): State<AppS
 }
 
 pub async fn get_user(State(state): State<AppState>, Path(params): Path<PathParams>) -> Response {
+    info!("Get User Request");
     let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),

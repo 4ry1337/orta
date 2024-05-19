@@ -11,7 +11,7 @@ use shared::{
     utils::params::Filter,
 };
 use tonic::{Request, Response, Status};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::application::AppState;
 
@@ -81,6 +81,8 @@ impl UserService for UserServiceImpl {
         };
 
         let input = request.get_ref();
+
+        info!("fetchibg user: {}", input.username);
 
         let user =
             match UserRepositoryImpl::find_by_username(&mut transaction, &input.username).await {

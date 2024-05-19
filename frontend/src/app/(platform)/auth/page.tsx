@@ -1,7 +1,19 @@
+"use client";
+
 import LogoIcon from "@/components/logo";
 import AuthTabs from "./_components/auth_tabs";
+import { useSession } from "@/context/session_context";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Auth = () => {
+  const { status, data } = useSession({
+    authenticated: false,
+  });
+
+  if (status == "loading") {
+    return <Skeleton className="h-screen w-full" />;
+  }
+
   return (
     <div className="h-screen grid lg:grid-cols-[1fr,45vw]">
       <div className="hidden flex-col justify-between bg-muted p-10 lg:flex">

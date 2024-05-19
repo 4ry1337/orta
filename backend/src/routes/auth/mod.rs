@@ -1,18 +1,25 @@
 use axum::{
     extract::State,
     http::StatusCode,
+    middleware,
     response::{IntoResponse, Response},
     routing::get,
-    Router,
+    Extension, Json, Router,
 };
-use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::{Cookie, CookieJar};
+use cookie::SameSite;
+use serde_json::json;
 use shared::{
     auth_proto::{auth_service_client::AuthServiceClient, RefreshRequest},
     configuration::CONFIG,
+    utils::jwt::AccessTokenPayload,
 };
+use time::Duration;
 use tracing::{error, info};
 
-use crate::{application::AppState, utils::mapper::code_to_statudecode};
+use crate::{
+    application::AppState, middlewares::auth::auth_middleware, utils::mapper::code_to_statudecode,
+};
 
 pub mod credential;
 // pub mod github;
@@ -24,16 +31,24 @@ pub mod credential;
 //     state: String,
 // }
 
-pub fn router() -> Router<AppState> {
+pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .merge(credential::router())
         .route("/auth/refresh", get(refresh))
+        .route("/auth/signout", get(signout))
+        .route(
+            "/session",
+            get(get_session).layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            )),
+        )
 }
 
 //TODO: should i add secure?
 
 pub async fn refresh(cookies: CookieJar, State(state): State<AppState>) -> Response {
-    info!("{:#?}", cookies);
+    info!("Refresh token request");
     let refresh_token_with_prefix = match cookies.get(&CONFIG.cookies.refresh_token.name) {
         Some(refresh_token_cookie) => refresh_token_cookie.value(),
         None => {
@@ -84,4 +99,33 @@ pub async fn refresh(cookies: CookieJar, State(state): State<AppState>) -> Respo
             return (status_code, message).into_response();
         }
     }
+}
+
+pub async fn get_session(Extension(user): Extension<AccessTokenPayload>) -> Response {
+    info!("Get session request");
+    (StatusCode::OK, Json(json!(user))).into_response()
+}
+
+pub async fn signout() -> Response {
+    info!("Signout request");
+
+    let fingerprint_cookie: Cookie = Cookie::build((&CONFIG.cookies.fingerprint.name, ""))
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .max_age(Duration::seconds(-1))
+        .into();
+
+    let refresh_token_cookie: Cookie = Cookie::build((&CONFIG.cookies.refresh_token.name, ""))
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .max_age(Duration::seconds(-1))
+        .into();
+
+    let cookies = CookieJar::new()
+        .add(refresh_token_cookie)
+        .add(fingerprint_cookie);
+
+    (StatusCode::OK, cookies).into_response()
 }

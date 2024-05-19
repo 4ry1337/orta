@@ -1,10 +1,11 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::Response,
     Extension, Json,
 };
 use axum_core::response::IntoResponse;
+use axum_extra::extract::Query;
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
@@ -16,7 +17,7 @@ use shared::{
     },
     utils::jwt::AccessTokenPayload,
 };
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
@@ -38,6 +39,7 @@ pub async fn get_articles(
     Query(pagination): Query<Pagination>,
     State(state): State<AppState>,
 ) -> Response {
+    info!("Get Articles {:#?} {:#?}", query, pagination);
     match ArticleServiceClient::new(state.resource_server.clone())
         .get_articles(GetArticlesRequest {
             usernames: query.usernames.unwrap_or_default(),

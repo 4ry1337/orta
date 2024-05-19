@@ -1,6 +1,6 @@
 "use client";
 
-import { SignUpFormSchema } from "@/app/lib/definitions";
+import { SignUpFormSchema } from "@/lib/definitions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,7 +25,7 @@ import { z } from "zod";
 import AuthFooter from "./auth_footer";
 import { useTransition } from "react";
 import { signup } from "@/app/actions/auth";
-// 478rhdfigf857#
+
 const SignUpForm = () => {
   const [, startTransition] = useTransition();
 

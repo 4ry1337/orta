@@ -15,7 +15,7 @@ use shared::{
     },
     utils::jwt::AccessTokenPayload,
 };
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
@@ -36,6 +36,7 @@ pub async fn get_lists(
     Query(pagination): Query<Pagination>,
     State(state): State<AppState>,
 ) -> Response {
+    info!("Get Lists Request {:#?} {:#?}", query, pagination);
     match ListServiceClient::new(state.resource_server.clone())
         .get_lists(GetListsRequest {
             user_id: query.user_id,
@@ -75,6 +76,8 @@ pub async fn get_list(State(state): State<AppState>, Path(path): Path<PathParams
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
+    info!("Get List Request {}", list_slug);
+
     match ListServiceClient::new(state.resource_server.clone())
         .get_list(GetListRequest { list_slug })
         .await
@@ -91,7 +94,6 @@ pub async fn get_list(State(state): State<AppState>, Path(path): Path<PathParams
 
 #[derive(Debug, Deserialize)]
 pub struct PostListRequestBody {
-    pub user_id: i32,
     pub label: String,
     pub image: Option<String>,
     pub visibility: Visibility,
@@ -102,6 +104,7 @@ pub async fn post_list(
     State(state): State<AppState>,
     Json(payload): Json<PostListRequestBody>,
 ) -> Response {
+    info!("Post List Request {:#?} {:#?}", user, payload);
     match ListServiceClient::new(state.resource_server.clone())
         .create_list(CreateListRequest {
             user_id: user.user_id,
@@ -138,6 +141,10 @@ pub async fn patch_list(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
+    info!(
+        "Patch List Request {:#?} {:#?} {:#?}",
+        user, list_id, payload
+    );
     match ListServiceClient::new(state.resource_server.clone())
         .update_list(UpdateListRequest {
             user_id: user.user_id,

@@ -23,11 +23,11 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import AuthFooter from "./auth_footer";
 import { useTransition } from "react";
-import { SignInFormSchema } from "@/app/lib/definitions";
+import { SignInFormSchema } from "@/lib/definitions";
 import { signin } from "@/app/actions/auth";
 
 export function SignInForm() {
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   const SignInForm = useForm<z.infer<typeof SignInFormSchema>>({
     resolver: zodResolver(SignInFormSchema),
@@ -37,7 +37,7 @@ export function SignInForm() {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof SignInFormSchema>) => {
+  const onSubmit = async (values: z.infer<typeof SignInFormSchema>) => {
     startTransition(async () => {
       await signin(values);
     });
@@ -86,10 +86,12 @@ export function SignInForm() {
             <div>
               <Button
                 aria-disabled={
+                  pending ||
                   !SignInForm.formState.isValid ||
                   SignInForm.formState.isLoading
                 }
                 disabled={
+                  pending ||
                   !SignInForm.formState.isValid ||
                   SignInForm.formState.isLoading
                 }

@@ -87,7 +87,7 @@ impl Application {
 
     pub async fn run(self) -> Result<(), std::io::Error> {
         let cors = CorsLayer::new()
-            .allow_origin("http://localhost:3001".parse::<HeaderValue>().unwrap())
+            .allow_origin("http://localhost:4000".parse::<HeaderValue>().unwrap())
             .allow_methods([
                 Method::GET,
                 Method::POST,

@@ -108,28 +108,24 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             r#"
             SELECT
                 a.*,
-                ARRAY_AGG(u.*) as "authors: Vec<User>",
-                ARRAY_AGG(t.*) as "tags: Vec<Tag>"
+                ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
+                ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
             FROM articles a
-            JOIN authors au ON a.id = au.article_id
-            JOIN users u ON au.author_id = u.id
-            JOIN articletags at ON a.id = at.article_id
-            JOIN tags t ON at.tag_id = t.id
-            JOIN listarticle la ON a.id = la.article_id
-            JOIN seriesarticle sa ON a.id = sa.article_id
-            WHERE la.list_id = COALESCE($5, la.list_id) OR sa.series_id = COALESCE($6, sa.series_id)
+            LEFT JOIN authors au ON a.id = au.article_id
+            LEFT JOIN users u ON au.author_id = u.id
+            LEFT JOIN articletags at ON a.id = at.article_id
+            LEFT JOIN tags t ON at.tag_id = t.id
+            LEFT JOIN listarticle la ON a.id = la.article_id
+            LEFT JOIN seriesarticle sa ON a.id = sa.article_id
             GROUP BY a.id
-            HAVING array_agg(u.username) @> $4
-            ORDER BY $1 DESC
-            LIMIT $2
-            OFFSET $3;
+            HAVING array_agg(u.username) @> $3
+            ORDER BY a.created_at DESC
+            LIMIT $1
+            OFFSET $2;
             "#n,
-            filters.order_by,
             filters.limit,
             filters.offset,
             &usernames,
-            list_id,
-            series_id
         )
         .fetch_all(&mut **transaction)
         .await
@@ -144,8 +140,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             r#"
             SELECT
                 a.*,
-                ARRAY_AGG(u.*) as "authors: Vec<User>",
-                ARRAY_AGG(t.*) as "tags: Vec<Tag>"
+                ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
+                ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
             FROM articles a
             JOIN authors au ON a.id = au.article_id
             JOIN users u ON au.author_id = u.id
@@ -169,8 +165,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             r#"
             SELECT
                 a.*,
-                ARRAY_AGG(u.*) as "authors: Vec<User>",
-                ARRAY_AGG(t.*) as "tags: Vec<Tag>"
+                ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
+                ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
             FROM articles a
             JOIN authors au ON a.id = au.article_id
             JOIN users u ON au.author_id = u.id

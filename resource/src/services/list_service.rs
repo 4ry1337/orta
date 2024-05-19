@@ -18,7 +18,7 @@ use shared::{
     utils::params::Filter,
 };
 use tonic::{Request, Response, Status};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
@@ -45,6 +45,8 @@ impl ListService for ListServiceImpl {
         };
 
         let input = request.get_ref();
+
+        info!("Get Lists Request {:#?}", input);
 
         let total = match ListRepositoryImpl::total(&mut transaction, input.user_id).await {
             Ok(total) => match total {
@@ -93,6 +95,8 @@ impl ListService for ListServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Get List Request {:#?}", input);
+
         let list = match ListRepositoryImpl::find_by_slug(&mut transaction, &input.list_slug).await
         {
             Ok(list) => list,
@@ -140,6 +144,8 @@ impl ListService for ListServiceImpl {
         };
 
         let input = request.get_ref();
+
+        info!("Create List Request {:#?}", input);
 
         let list = match ListRepositoryImpl::create(
             &mut transaction,
@@ -191,6 +197,8 @@ impl ListService for ListServiceImpl {
         };
 
         let input = request.get_ref();
+
+        info!("Update List Request {:#?}", input);
 
         match is_owner(
             &mut transaction,
@@ -264,6 +272,8 @@ impl ListService for ListServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Delete List Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::List,
@@ -317,6 +327,8 @@ impl ListService for ListServiceImpl {
         };
 
         let input = request.get_ref();
+
+        info!("Add Article to List Request {:#?}", input);
 
         match is_owner(
             &mut transaction,
@@ -389,6 +401,8 @@ impl ListService for ListServiceImpl {
         };
 
         let input = request.get_ref();
+
+        info!("Remove Article to List Request {:#?}", input);
 
         match is_owner(
             &mut transaction,

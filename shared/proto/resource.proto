@@ -121,7 +121,7 @@ message FullArticle {
   google.protobuf.Timestamp created_at = 6;
   optional google.protobuf.Timestamp updated_at = 7;
   optional google.protobuf.Timestamp published_at = 8;
-  repeated User authors = 9;
+  repeated User users = 9;
   repeated Tag tags = 10;
 }
 

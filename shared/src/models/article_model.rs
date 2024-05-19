@@ -24,7 +24,7 @@ pub struct FullArticle {
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
-    pub authors: Option<Vec<User>>,
+    pub users: Option<Vec<User>>,
     pub tags: Option<Vec<Tag>>,
 }
 

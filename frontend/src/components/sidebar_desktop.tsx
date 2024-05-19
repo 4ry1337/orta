@@ -1,16 +1,20 @@
+"use client";
+
 import LogoIcon from "@/components/logo";
 import { ModeToggle } from "@/components/theme/toggle";
 import { Button } from "@/components/ui/button";
-import UserButton from "@/components/user/button";
 import Link from "next/link";
 import {
   BellIcon,
-  BookmarkFilledIcon,
+  BookmarkIcon,
   HomeIcon,
   MagnifyingGlassIcon,
   Pencil1Icon,
+  PersonIcon,
 } from "@radix-ui/react-icons";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import UserButton from "./user/button";
+import { HTMLAttributes } from "react";
+import { useSession } from "@/context/session_context";
 
 interface IRoute {
   label: string;
@@ -37,11 +41,15 @@ const routes: IRoute[] = [
   {
     label: "Lists",
     href: "/lists",
-    icon: BookmarkFilledIcon,
+    icon: BookmarkIcon,
   },
 ];
 
-const Sidebar = () => {
+interface SidebarProps extends HTMLAttributes<HTMLDivElement> { }
+
+const Sidebar = (props: SidebarProps) => {
+  const { data, status } = useSession();
+
   return (
     <header
       id="sidebar"
@@ -53,7 +61,7 @@ const Sidebar = () => {
             <Button
               variant={"ghost"}
               asChild
-              className="w-14 grow rounded-full xl:w-auto xl:justify-start"
+              className="h-14 rounded-full px-3.5 py-2 w-14 grow xl:w-auto xl:justify-start"
             >
               <Link href={"/"}>
                 <LogoIcon className="h-7 w-7" />
@@ -68,7 +76,7 @@ const Sidebar = () => {
           </div>
           <Button
             asChild
-            className="w-14 rounded-full xl:w-auto xl:justify-start"
+            className="h-14 rounded-full px-3.5 py-2 w-14 grow xl:w-auto xl:justify-start"
           >
             <Link href={"/write"} prefetch={false}>
               <Pencil1Icon className="h-7 w-7" />
@@ -82,7 +90,7 @@ const Sidebar = () => {
                   key={route.label}
                   variant={"ghost"}
                   asChild
-                  className="w-14 xl:w-auto xl:justify-start"
+                  className="h-14 rounded-full px-3.5 py-2 w-14 grow xl:w-auto xl:justify-start"
                 >
                   <Link href={route.href}>
                     <route.icon className="h-7 w-7" />
@@ -94,7 +102,18 @@ const Sidebar = () => {
           </div>
         </section>
         <section className="flex flex-col justify-center gap-4">
-          <UserButton />
+          {status == "authenticated" && <UserButton user={data} />}
+          {status == "unauthenticated" && (
+            <Button
+              asChild
+              className="h-14 rounded-full px-3.5 py-2 w-14 grow xl:w-auto xl:justify-start"
+            >
+              <Link href={"/auth"}>
+                <PersonIcon className="h-7 w-7" />
+                <h3 className="ml-2 hidden xl:block">Sign In</h3>
+              </Link>
+            </Button>
+          )}
         </section>
       </div>
     </header>

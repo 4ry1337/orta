@@ -27,7 +27,7 @@ pub async fn is_owner(
             let article = ArticleRepositoryImpl::find(transaction, target_id).await?;
             //TODO: write better or create new function in article_repository
             if article
-                .authors
+                .users
                 .is_some_and(|authors| authors.iter().any(|v| v.id == user_id))
             {
                 return Ok(true);

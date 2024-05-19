@@ -209,7 +209,7 @@ impl From<&article_model::FullArticle> for FullArticle {
             created_at: W(&value.created_at).into(),
             updated_at: W(value.updated_at.as_ref()).into(),
             published_at: W(value.published_at.as_ref()).into(),
-            authors: match &value.authors {
+            users: match &value.users {
                 Some(authors) => authors.iter().map(|user| User::from(user)).collect(),
                 None => vec![],
             },
@@ -232,9 +232,9 @@ impl From<&FullArticle> for article_model::FullArticle {
             created_at: W(value.created_at.as_ref()).into(),
             updated_at: W(value.updated_at.as_ref()).into(),
             published_at: W(value.published_at.as_ref()).into(),
-            authors: Some(
+            users: Some(
                 value
-                    .authors
+                    .users
                     .iter()
                     .map(|user| user_model::User::from(user))
                     .collect(),
