@@ -1,15 +1,15 @@
 use crate::{
     models::{
         article_model::{
-            AddAuthor, Article, CreateArticle, DeleteAuthor, FullArticle, UpdateArticle,
+            AddAuthor, Article, ArticleVersion, CreateArticle, DeleteAuthor, FullArticle,
+            UpdateArticle,
         },
         tag_model::Tag,
         user_model::User,
     },
-    utils::{params::Filter, random_string::generate},
+    utils::params::Filter,
 };
 use async_trait::async_trait;
-use slug::slugify;
 use sqlx::{Database, Error, Postgres, Transaction};
 
 #[async_trait]
@@ -20,8 +20,8 @@ where
     async fn total(
         transaction: &mut Transaction<'_, DB>,
         usernames: Vec<String>,
-        list_id: Option<i32>,
-        series_id: Option<i32>,
+        list_id: Option<&str>,
+        series_id: Option<&str>,
     ) -> Result<Option<i64>, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
@@ -31,36 +31,41 @@ where
         transaction: &mut Transaction<'_, DB>,
         filters: &Filter,
         usernames: Vec<String>,
-        list_id: Option<i32>,
-        series_id: Option<i32>,
+        list_id: Option<&str>,
+        series_id: Option<&str>,
     ) -> Result<Vec<FullArticle>, E>;
-    async fn find(transaction: &mut Transaction<'_, DB>, article_id: i32)
-        -> Result<FullArticle, E>;
-    async fn find_by_slug(
+    async fn find(
         transaction: &mut Transaction<'_, DB>,
-        slug: &str,
+        article_id: &str,
     ) -> Result<FullArticle, E>;
-    // async fn find_by_authors(
-    //     transaction: &mut Transaction<'_, DB>,
-    //     usernames: Vec<String>,
-    // ) -> Result<Vec<FullArticle>, E>;
     async fn update(
         transaction: &mut Transaction<'_, DB>,
         update_article: &UpdateArticle,
     ) -> Result<Article, E>;
-    async fn delete(transaction: &mut Transaction<'_, DB>, article_id: i32) -> Result<Article, E>;
-    // async fn get_authors(
-    //     transaction: &mut Transaction<'_, DB>,
-    //     article_id: i32,
-    // ) -> Result<Vec<User>, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, article_id: &str) -> Result<Article, E>;
     async fn add_author(
         transaction: &mut Transaction<'_, DB>,
         add_author: &AddAuthor,
-    ) -> Result<(i32, i32), E>;
+    ) -> Result<(String, String), E>;
     async fn delete_author(
         transaction: &mut Transaction<'_, DB>,
         delete_author: &DeleteAuthor,
-    ) -> Result<(i32, i32), E>;
+    ) -> Result<(String, String), E>;
+    async fn versions(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: &str,
+    ) -> Result<Option<i64>, E>;
+    async fn history(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: &str,
+        filters: &Filter,
+    ) -> Result<Vec<ArticleVersion>, E>;
+    async fn save(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: &str,
+        content: &str,
+        device_id: Option<&str>,
+    ) -> Result<ArticleVersion, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -71,28 +76,28 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
     async fn total(
         transaction: &mut Transaction<'_, Postgres>,
         usernames: Vec<String>,
-        list_id: Option<i32>,
-        series_id: Option<i32>,
+        _list_id: Option<&str>,
+        _series_id: Option<&str>,
     ) -> Result<Option<i64>, Error> {
-        sqlx::query_scalar(
+        sqlx::query_scalar!(
             r#"
             SELECT COUNT(*)
             FROM articles a
-            JOIN authors au ON a.id = au.article_id
-            JOIN users u ON au.author_id = u.id
-            JOIN articletags at ON a.id = at.article_id
-            JOIN tags t ON at.tag_id = t.id
-            JOIN listarticle la ON a.id = la.article_id
-            JOIN seriesarticle sa ON a.id = sa.article_id
-            WHERE la.list_id = COALESCE($2, la.list_id) OR sa.series_id = COALESCE($3, sa.series_id)
+            LEFT JOIN authors au ON a.id = au.article_id
+            LEFT JOIN users u ON au.author_id = u.id
+            LEFT JOIN articleversions av ON a.id = av.article_id
+            LEFT JOIN articletags at ON a.id = at.article_id
+            LEFT JOIN tags t ON at.tag_slug = t.slug
+            LEFT JOIN listarticle la ON a.id = la.article_id
+            LEFT JOIN seriesarticle sa ON a.id = sa.article_id
             GROUP BY a.id
             HAVING array_agg(u.username) @> $1
             "#,
+            &usernames,
+            // list_id,
+            // series_id
         )
-        .bind(&usernames)
-        .bind(list_id)
-        .bind(series_id)
-        .fetch_optional(&mut **transaction)
+        .fetch_one(&mut **transaction)
         .await
     }
 
@@ -100,24 +105,26 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         transaction: &mut Transaction<'_, Postgres>,
         filters: &Filter,
         usernames: Vec<String>,
-        list_id: Option<i32>,
-        series_id: Option<i32>,
+        _list_id: Option<&str>,
+        _series_id: Option<&str>,
     ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
             FullArticle,
             r#"
             SELECT
                 a.*,
+                av.content,
                 ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
                 ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
             FROM articles a
             LEFT JOIN authors au ON a.id = au.article_id
             LEFT JOIN users u ON au.author_id = u.id
+            LEFT JOIN articleversions av ON a.id = av.article_id
             LEFT JOIN articletags at ON a.id = at.article_id
-            LEFT JOIN tags t ON at.tag_id = t.id
+            LEFT JOIN tags t ON at.tag_slug = t.slug
             LEFT JOIN listarticle la ON a.id = la.article_id
             LEFT JOIN seriesarticle sa ON a.id = sa.article_id
-            GROUP BY a.id
+            GROUP BY a.id, av.content
             HAVING array_agg(u.username) @> $3
             ORDER BY a.created_at DESC
             LIMIT $1
@@ -133,78 +140,30 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
 
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
-        article_id: i32,
+        article_id: &str,
     ) -> Result<FullArticle, Error> {
         sqlx::query_as!(
             FullArticle,
             r#"
             SELECT
                 a.*,
+                av.content,
                 ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
                 ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
             FROM articles a
-            JOIN authors au ON a.id = au.article_id
-            JOIN users u ON au.author_id = u.id
-            JOIN articletags at ON a.id = at.article_id
-            JOIN tags t ON at.tag_id = t.id
+            LEFT JOIN articleversions av ON a.id = av.article_id
+            LEFT JOIN authors au ON a.id = au.article_id
+            LEFT JOIN users u ON au.author_id = u.id
+            LEFT JOIN articletags at ON a.id = at.article_id
+            LEFT JOIN tags t ON at.tag_slug = t.slug
             WHERE a.id = $1
-            GROUP BY a.id
+            GROUP BY a.id, av.content
             "#n,
             article_id
         )
         .fetch_one(&mut **transaction)
         .await
     }
-
-    async fn find_by_slug(
-        transaction: &mut Transaction<'_, Postgres>,
-        slug: &str,
-    ) -> Result<FullArticle, Error> {
-        sqlx::query_as!(
-            FullArticle,
-            r#"
-            SELECT
-                a.*,
-                ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
-                ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
-            FROM articles a
-            JOIN authors au ON a.id = au.article_id
-            JOIN users u ON au.author_id = u.id
-            JOIN articletags at ON a.id = at.article_id
-            JOIN tags t ON at.tag_id = t.id
-            WHERE a.slug = $1
-            GROUP BY a.id
-            "#n,
-            slug
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-    //
-    // async fn find_by_authors(
-    //     transaction: &mut Transaction<'_, Postgres>,
-    //     user_usernames: Vec<String>,
-    // ) -> Result<Vec<FullArticle>, Error> {
-    //     sqlx::query_as!(
-    //         FullArticle,
-    //         r#"
-    //         SELECT
-    //             a.*,
-    //             ARRAY_AGG(u.*) as "authors: Vec<User>",
-    //             ARRAY_AGG(t.*) as "tags: Vec<Tag>"
-    //         FROM articles a
-    //         JOIN authors au ON a.id = au.article_id
-    //         JOIN users u ON au.author_id = u.id
-    //         JOIN articletags at ON a.id = at.article_id
-    //         JOIN tags t ON at.tag_id = t.id
-    //         GROUP BY a.id
-    // HAVING array_agg(u.username) @> $1;
-    //         "#n,
-    //         &user_usernames
-    //     )
-    //     .fetch_all(&mut **transaction)
-    //     .await
-    // }
 
     async fn create(
         transaction: &mut Transaction<'_, Postgres>,
@@ -214,8 +173,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             Article,
             r#"
             WITH article AS
-              (INSERT INTO articles (slug, title)
-               VALUES ($2, $3)
+              (INSERT INTO articles (title)
+               VALUES ($2)
                RETURNING *),
                  author AS
               (INSERT INTO authors (author_id, article_id)
@@ -223,11 +182,10 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                          (SELECT id AS article_id
                           FROM article)) RETURNING *)
             SELECT *
-            FROM article;
+            FROM article a
             "#n,
             create_article.user_id,
-            slugify(format!("{}-{}", create_article.title, generate(12))),
-            create_article.title.trim()
+            create_article.title
         )
         .fetch_one(&mut **transaction)
         .await
@@ -241,17 +199,12 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             Article,
             r#"
             UPDATE articles
-            SET title = COALESCE($2, articles.title),
-                slug = COALESCE($3, articles.slug)
+            SET title = COALESCE($2, articles.title)
             WHERE articles.id = $1
             RETURNING *
             "#n,
             update_article.id,
             update_article.title,
-            update_article
-                .title
-                .clone()
-                .map(|v| slugify(format!("{}-{}", v, generate(12))))
         )
         .fetch_one(&mut **transaction)
         .await
@@ -259,7 +212,7 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
 
     async fn delete(
         transaction: &mut Transaction<'_, Postgres>,
-        article_id: i32,
+        article_id: &str,
     ) -> Result<Article, Error> {
         sqlx::query_as!(
             Article,
@@ -274,40 +227,10 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         .await
     }
 
-    // async fn get_authors(
-    //     transaction: &mut Transaction<'_, Postgres>,
-    //     article_id: i32,
-    // ) -> Result<Vec<User>, Error> {
-    //     sqlx::query_as!(
-    //         User,
-    //         r#"
-    //         SELECT
-    //             u.id,
-    //             u.username,
-    //             u.email,
-    //             u.email_verified,
-    //             u.image,
-    //             u.role AS "role: Role",
-    //             u.bio,
-    //             u.urls,
-    //             u.follower_count,
-    //             u.following_count,
-    //             u.approved_at,
-    //             u.deleted_at
-    //         FROM authors a
-    //         JOIN users u on a.author_id = u.id
-    //         WHERE a.article_id = $1
-    //         "#n,
-    //         article_id
-    //     )
-    //     .fetch_all(&mut **transaction)
-    //     .await
-    // }
-
     async fn add_author(
         transaction: &mut Transaction<'_, Postgres>,
         add_author: &AddAuthor,
-    ) -> Result<(i32, i32), Error> {
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             INSERT INTO authors (author_id, article_id)
@@ -318,13 +241,16 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         )
         .execute(&mut **transaction)
         .await;
-        Ok((add_author.article_id, add_author.user_id))
+        Ok((
+            add_author.article_id.to_string(),
+            add_author.user_id.to_string(),
+        ))
     }
 
     async fn delete_author(
         transaction: &mut Transaction<'_, Postgres>,
         delete_author: &DeleteAuthor,
-    ) -> Result<(i32, i32), Error> {
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             DELETE FROM authors
@@ -335,6 +261,69 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         )
         .execute(&mut **transaction)
         .await;
-        Ok((delete_author.article_id, delete_author.user_id))
+        Ok((
+            delete_author.article_id.to_string(),
+            delete_author.user_id.to_string(),
+        ))
+    }
+
+    async fn versions(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+    ) -> Result<Option<i64>, Error> {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM articleversions
+            GROUP BY article_id = $1
+            "#,
+            article_id
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn history(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+        filters: &Filter,
+    ) -> Result<Vec<ArticleVersion>, Error> {
+        sqlx::query_as!(
+            ArticleVersion,
+            r#"
+            SELECT *
+            FROM articleversions
+            WHERE article_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            OFFSET $3
+            "#n,
+            article_id,
+            filters.limit,
+            filters.offset,
+        )
+        .fetch_all(&mut **transaction)
+        .await
+    }
+
+    async fn save(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+        content: &str,
+        device_id: Option<&str>,
+    ) -> Result<ArticleVersion, Error> {
+        sqlx::query_as!(
+            ArticleVersion,
+            r#"
+            INSERT INTO articleversions (article_id, content, device_id)
+            VALUES ($1, $2, $3)
+            RETURNING *
+            "#n,
+            article_id,
+            content,
+            device_id,
+        )
+        .fetch_one(&mut **transaction)
+        .await
     }
 }

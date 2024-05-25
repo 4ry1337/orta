@@ -4,9 +4,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
 pub struct List {
-    pub id: i32,
-    pub user_id: i32,
-    pub slug: String,
+    pub id: String,
+    pub user_id: String,
     pub label: String,
     pub image: Option<String>,
     pub visibility: Visibility,
@@ -17,7 +16,7 @@ pub struct List {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateList {
-    pub user_id: i32,
+    pub user_id: String,
     pub label: String,
     pub image: Option<String>,
     pub visibility: Visibility,
@@ -25,7 +24,7 @@ pub struct CreateList {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateList {
-    pub id: i32,
+    pub id: String,
     pub label: Option<String>,
     pub image: Option<String>,
     pub visibility: Option<Visibility>,

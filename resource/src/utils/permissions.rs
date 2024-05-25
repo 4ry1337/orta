@@ -19,8 +19,8 @@ pub enum ContentType {
 pub async fn is_owner(
     transaction: &mut Transaction<'_, Postgres>,
     content_type: ContentType,
-    user_id: i32,
-    target_id: i32,
+    user_id: &str,
+    target_id: &str,
 ) -> Result<bool, sqlx::Error> {
     match content_type {
         ContentType::Article => {

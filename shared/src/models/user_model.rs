@@ -5,7 +5,7 @@ use sqlx::Postgres;
 
 #[derive(Clone, sqlx::FromRow, Serialize, Deserialize, Debug)]
 pub struct User {
-    pub id: i32,
+    pub id: String,
     pub username: String,
     pub email: String,
     pub email_verified: Option<DateTime<Utc>>,
@@ -67,7 +67,7 @@ pub struct CreateUser {
 }
 
 pub struct UpdateUser {
-    pub id: i32,
+    pub id: String,
     pub username: Option<String>,
     pub image: Option<String>,
 }

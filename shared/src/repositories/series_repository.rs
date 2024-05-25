@@ -1,10 +1,9 @@
 use async_trait::async_trait;
-use slug::slugify;
 use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{
     models::series_model::{CreateSeries, Series, UpdateSeries},
-    utils::{params::Filter, random_string::generate},
+    utils::params::Filter,
 };
 
 #[async_trait]
@@ -17,10 +16,6 @@ where
         transaction: &mut Transaction<'_, DB>,
         filters: &Filter,
     ) -> Result<Vec<Series>, E>;
-    async fn find_by_user(
-        transaction: &mut Transaction<'_, DB>,
-        user_id: i32,
-    ) -> Result<Vec<Series>, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_series: &CreateSeries,
@@ -29,29 +24,24 @@ where
         transaction: &mut Transaction<'_, DB>,
         update_series: &UpdateSeries,
     ) -> Result<Series, E>;
-    async fn delete(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
-    async fn find(transaction: &mut Transaction<'_, DB>, series_id: i32) -> Result<Series, E>;
-    async fn find_by_slug(transaction: &mut Transaction<'_, DB>, slug: &str) -> Result<Series, E>;
-    // async fn find_articles(
-    //     transaction: &mut Transaction<'_, DB>,
-    //     series_id: i32,
-    // ) -> Result<Vec<FullArticle>, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, series_id: &str) -> Result<Series, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, series_id: &str) -> Result<Series, E>;
     async fn add_article(
         transaction: &mut Transaction<'_, DB>,
-        series_id: i32,
-        article_id: i32,
-    ) -> Result<(i32, i32), E>;
+        series_id: &str,
+        article_id: &str,
+    ) -> Result<(String, String), E>;
     async fn reorder_article(
         transaction: &mut Transaction<'_, DB>,
-        series_id: i32,
-        article_id: i32,
+        series_id: &str,
+        article_id: &str,
         new_order: f32,
-    ) -> Result<(i32, i32), E>;
+    ) -> Result<(String, String), E>;
     async fn remove_article(
         transaction: &mut Transaction<'_, DB>,
-        series_id: i32,
-        article_id: i32,
-    ) -> Result<(i32, i32), E>;
+        series_id: &str,
+        article_id: &str,
+    ) -> Result<(String, String), E>;
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +78,7 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
 
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
-        series_id: i32,
+        series_id: &str,
     ) -> Result<Series, Error> {
         sqlx::query_as!(
             Series,
@@ -103,41 +93,6 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         .await
     }
 
-    async fn find_by_slug(
-        transaction: &mut Transaction<'_, Postgres>,
-        slug: &str,
-    ) -> Result<Series, Error> {
-        sqlx::query_as!(
-            Series,
-            r#"
-            SELECT *
-            FROM series
-            WHERE slug = $1
-            "#n,
-            slug
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-
-    async fn find_by_user(
-        transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
-    ) -> Result<Vec<Series>, Error> {
-        sqlx::query_as!(
-            Series,
-            r#"
-            SELECT *
-            FROM series
-            WHERE user_id = $1
-            ORDER BY created_at DESC
-            "#n,
-            user_id
-        )
-        .fetch_all(&mut **transaction)
-        .await
-    }
-
     async fn create(
         transaction: &mut Transaction<'_, Postgres>,
         create_series: &CreateSeries,
@@ -148,15 +103,13 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
             INSERT INTO series (
                 user_id,
                 label,
-                slug,
                 image
             )
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3)
             RETURNING *
             "#n,
             create_series.user_id,
             create_series.label,
-            slugify(format!("{}-{}", create_series.label, generate(12))),
             create_series.image
         )
         .fetch_one(&mut **transaction)
@@ -173,18 +126,13 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
             UPDATE series
             SET 
                 label = coalesce($2, series.label),
-                image = coalesce($3, series.image),
-                slug = coalesce($4, series.slug)
+                image = coalesce($3, series.image)
             WHERE id = $1
             RETURNING *
             "#n,
             update_series.id,
             update_series.label,
             update_series.image,
-            update_series
-                .label
-                .clone()
-                .map(|v| slugify(format!("{}-{}", v, generate(12)))),
         )
         .fetch_one(&mut **transaction)
         .await
@@ -192,7 +140,7 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
 
     async fn delete(
         transaction: &mut Transaction<'_, Postgres>,
-        series_id: i32,
+        series_id: &str,
     ) -> Result<Series, Error> {
         sqlx::query_as!(
             Series,
@@ -207,42 +155,12 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         .await
     }
 
-    // async fn find_articles(
-    //     transaction: &mut Transaction<'_, Postgres>,
-    //     series_id: i32,
-    // ) -> Result<Vec<FullArticle>, Error> {
-    //     sqlx::query_as!(
-    //         FullArticle,
-    //         r#"
-    //         SELECT a.*
-    //         FROM (
-    //             SELECT
-    //                 a.*,
-    //                 ARRAY_AGG(u.*) as "authors: Vec<User>",
-    //                 ARRAY_AGG(t.*) as "tags: Vec<Tag>"
-    //             FROM articles a
-    //             JOIN authors au ON a.id = au.article_id
-    //             JOIN users u ON au.author_id = u.id
-    //             JOIN articletags at ON a.id = at.article_id
-    //             JOIN tags t ON at.tag_id = t.id
-    //             GROUP BY a.id
-    //         ) a
-    //         JOIN seriesarticle sa ON a.id = sa.article_id
-    //         WHERE sa.series_id = $1
-    //         ORDER BY sa."order" ASC
-    //         "#n,
-    //         series_id,
-    //     )
-    //     .fetch_all(&mut **transaction)
-    //     .await
-    // }
-
     //TODO: test following
     async fn add_article(
         transaction: &mut Transaction<'_, Postgres>,
-        series_id: i32,
-        article_id: i32,
-    ) -> Result<(i32, i32), Error> {
+        series_id: &str,
+        article_id: &str,
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             INSERT INTO seriesarticle (series_id, article_id, "order")
@@ -257,15 +175,15 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         )
         .execute(&mut **transaction)
         .await;
-        Ok((series_id, article_id))
+        Ok((series_id.to_string(), article_id.to_string()))
     }
 
     async fn reorder_article(
         transaction: &mut Transaction<'_, Postgres>,
-        series_id: i32,
-        article_id: i32,
+        series_id: &str,
+        article_id: &str,
         new_order: f32,
-    ) -> Result<(i32, i32), Error> {
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             UPDATE seriesarticle
@@ -278,14 +196,14 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         )
         .execute(&mut **transaction)
         .await;
-        Ok((series_id, article_id))
+        Ok((series_id.to_string(), article_id.to_string()))
     }
 
     async fn remove_article(
         transaction: &mut Transaction<'_, Postgres>,
-        series_id: i32,
-        article_id: i32,
-    ) -> Result<(i32, i32), Error> {
+        series_id: &str,
+        article_id: &str,
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             DELETE FROM seriesarticle
@@ -296,6 +214,6 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         )
         .execute(&mut **transaction)
         .await;
-        Ok((series_id, article_id))
+        Ok((series_id.to_string(), article_id.to_string()))
     }
 }

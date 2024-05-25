@@ -5,10 +5,10 @@ use super::enums::CommentableType;
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
 pub struct Comment {
-    pub id: i32,
+    pub id: String,
     pub content: String,
-    pub commenter_id: i32,
-    pub target_id: i32,
+    pub commenter_id: String,
+    pub target_id: String,
     pub r#type: CommentableType,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
@@ -16,14 +16,14 @@ pub struct Comment {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateComment {
-    pub user_id: i32,
-    pub target_id: i32,
+    pub user_id: String,
+    pub target_id: String,
     pub content: String,
     pub r#type: CommentableType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateComment {
-    pub id: i32,
+    pub id: String,
     pub content: Option<String>,
 }

@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(sqlx::FromRow, Deserialize, Serialize, Debug)]
 pub struct Account {
-    pub id: i32,
-    pub user_id: i32,
+    pub id: String,
+    pub user_id: String,
     pub r#type: String,
     pub provider: String,
     pub provider_account_id: String,
@@ -19,7 +19,7 @@ pub struct Account {
 }
 
 pub struct CreateAccount {
-    pub user_id: i32,
+    pub user_id: String,
     pub r#type: String,
     pub provider: String,
     pub provider_account_id: String,
@@ -35,8 +35,8 @@ pub struct CreateAccount {
 }
 
 pub struct UpdateAccount {
-    pub id: i32,
-    pub user_id: i32,
+    pub id: String,
+    pub user_id: String,
     pub r#type: Option<String>,
     pub provider: Option<String>,
     pub provider_account_id: Option<String>,

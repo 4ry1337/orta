@@ -16,18 +16,18 @@ where
 {
     async fn total(
         transaction: &mut Transaction<'_, DB>,
-        target_id: i32,
+        target_id: &str,
         r#type: CommentableType,
     ) -> Result<Option<i64>, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
-        target_id: i32,
+        target_id: &str,
         r#type: CommentableType,
         filters: Filter,
     ) -> Result<Vec<Comment>, E>;
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
-        comment_id: i32,
+        comment_id: &str,
     ) -> Result<Comment, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
@@ -37,7 +37,7 @@ where
         transaction: &mut Transaction<'_, DB>,
         update_comment: &UpdateComment,
     ) -> Result<Comment, E>;
-    async fn delete(transaction: &mut Transaction<'_, DB>, comment_id: i32) -> Result<Comment, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, comment_id: &str) -> Result<Comment, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -47,7 +47,7 @@ pub struct CommentRepositoryImpl;
 impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
     async fn total(
         transaction: &mut Transaction<'_, Postgres>,
-        target_id: i32,
+        target_id: &str,
         r#type: CommentableType,
     ) -> Result<Option<i64>, Error> {
         sqlx::query_scalar!(
@@ -65,7 +65,7 @@ impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
 
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        target_id: i32,
+        target_id: &str,
         r#type: CommentableType,
         filters: Filter,
     ) -> Result<Vec<Comment>, Error> {
@@ -97,7 +97,7 @@ impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
 
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
-        comment_id: i32,
+        comment_id: &str,
     ) -> Result<Comment, Error> {
         sqlx::query_as!(
             Comment,
@@ -193,7 +193,7 @@ impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
 
     async fn delete(
         transaction: &mut Transaction<'_, Postgres>,
-        comment_id: i32,
+        comment_id: &str,
     ) -> Result<Comment, Error> {
         sqlx::query_as!(
             Comment,

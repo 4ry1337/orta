@@ -18,37 +18,30 @@ where
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         tag_status: Option<TagStatus>,
+        user_id: Option<&str>,
+        article_id: Option<&str>,
         filters: &Filter,
     ) -> Result<Vec<Tag>, E>;
-    async fn find_by_user(
-        transaction: &mut Transaction<'_, DB>,
-        user_id: i32,
-    ) -> Result<Vec<Tag>, E>;
-    async fn find_by_article(
-        transaction: &mut Transaction<'_, DB>,
-        article_id: i32,
-    ) -> Result<Vec<Tag>, E>;
-    async fn find(transaction: &mut Transaction<'_, DB>, tag_id: i32) -> Result<Tag, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, tag_id: &str) -> Result<Tag, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_tag: &CreateTag,
     ) -> Result<Tag, E>;
-    // async fn create_many(transaction: &mut Transaction<'_, DB>, create_tags: &[&CreateTag]) -> Result<Vec<Tag>, E>;
     async fn update(
         transaction: &mut Transaction<'_, DB>,
         update_tag: &UpdateTag,
     ) -> Result<Tag, E>;
-    async fn delete(transaction: &mut Transaction<'_, DB>, tag_id: i32) -> Result<Tag, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, tag_id: &str) -> Result<Tag, E>;
     async fn add_article_tags(
         transaction: &mut Transaction<'_, DB>,
-        article_id: i32,
-        tag_id: i32,
-    ) -> Result<(), E>;
+        article_id: &str,
+        tag_slug: &str,
+    ) -> Result<(String, String), E>;
     async fn remove_article_tags(
         transaction: &mut Transaction<'_, DB>,
-        article_id: i32,
-        tag_id: i32,
-    ) -> Result<(), E>;
+        article_id: &str,
+        tag_slug: &str,
+    ) -> Result<(String, String), E>;
 }
 
 #[derive(Debug, Clone)]
@@ -59,40 +52,46 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         tag_status: Option<TagStatus>,
+        user_id: Option<&str>,
+        article_id: Option<&str>,
         filters: &Filter,
     ) -> Result<Vec<Tag>, Error> {
         sqlx::query_as!(
             Tag,
             r#"
             SELECT
-                id,
-                label,
-                slug,
-                article_count,
-                tag_status AS "tag_status: TagStatus",
-                created_at,
-                updated_at
-            FROM tags
-            WHERE tag_status = coalesce($1, tag_status)
-            ORDER BY $2
-            LIMIT $3
-            OFFSET $4
+                t.label,
+                t.slug,
+                t.article_count,
+                t.tag_status AS "tag_status: TagStatus",
+                t.created_at,
+                t.updated_at
+            FROM tags t
+            LEFT JOIN interests i ON t.slug = i.tag_slug
+            LEFT JOIN articletags at ON t.slug = at.tag_slug
+            WHERE (at.article_id = $5 OR i.user_id = $4) AND tag_status = coalesce($1, tag_status)
+            ORDER BY t.created_at DESC
+            LIMIT $2
+            OFFSET $3
             "#n,
             tag_status as Option<TagStatus>,
-            filters.order_by,
             filters.limit,
-            filters.offset
+            filters.offset,
+            user_id,
+            article_id,
         )
         .fetch_all(&mut **transaction)
         .await
     }
 
-    async fn find(transaction: &mut Transaction<'_, Postgres>, tag_id: i32) -> Result<Tag, Error> {
+    async fn find(
+        transaction: &mut Transaction<'_, Postgres>,
+        tag_slug: &str,
+    ) -> Result<Tag, Error> {
         sqlx::query_as!(
             Tag,
             r#"
             SELECT
-                id,
                 label,
                 slug,
                 article_count,
@@ -100,63 +99,11 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
                 created_at,
                 updated_at
             FROM tags
-            WHERE id = $1
+            WHERE slug = $1
             "#n,
-            tag_id
+            tag_slug
         )
         .fetch_one(&mut **transaction)
-        .await
-    }
-
-    async fn find_by_user(
-        transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
-    ) -> Result<Vec<Tag>, Error> {
-        sqlx::query_as!(
-            Tag,
-            r#"
-            SELECT
-                t.id,
-                t.label,
-                t.slug,
-                t.article_count,
-                t.tag_status AS "tag_status: TagStatus",
-                t.created_at,
-                t.updated_at
-            FROM tags t
-            JOIN interests i ON t.id = i.tag_id
-            WHERE i.user_id = $1 AND t.tag_status = 'APPROVED'
-            ORDER BY i.created_at DESC
-            "#n,
-            user_id
-        )
-        .fetch_all(&mut **transaction)
-        .await
-    }
-
-    async fn find_by_article(
-        transaction: &mut Transaction<'_, Postgres>,
-        article_id: i32,
-    ) -> Result<Vec<Tag>, Error> {
-        sqlx::query_as!(
-            Tag,
-            r#"
-            SELECT
-                t.id,
-                t.label,
-                t.slug,
-                t.article_count,
-                t.tag_status AS "tag_status: TagStatus",
-                t.created_at,
-                t.updated_at
-            FROM tags t
-            JOIN articletags at ON t.id = at.tag_id
-            WHERE at.article_id = $1 AND t.tag_status = 'APPROVED'
-            ORDER BY at.created_at DESC
-            "#n,
-            article_id
-        )
-        .fetch_all(&mut **transaction)
         .await
     }
 
@@ -170,7 +117,6 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
             INSERT INTO tags (label, slug, tag_status)
             VALUES ($1, $2, $3)
             RETURNING
-                id,
                 label,
                 slug,
                 article_count,
@@ -185,34 +131,6 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
         .fetch_one(&mut **transaction)
         .await
     }
-
-    // async fn create_many(&self, create_tags: &[&CreateTag]) -> Result<Vec<Tag>, Error> {
-    //     let labels: Vec<String> = create_tags
-    //         .iter()
-    //         .map(|create_tag| create_tag.label.clone())
-    //         .collect();
-    //     let tag_statuses: Vec<TagStatus> = create_tags
-    //         .iter()
-    //         .map(|create_tag| create_tag.tag_status.clone())
-    //         .collect();
-    //     sqlx::query_as!(
-    //         Tag,
-    //         r#"
-    //         INSERT INTO tags (label, tag_status)
-    //         SELECT * FROM UNNEST ($1::text[],)
-    //         RETURNING
-    //             id,
-    //             label,
-    //             article_count,
-    //             tag_status AS "tag_status: TagStatus",
-    //             created_at,
-    //             updated_at
-    //         "#n,
-    //         labels
-    //     )
-    //     .fetch_all(&self.db)
-    //     .await
-    // }
 
     async fn update(
         transaction: &mut Transaction<'_, Postgres>,
@@ -230,9 +148,8 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
                 label = coalesce($2, tags.label),
                 tag_status = coalesce($3, tags.tag_status),
                 slug = coalesce($4, tags.slug)
-            WHERE id = $1
+            WHERE slug = $1
             RETURNING
-                id,
                 label,
                 slug,
                 article_count,
@@ -240,7 +157,7 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
                 created_at,
                 updated_at
             "#n,
-            update_tag.id,
+            update_tag.slug,
             label,
             update_tag.tag_status as Option<TagStatus>,
             update_tag.label.clone().map(|v| slugify(v))
@@ -251,15 +168,14 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
 
     async fn delete(
         transaction: &mut Transaction<'_, Postgres>,
-        tag_id: i32,
+        tag_id: &str,
     ) -> Result<Tag, Error> {
         sqlx::query_as!(
             Tag,
             r#"
             DELETE FROM tags
-            WHERE id = $1
+            WHERE slug = $1
             RETURNING
-                id,
                 label,
                 slug,
                 article_count,
@@ -275,43 +191,43 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
 
     async fn add_article_tags(
         transaction: &mut Transaction<'_, Postgres>,
-        article_id: i32,
-        tag_id: i32,
-    ) -> Result<(), Error> {
+        article_id: &str,
+        tag_slug: &str,
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             WITH article_count_increment AS (
                 UPDATE tags
                 SET article_count = article_count + 1
-                WHERE id = $2
+                WHERE slug = $2
             )
-            INSERT INTO articletags (article_id, tag_id)
+            INSERT INTO articletags (article_id, tag_slug)
             VALUES ($1, $2)
             ON CONFLICT DO NOTHING
             "#n,
             article_id,
-            tag_id
+            tag_slug
         )
         .execute(&mut **transaction)
         .await;
-        Ok(())
+        Ok((article_id.to_string(), tag_slug.to_string()))
     }
 
     async fn remove_article_tags(
         transaction: &mut Transaction<'_, Postgres>,
-        article_id: i32,
-        tag_id: i32,
-    ) -> Result<(), Error> {
+        article_id: &str,
+        tag_slug: &str,
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             DELETE FROM articletags
-            WHERE article_id = $1 AND tag_id = $2
+            WHERE article_id = $1 AND tag_slug = $2
             "#n,
             article_id,
-            tag_id
+            tag_slug
         )
         .execute(&mut **transaction)
         .await;
-        Ok(())
+        Ok((article_id.to_string(), tag_slug.to_string()))
     }
 }

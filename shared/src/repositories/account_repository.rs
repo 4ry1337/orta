@@ -15,10 +15,10 @@ where
         transaction: &mut Transaction<'_, DB>,
         filters: &Filter,
     ) -> Result<Vec<Account>, E>;
-    async fn find(transaction: &mut Transaction<'_, DB>, account_id: i32) -> Result<Account, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, account_id: &str) -> Result<Account, E>;
     async fn find_by_user(
         transaction: &mut Transaction<'_, DB>,
-        user_id: i32,
+        user_id: &str,
     ) -> Result<Account, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
@@ -28,7 +28,7 @@ where
         transaction: &mut Transaction<'_, DB>,
         update_accunt: &UpdateAccount,
     ) -> Result<Account, E>;
-    async fn delete(transaction: &mut Transaction<'_, DB>, account_id: i32) -> Result<Account, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, account_id: &str) -> Result<Account, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -58,7 +58,7 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
     }
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
-        account_id: i32,
+        account_id: &str,
     ) -> Result<Account, Error> {
         sqlx::query_as!(
             Account,
@@ -74,7 +74,7 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
     }
     async fn find_by_user(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
+        user_id: &str,
     ) -> Result<Account, Error> {
         sqlx::query_as!(
             Account,
@@ -119,14 +119,7 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
         .fetch_one(&mut **transaction)
         .await
     }
-    // CREATE TABLE verification_token
-    // (
-    //   identifier TEXT NOT NULL,
-    //   expires TIMESTAMPTZ NOT NULL,
-    //   token TEXT NOT NULL,
-    //
-    //   PRIMARY KEY (identifier, token)
-    // );
+
     async fn update(
         transaction: &mut Transaction<'_, Postgres>,
         update_accunt: &UpdateAccount,
@@ -162,9 +155,10 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
         .fetch_one(&mut **transaction)
         .await
     }
+
     async fn delete(
         transaction: &mut Transaction<'_, Postgres>,
-        account_id: i32,
+        account_id: &str,
     ) -> Result<Account, Error> {
         sqlx::query_as!(
             Account,

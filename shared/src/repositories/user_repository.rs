@@ -32,7 +32,7 @@ where
         account_provider: &str,
         account_id: &str,
     ) -> Result<User, E>;
-    async fn find(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, user_id: &str) -> Result<User, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         new_user: &CreateUser,
@@ -41,11 +41,11 @@ where
         transaction: &mut Transaction<'_, DB>,
         update_user: &UpdateUser,
     ) -> Result<User, E>;
-    async fn verify(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
-    async fn approve(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
-    async fn unapprove(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
-    async fn soft_delete(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
-    async fn delete(transaction: &mut Transaction<'_, DB>, user_id: i32) -> Result<User, E>;
+    async fn verify(transaction: &mut Transaction<'_, DB>, user_id: &str) -> Result<User, E>;
+    async fn approve(transaction: &mut Transaction<'_, DB>, user_id: &str) -> Result<User, E>;
+    async fn unapprove(transaction: &mut Transaction<'_, DB>, user_id: &str) -> Result<User, E>;
+    async fn soft_delete(transaction: &mut Transaction<'_, DB>, user_id: &str) -> Result<User, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, user_id: &str) -> Result<User, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -93,7 +93,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
 
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
+        user_id: &str,
     ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
@@ -278,7 +278,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
 
     async fn verify(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
+        user_id: &str,
     ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
@@ -310,7 +310,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
 
     async fn approve(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
+        user_id: &str,
     ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
@@ -342,7 +342,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
 
     async fn unapprove(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
+        user_id: &str,
     ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
@@ -374,7 +374,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
 
     async fn soft_delete(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
+        user_id: &str,
     ) -> Result<User, Error> {
         sqlx::query_as!(
             User,
@@ -406,7 +406,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
 
     async fn delete(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
+        user_id: &str,
     ) -> Result<User, Error> {
         sqlx::query_as!(
             User,

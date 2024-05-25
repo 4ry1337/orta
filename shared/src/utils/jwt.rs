@@ -10,7 +10,7 @@ use crate::{configuration::CONFIG, models::enums::Role};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claims<T> {
     pub iss: String,
-    pub sub: i32,
+    pub sub: String,
     pub iat: i64,
     pub exp: i64,
     pub payload: T,
@@ -25,7 +25,7 @@ pub struct AccessToken;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AccessTokenPayload {
-    pub user_id: i32,
+    pub user_id: String,
     pub email: String,
     pub username: String,
     pub image: Option<String>,
@@ -46,7 +46,7 @@ impl JWT<AccessTokenPayload> for AccessToken {
             iat: now.timestamp(),
             exp: expiration.timestamp(),
             iss: CONFIG.api_server.host.to_string(),
-            sub: payload.user_id,
+            sub: payload.user_id.clone(),
             payload,
         };
 
@@ -75,7 +75,7 @@ pub struct RefreshToken;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RefreshTokenPayload {
-    pub user_id: i32,
+    pub user_id: String,
     pub fingerprint: String,
 }
 
@@ -93,7 +93,7 @@ impl JWT<RefreshTokenPayload> for RefreshToken {
             iat: now.timestamp(),
             exp: expiration.timestamp(),
             iss: CONFIG.api_server.host.to_string(),
-            sub: payload.user_id,
+            sub: payload.user_id.clone(),
             payload,
         };
 

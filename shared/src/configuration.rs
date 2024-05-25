@@ -79,11 +79,14 @@ pub struct Settings {
     pub api_server: ApplicationSettings,
     pub resource_server: ApplicationSettings,
     pub auth_server: ApplicationSettings,
+    pub storage_server: ApplicationSettings,
+    pub notification_server: ApplicationSettings,
     pub database: DatabaseSettings,
+    pub storage: StorageSettings,
     pub cookies: CookiesSettings,
     pub auth: AuthSettings,
     pub query: QuerySettings,
-    // pub email_client: EmailClientSettings,
+    pub message_broker: MessageBrokerSettings,
     // pub redis_uri: Secret<String>,
 }
 
@@ -103,6 +106,18 @@ pub struct DatabaseSettings {
     pub host: String,
     pub database_name: String,
     pub require_ssl: bool,
+}
+
+#[derive(Debug, serde::Deserialize, Clone)]
+pub struct StorageSettings {
+    pub username: String,
+    pub password: Secret<String>,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub port: u16,
+    pub hostname: String,
+    pub access_key: Secret<String>,
+    pub secret_key: Secret<String>,
+    pub bucket_name: String,
 }
 
 impl DatabaseSettings {
@@ -162,15 +177,15 @@ pub struct QuerySettings {
     pub per_page: i64,
 }
 
-// #[derive(serde::Deserialize, Clone)]
-// pub struct EmailClientSettings {
-//     pub base_url: String,
-//     pub sender_email: String,
-//     pub authorization_token: Secret<String>,
-//     #[serde(deserialize_with = "deserialize_number_from_string")]
-//     pub timeout_milliseconds: u64,
-// }
-//
+#[derive(Debug, serde::Deserialize, Clone)]
+pub struct MessageBrokerSettings {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub port: u16,
+    pub hostname: String,
+    pub username: String,
+    pub password: Secret<String>,
+}
+
 // impl EmailClientSettings {
 //     pub fn client(self) -> EmailClient {
 //         let sender_email = self.sender().expect("Invalid sender email address.");

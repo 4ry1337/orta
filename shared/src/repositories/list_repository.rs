@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use slug::slugify;
 use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::{
@@ -7,7 +6,7 @@ use crate::{
         enums::Visibility,
         list_model::{CreateList, List, UpdateList},
     },
-    utils::{params::Filter, random_string::generate},
+    utils::params::Filter,
 };
 
 #[async_trait]
@@ -17,19 +16,14 @@ where
 {
     async fn total(
         transaction: &mut Transaction<'_, DB>,
-        user_id: Option<i32>,
+        user_id: Option<&str>,
     ) -> Result<Option<i64>, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         filters: &Filter,
-        user_id: Option<i32>,
+        user_id: Option<&str>,
     ) -> Result<Vec<List>, E>;
-    async fn find_by_user(
-        transaction: &mut Transaction<'_, DB>,
-        user_id: i32,
-    ) -> Result<Vec<List>, E>;
-    async fn find(transaction: &mut Transaction<'_, DB>, list_id: i32) -> Result<List, E>;
-    async fn find_by_slug(transaction: &mut Transaction<'_, DB>, slug: &str) -> Result<List, E>;
+    async fn find(transaction: &mut Transaction<'_, DB>, list_id: &str) -> Result<List, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_list: &CreateList,
@@ -38,21 +32,17 @@ where
         transaction: &mut Transaction<'_, DB>,
         update_list: &UpdateList,
     ) -> Result<List, E>;
-    async fn delete(transaction: &mut Transaction<'_, DB>, list_id: i32) -> Result<List, E>;
-    // async fn find_articles(
-    //     transaction: &mut Transaction<'_, DB>,
-    //     list_id: i32,
-    // ) -> Result<Vec<FullArticle>, E>;
+    async fn delete(transaction: &mut Transaction<'_, DB>, list_id: &str) -> Result<List, E>;
     async fn add_article(
         transaction: &mut Transaction<'_, DB>,
-        list_id: i32,
-        article_id: i32,
-    ) -> Result<(i32, i32), E>;
+        list_id: &str,
+        article_id: &str,
+    ) -> Result<(String, String), E>;
     async fn remove_article(
         transaction: &mut Transaction<'_, DB>,
-        list_id: i32,
-        article_id: i32,
-    ) -> Result<(i32, i32), E>;
+        list_id: &str,
+        article_id: &str,
+    ) -> Result<(String, String), E>;
 }
 
 #[derive(Debug, Clone)]
@@ -62,7 +52,7 @@ pub struct ListRepositoryImpl;
 impl ListRepository<Postgres, Error> for ListRepositoryImpl {
     async fn total(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: Option<i32>,
+        user_id: Option<&str>,
     ) -> Result<Option<i64>, Error> {
         sqlx::query_scalar!(
             "SELECT COUNT(*) FROM lists WHERE user_id = COALESCE($1, user_id)",
@@ -74,7 +64,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         filters: &Filter,
-        user_id: Option<i32>,
+        user_id: Option<&str>,
     ) -> Result<Vec<List>, Error> {
         sqlx::query_as!(
             List,
@@ -82,7 +72,6 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
             SELECT
                 id,
                 user_id,
-                slug,
                 label,
                 image,
                 visibility AS "visibility: Visibility",
@@ -103,36 +92,9 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
         .await
     }
 
-    async fn find_by_user(
-        transaction: &mut Transaction<'_, Postgres>,
-        user_id: i32,
-    ) -> Result<Vec<List>, Error> {
-        sqlx::query_as!(
-            List,
-            r#"
-            SELECT
-                id,
-                user_id,
-                slug,
-                label,
-                image,
-                visibility AS "visibility: Visibility",
-                article_count,
-                created_at,
-                updated_at
-            FROM lists
-            WHERE user_id = $1
-            ORDER BY created_at DESC
-            "#n,
-            user_id,
-        )
-        .fetch_all(&mut **transaction)
-        .await
-    }
-
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
-        list_id: i32,
+        list_id: &str,
     ) -> Result<List, Error> {
         sqlx::query_as!(
             List,
@@ -140,7 +102,6 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
             SELECT
                 id,
                 user_id,
-                slug,
                 label,
                 image,
                 visibility AS "visibility: Visibility",
@@ -157,32 +118,6 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
         .await
     }
 
-    async fn find_by_slug(
-        transaction: &mut Transaction<'_, Postgres>,
-        slug: &str,
-    ) -> Result<List, Error> {
-        sqlx::query_as!(
-            List,
-            r#"
-            SELECT
-                id,
-                user_id,
-                slug,
-                label,
-                image,
-                visibility AS "visibility: Visibility",
-                article_count,
-                created_at,
-                updated_at
-            FROM lists
-            WHERE slug = $1
-            "#n,
-            slug
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-
     async fn create(
         transaction: &mut Transaction<'_, Postgres>,
         create_list: &CreateList,
@@ -192,16 +127,14 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
             r#"
             INSERT INTO Lists (
                 user_id,
-                slug,
                 label,
                 image,
                 visibility
                 )
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4)
             RETURNING
                 id,
                 user_id,
-                slug,
                 label,
                 image,
                 visibility AS "visibility: Visibility",
@@ -210,7 +143,6 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 updated_at
             "#n,
             create_list.user_id,
-            slugify(format!("{}-{}", create_list.label, generate(12))),
             create_list.label,
             create_list.image,
             create_list.visibility as Visibility
@@ -227,15 +159,13 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
             List,
             r#"
             UPDATE lists
-            SET slug = COALESCE($2, lists.slug),
-                label = COALESCE($3, lists.label),
-                image = COALESCE($4, lists.image),
-                visibility = COALESCE($5, lists.visibility)
+            SET label = COALESCE($2, lists.label),
+                image = COALESCE($3, lists.image),
+                visibility = COALESCE($4, lists.visibility)
             WHERE id = $1
             RETURNING
                 id,
                 user_id,
-                slug,
                 label,
                 image,
                 visibility AS "visibility: Visibility",
@@ -244,10 +174,6 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 updated_at
             "#n,
             update_list.id,
-            update_list
-                .label
-                .clone()
-                .map(|v| slugify(format!("{}-{}", v, generate(12)))),
             update_list.label,
             update_list.image,
             update_list.visibility as Option<Visibility>
@@ -258,7 +184,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
 
     async fn delete(
         transaction: &mut Transaction<'_, Postgres>,
-        list_id: i32,
+        list_id: &str,
     ) -> Result<List, Error> {
         sqlx::query_as!(
             List,
@@ -268,7 +194,6 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
             RETURNING
                 id,
                 user_id,
-                slug,
                 label,
                 image,
                 visibility AS "visibility: Visibility",
@@ -282,40 +207,11 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
         .await
     }
 
-    // async fn find_articles(
-    //     transaction: &mut Transaction<'_, Postgres>,
-    //     list_id: i32,
-    // ) -> Result<Vec<FullArticle>, Error> {
-    //     sqlx::query_as!(
-    //         FullArticle,
-    //         r#"
-    //         SELECT a.*
-    //         FROM (
-    //             SELECT
-    //                 a.*,
-    //                 ARRAY_AGG(u.*) as "authors: Vec<User>",
-    //                 ARRAY_AGG(t.*) as "tags: Vec<Tag>"
-    //             FROM articles a
-    //             JOIN authors au ON a.id = au.article_id
-    //             JOIN users u ON au.author_id = u.id
-    //             JOIN articletags at ON a.id = at.article_id
-    //             JOIN tags t ON at.tag_id = t.id
-    //             GROUP BY a.id
-    //         ) a
-    //         JOIN listarticle la ON a.id = la.article_id
-    //         WHERE la.list_id = $1
-    //         "#n,
-    //         list_id,
-    //     )
-    //     .fetch_all(&mut **transaction)
-    //     .await
-    // }
-
     async fn add_article(
         transaction: &mut Transaction<'_, Postgres>,
-        list_id: i32,
-        article_id: i32,
-    ) -> Result<(i32, i32), Error> {
+        list_id: &str,
+        article_id: &str,
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             INSERT INTO listarticle (article_id, list_id)
@@ -326,14 +222,14 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
         )
         .execute(&mut **transaction)
         .await;
-        Ok((list_id, article_id))
+        Ok((list_id.to_string(), article_id.to_string()))
     }
 
     async fn remove_article(
         transaction: &mut Transaction<'_, Postgres>,
-        list_id: i32,
-        article_id: i32,
-    ) -> Result<(i32, i32), Error> {
+        list_id: &str,
+        article_id: &str,
+    ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
             DELETE FROM listarticle
@@ -344,6 +240,6 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
         )
         .fetch_one(&mut **transaction)
         .await;
-        Ok((list_id, article_id))
+        Ok((list_id.to_string(), article_id.to_string()))
     }
 }

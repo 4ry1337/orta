@@ -4,8 +4,8 @@ use crate::models::{
     article_model, comment_model, enums, list_model, series_model, tag_model, user_model,
 };
 use crate::resource_proto::{
-    Article, Comment, CommentableType, FullArticle, List, Role, Series, Tag, TagStatus, User,
-    Visibility,
+    Article, ArticleVersion, Comment, CommentableType, FullArticle, List, Role, Series, Tag,
+    TagStatus, User, Visibility,
 };
 
 struct W<T>(T);
@@ -133,7 +133,7 @@ impl From<CommentableType> for enums::CommentableType {
 impl From<&user_model::User> for User {
     fn from(value: &user_model::User) -> Self {
         User {
-            id: value.id,
+            id: value.id.clone(),
             email: value.email.clone(),
             email_verified: W(value.email_verified.as_ref()).into(),
             username: value.username.clone(),
@@ -152,7 +152,7 @@ impl From<&user_model::User> for User {
 impl From<&User> for user_model::User {
     fn from(value: &User) -> Self {
         user_model::User {
-            id: value.id,
+            id: value.id.clone(),
             email: value.email.clone(),
             email_verified: W(value.email_verified.as_ref()).into(),
             username: value.username.clone(),
@@ -171,9 +171,9 @@ impl From<&User> for user_model::User {
 impl From<&article_model::Article> for Article {
     fn from(value: &article_model::Article) -> Self {
         Article {
-            id: value.id,
+            id: value.id.clone(),
             title: value.title.clone(),
-            slug: value.slug.clone(),
+            // content: value.content.clone(),
             like_count: value.like_count,
             comment_count: value.comment_count,
             created_at: W(&value.created_at).into(),
@@ -186,9 +186,9 @@ impl From<&article_model::Article> for Article {
 impl From<&Article> for article_model::Article {
     fn from(value: &Article) -> Self {
         article_model::Article {
-            id: value.id,
+            id: value.id.clone(),
             title: value.title.clone(),
-            slug: value.slug.clone(),
+            // content: value.content.clone(),
             like_count: value.like_count,
             comment_count: value.comment_count,
             created_at: W(value.created_at.as_ref()).into(),
@@ -201,10 +201,10 @@ impl From<&Article> for article_model::Article {
 impl From<&article_model::FullArticle> for FullArticle {
     fn from(value: &article_model::FullArticle) -> Self {
         FullArticle {
-            id: value.id,
+            id: value.id.clone(),
             title: value.title.clone(),
-            slug: value.slug.clone(),
             like_count: value.like_count,
+            content: value.content.clone(),
             comment_count: value.comment_count,
             created_at: W(&value.created_at).into(),
             updated_at: W(value.updated_at.as_ref()).into(),
@@ -224,10 +224,10 @@ impl From<&article_model::FullArticle> for FullArticle {
 impl From<&FullArticle> for article_model::FullArticle {
     fn from(value: &FullArticle) -> Self {
         article_model::FullArticle {
-            id: value.id,
+            id: value.id.clone(),
             title: value.title.clone(),
-            slug: value.slug.clone(),
             like_count: value.like_count,
+            content: value.content.clone(),
             comment_count: value.comment_count,
             created_at: W(value.created_at.as_ref()).into(),
             updated_at: W(value.updated_at.as_ref()).into(),
@@ -253,10 +253,9 @@ impl From<&FullArticle> for article_model::FullArticle {
 impl From<&list_model::List> for List {
     fn from(value: &list_model::List) -> Self {
         List {
-            id: value.id,
-            user_id: value.user_id,
+            id: value.id.clone(),
+            user_id: value.user_id.clone(),
             label: value.label.clone(),
-            slug: value.slug.clone(),
             image: value.image.clone(),
             visibility: Visibility::from(value.visibility) as i32,
             article_count: value.article_count,
@@ -269,10 +268,9 @@ impl From<&list_model::List> for List {
 impl From<&List> for list_model::List {
     fn from(value: &List) -> Self {
         list_model::List {
-            id: value.id,
-            user_id: value.user_id,
+            id: value.id.clone(),
+            user_id: value.user_id.clone(),
             label: value.label.clone(),
-            slug: value.slug.clone(),
             image: value.image.clone(),
             visibility: enums::Visibility::from(value.visibility()),
             article_count: value.article_count,
@@ -285,10 +283,9 @@ impl From<&List> for list_model::List {
 impl From<&series_model::Series> for Series {
     fn from(value: &series_model::Series) -> Self {
         Series {
-            id: value.id,
-            user_id: value.user_id,
+            id: value.id.clone(),
+            user_id: value.user_id.clone(),
             label: value.label.clone(),
-            slug: value.slug.clone(),
             image: value.image.clone(),
             article_count: value.article_count,
             created_at: W(&value.created_at).into(),
@@ -300,10 +297,9 @@ impl From<&series_model::Series> for Series {
 impl From<&Series> for series_model::Series {
     fn from(value: &Series) -> Self {
         series_model::Series {
-            id: value.id,
-            user_id: value.user_id,
+            id: value.id.clone(),
+            user_id: value.user_id.clone(),
             label: value.label.clone(),
-            slug: value.slug.clone(),
             image: value.image.clone(),
             article_count: value.article_count,
             created_at: W(value.created_at.as_ref()).into(),
@@ -315,9 +311,9 @@ impl From<&Series> for series_model::Series {
 impl From<&comment_model::Comment> for Comment {
     fn from(value: &comment_model::Comment) -> Self {
         Comment {
-            id: value.id,
-            commenter_id: value.commenter_id,
-            target_id: value.target_id,
+            id: value.id.clone(),
+            commenter_id: value.commenter_id.clone(),
+            target_id: value.target_id.clone(),
             r#type: CommentableType::from(value.r#type) as i32,
             content: value.content.clone(),
             created_at: W(&value.created_at).into(),
@@ -329,9 +325,9 @@ impl From<&comment_model::Comment> for Comment {
 impl From<&Comment> for comment_model::Comment {
     fn from(value: &Comment) -> Self {
         Self {
-            id: value.id,
-            commenter_id: value.commenter_id,
-            target_id: value.target_id,
+            id: value.id.clone(),
+            commenter_id: value.commenter_id.clone(),
+            target_id: value.target_id.clone(),
             r#type: value.r#type().into(),
             content: value.content.clone(),
             created_at: W(value.created_at.as_ref()).into(),
@@ -343,9 +339,8 @@ impl From<&Comment> for comment_model::Comment {
 impl From<&tag_model::Tag> for Tag {
     fn from(value: &tag_model::Tag) -> Self {
         Tag {
-            id: value.id,
-            label: value.label.clone(),
             slug: value.slug.clone(),
+            label: value.label.clone(),
             tag_status: TagStatus::from(value.tag_status) as i32,
             article_count: value.article_count,
             created_at: W(&value.created_at).into(),
@@ -357,13 +352,36 @@ impl From<&tag_model::Tag> for Tag {
 impl From<&Tag> for tag_model::Tag {
     fn from(value: &Tag) -> Self {
         Self {
-            id: value.id,
-            label: value.label.clone(),
             slug: value.slug.clone(),
+            label: value.label.clone(),
             tag_status: value.tag_status().into(),
             article_count: value.article_count,
             created_at: W(value.created_at.as_ref()).into(),
             updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
+impl From<&article_model::ArticleVersion> for ArticleVersion {
+    fn from(value: &article_model::ArticleVersion) -> Self {
+        Self {
+            id: value.id.clone(),
+            article_id: value.article_id.clone(),
+            device_id: value.device_id.clone(),
+            content: value.content.clone(),
+            created_at: W(&value.created_at).into(),
+        }
+    }
+}
+
+impl From<&ArticleVersion> for article_model::ArticleVersion {
+    fn from(value: &ArticleVersion) -> Self {
+        Self {
+            id: value.id.clone(),
+            article_id: value.article_id.clone(),
+            device_id: value.device_id.clone(),
+            content: value.content.clone(),
+            created_at: W(value.created_at.as_ref()).into(),
         }
     }
 }

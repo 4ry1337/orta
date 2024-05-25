@@ -11,7 +11,7 @@ message QueryParams {
 }
 
 message User {
-  int32 id = 1;
+  string id = 1;
   string username = 2;
   string email = 3;
   optional google.protobuf.Timestamp email_verified = 4;
@@ -45,29 +45,17 @@ message GetUserRequest {
   string username = 1;
 }
 
-// message GetUserResponse {
-//   User user = 1;
-//   repeated FullArticle articles = 2;
-//   repeated List lists = 3;
-//   repeated Series serieses = 4;
-//   repeated Tag interests = 5;
-// }
-
 message UpdateUserRequest {
-  int32 id = 1;
+  string id = 1;
   optional string username = 2;
   optional bytes image = 3;
   optional string bio = 4;
   repeated string url = 5;
 }
 
-message UpdateUserResponse {
-  string message = 1;
-}
-
 message DeleteUserRequest {
-  int32 user_id = 1;
-  int32 id = 2;
+  string user_id = 1;
+  string id = 2;
 }
 
 message DeleteUserResponse {
@@ -75,8 +63,8 @@ message DeleteUserResponse {
 }
 
 message FollowUserRequest {
-  int32 user_id = 1;
-  int32 target_id = 2;
+  string user_id = 1;
+  string target_id = 2;
 }
 
 message FollowUserResponse {
@@ -84,8 +72,8 @@ message FollowUserResponse {
 }
 
 message UnfollowUserRequest {
-  int32 user_id = 1;
-  int32 target_id = 2;
+  string user_id = 1;
+  string target_id = 2;
 }
 
 message UnfollowUserResponse {
@@ -95,16 +83,15 @@ message UnfollowUserResponse {
 service UserService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
   rpc GetUser(GetUserRequest) returns (User);
-  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (User);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
   rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
 }
 
 message Article {
-  int32 id = 1;
+  string id = 1;
   string title = 2;
-  string slug = 3;
   int32 like_count = 4;
   int32 comment_count = 5;
   google.protobuf.Timestamp created_at = 6;
@@ -113,9 +100,8 @@ message Article {
 }
 
 message FullArticle {
-  int32 id = 1;
+  string id = 1;
   string title = 2;
-  string slug = 3;
   int32 like_count = 4;
   int32 comment_count = 5;
   google.protobuf.Timestamp created_at = 6;
@@ -123,12 +109,21 @@ message FullArticle {
   optional google.protobuf.Timestamp published_at = 8;
   repeated User users = 9;
   repeated Tag tags = 10;
+  string content = 11;
+}
+
+message ArticleVersion {
+  string id = 1;
+  string article_id = 2;
+  optional string device_id = 3;
+  string content = 5;
+  google.protobuf.Timestamp created_at = 6;
 }
 
 message GetArticlesRequest {
   repeated string usernames = 1;
-  optional int32 list_id = 2;
-  optional int32 series_id = 3;
+  optional string list_id = 2;
+  optional string series_id = 3;
   QueryParams params = 4;
 }
 
@@ -138,27 +133,23 @@ message GetArticlesResponse {
 }
 
 message GetArticleRequest {
-  string article_slug = 1;
+  string article_id = 1;
 }
 
 message CreateArticleRequest {
-  int32 user_id = 1;
+  string user_id = 1;
   string title = 2;
 }
 
 message UpdateArticleRequest {
-  int32 user_id = 1;
-  int32 article_id = 2;
+  string user_id = 1;
+  string article_id = 2;
   optional string title = 3;
 }
 
-message UpdateArticleResponse {
-  string message = 1;
-}
-
 message DeleteArticleRequest {
-  int32 user_id = 1;
-  int32 article_id = 2;
+  string user_id = 1;
+  string article_id = 2;
 }
 
 message DeleteArticleResponse {
@@ -166,9 +157,9 @@ message DeleteArticleResponse {
 }
 
 message AddAuthorRequest {
-  int32 user_id = 1;
-  int32 article_id = 2;
-  int32 author_id = 3;
+  string user_id = 1;
+  string article_id = 2;
+  string author_id = 3;
 }
 
 message AddAuthorResponse {
@@ -176,9 +167,9 @@ message AddAuthorResponse {
 }
 
 message RemoveAuthorRequest {
-  int32 user_id = 1;
-  int32 article_id = 2;
-  int32 author_id = 3;
+  string user_id = 1;
+  string article_id = 2;
+  string author_id = 3;
 }
 
 message RemoveAuthorResponse {
@@ -193,21 +184,41 @@ message UpdateTagsResponse {
   string message = 1;
 }
 
+message SaveArticleRequest {
+  string user_id = 1;
+  string article_id = 2;
+  string content = 3;
+  optional string device_id = 4;
+}
+
+message GetHistoryRequest {
+  string user_id = 1;
+  string article_id = 2;
+  optional string query = 3;
+  QueryParams params = 4;
+}
+
+message GetHistoryResponse {
+  int64 total = 1;
+  repeated ArticleVersion article_versions = 2;
+}
+
 service ArticleService {
   rpc CreateArticle(CreateArticleRequest) returns (Article);
   rpc GetArticles(GetArticlesRequest) returns (GetArticlesResponse);
   rpc GetArticle(GetArticleRequest) returns (FullArticle);
-  rpc UpdateArticle(UpdateArticleRequest) returns(UpdateArticleResponse);
+  rpc UpdateArticle(UpdateArticleRequest) returns(Article);
   rpc DeleteArticle(DeleteArticleRequest) returns (DeleteArticleResponse);
   rpc AddAuthor(AddAuthorRequest) returns (AddAuthorResponse);
   rpc RemoveAuthor(RemoveAuthorRequest) returns (RemoveAuthorResponse);
   rpc UpdateTags(UpdateTagsRequest) returns (UpdateTagsResponse);
+  rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
+  rpc Save(SaveArticleRequest) returns (ArticleVersion);
 }
 
 message List {
-  int32 id = 1;
-  int32 user_id = 2;
-  string slug = 3;
+  string id = 1;
+  string user_id = 2;
   string label = 4;
   optional string image = 5;
   Visibility visibility = 6;
@@ -223,7 +234,7 @@ enum Visibility {
 }
 
 message CreateListRequest {
-  int32 user_id = 1;
+  string user_id = 1;
   string label = 2;
   optional string image = 3;
   Visibility visibility = 4;
@@ -232,7 +243,7 @@ message CreateListRequest {
 message GetListsRequest {
   optional string query = 1;
   QueryParams params = 2;
-  optional int32 user_id = 3;
+  optional string user_id = 3;
 }
 
 message GetListsResponse {
@@ -241,29 +252,20 @@ message GetListsResponse {
 }
 
 message GetListRequest {
-  string list_slug = 1;
+  string list_id = 1;
 }
 
-// message GetListResponse {
-//   List list = 1;
-//   repeated FullArticle articles = 2;
-// }
-
 message UpdateListRequest {
-  int32 user_id = 1;
-  int32 list_id = 2;
+  string user_id = 1;
+  string list_id = 2;
   optional string label = 3;
   optional string image = 4;
   optional Visibility visibility = 5;
 }
 
-message UpdateListResponse {
-  string message = 1;
-}
-
 message DeleteListRequest {
-  int32 user_id = 1;
-  int32 list_id = 2;
+  string user_id = 1;
+  string list_id = 2;
 }
 
 message DeleteListResponse {
@@ -271,9 +273,9 @@ message DeleteListResponse {
 }
 
 message AddArticleListRequest {
-  int32 user_id = 1;
-  int32 list_id = 2;
-  int32 article_id = 3;
+  string user_id = 1;
+  string list_id = 2;
+  string article_id = 3;
 }
 
 message AddArticleListResponse {
@@ -281,9 +283,9 @@ message AddArticleListResponse {
 }
 
 message RemoveArticleListRequest {
-  int32 user_id = 1;
-  int32 list_id = 2;
-  int32 article_id = 3;
+  string user_id = 1;
+  string list_id = 2;
+  string article_id = 3;
 }
 
 message RemoveArticleListResponse {
@@ -294,16 +296,15 @@ service ListService {
   rpc CreateList(CreateListRequest) returns (List);
   rpc GetLists(GetListsRequest) returns (GetListsResponse);
   rpc GetList(GetListRequest) returns (List);
-  rpc UpdateList(UpdateListRequest) returns(UpdateListResponse);
+  rpc UpdateList(UpdateListRequest) returns(List);
   rpc DeleteList(DeleteListRequest) returns (DeleteListResponse);
   rpc AddArticle(AddArticleListRequest) returns (AddArticleListResponse);
   rpc RemoveArticle(RemoveArticleListRequest) returns (RemoveArticleListResponse);
 }
 
 message Series {
-  int32 id = 1;
-  int32 user_id = 2;
-  string slug = 3;
+  string id = 1;
+  string user_id = 2;
   string label = 4;
   optional string image = 5;
   int32 article_count = 6;
@@ -312,7 +313,7 @@ message Series {
 }
 
 message CreateSeriesRequest {
-  int32 user_id = 1;
+  string user_id = 1;
   string label = 2;
   optional string image = 3;
 }
@@ -320,7 +321,7 @@ message CreateSeriesRequest {
 message GetSeriesesRequest {
   optional string query = 1;
   QueryParams params = 2;
-  optional int32 user_id = 3;
+  optional string user_id = 3;
 }
 
 message GetSeriesesResponse {
@@ -329,28 +330,19 @@ message GetSeriesesResponse {
 }
 
 message GetSeriesRequest {
-  string series_slug = 1;
+  string series_id = 1;
 }
 
-// message GetSeriesResponse {
-//   Series series = 1;
-//   repeated FullArticle articles = 2;
-// }
-
 message UpdateSeriesRequest {
-  int32 user_id = 1;
-  int32 series_id = 2;
+  string user_id = 1;
+  string series_id = 2;
   optional string label = 3;
   optional string image = 4;
 }
 
-message UpdateSeriesResponse {
-  string message = 1;
-}
-
 message DeleteSeriesRequest {
-  int32 user_id = 1;
-  int32 series_id = 2;
+  string user_id = 1;
+  string series_id = 2;
 }
 
 message DeleteSeriesResponse {
@@ -358,9 +350,9 @@ message DeleteSeriesResponse {
 }
 
 message AddArticleSeriesRequest {
-  int32 user_id = 1;
-  int32 series_id = 2;
-  int32 article_id = 3;
+  string user_id = 1;
+  string series_id = 2;
+  string article_id = 3;
 }
 
 message AddArticleSeriesResponse {
@@ -368,9 +360,9 @@ message AddArticleSeriesResponse {
 }
 
 message RemoveArticleSeriesRequest {
-  int32 user_id = 1;
-  int32 series_id = 2;
-  int32 article_id = 3;
+  string user_id = 1;
+  string series_id = 2;
+  string article_id = 3;
 }
 
 message RemoveArticleSeriesResponse {
@@ -381,17 +373,17 @@ service SeriesService {
   rpc CreateSeries(CreateSeriesRequest) returns (Series);
   rpc GetSerieses(GetSeriesesRequest) returns (GetSeriesesResponse);
   rpc GetSeries(GetSeriesRequest) returns (Series);
-  rpc UpdateSeries(UpdateSeriesRequest) returns (UpdateSeriesResponse);
+  rpc UpdateSeries(UpdateSeriesRequest) returns (Series);
   rpc DeleteSeries(DeleteSeriesRequest) returns (DeleteSeriesResponse);
   rpc AddArticle(AddArticleSeriesRequest) returns (AddArticleSeriesResponse);
   rpc RemoveArticle(RemoveArticleSeriesRequest) returns (RemoveArticleSeriesResponse);
 }
 
 message Comment {
-  int32 id = 1;
+  string id = 1;
   string content = 2;
-  int32 commenter_id = 3;
-  int32 target_id = 4;
+  string commenter_id = 3;
+  string target_id = 4;
   CommentableType type = 5;
   google.protobuf.Timestamp created_at = 7;
   optional google.protobuf.Timestamp updated_at = 8;
@@ -404,17 +396,17 @@ enum CommentableType {
 }
 
 message CreateCommentRequest {
-  int32 user_id = 1;
-  int32 target_id = 2;
+  string user_id = 1;
+  string target_id = 2;
   string content = 3;
   CommentableType type = 4;
 }
 
 message GetCommentsRequest {
-  int32 target_id = 1;
+  string target_id = 1;
   CommentableType type = 2;
   QueryParams params = 3;
-  optional int32 user_id = 4;
+  optional string user_id = 4;
 }
 
 message GetCommentsResponse {
@@ -423,18 +415,14 @@ message GetCommentsResponse {
 }
 
 message UpdateCommentRequest {
-  int32 user_id = 1;
-  int32 comment_id = 2;
+  string user_id = 1;
+  string comment_id = 2;
   optional string content = 3;
 }
 
-message UpdateCommentResponse {
-  string message = 1;
-}
-
 message DeleteCommentRequest {
-  int32 user_id = 1;
-  int32 comment_id = 2;
+  string user_id = 1;
+  string comment_id = 2;
 }
 
 message DeleteCommentResponse {
@@ -444,12 +432,11 @@ message DeleteCommentResponse {
 service CommentService {
   rpc CreateComment(CreateCommentRequest) returns (Comment);
   rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
-  rpc UpdateComment(UpdateCommentRequest) returns (UpdateCommentResponse);
+  rpc UpdateComment(UpdateCommentRequest) returns (Comment);
   rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
 }
 
 message Tag {
-  int32 id = 1;
   string label = 2;
   string slug = 3;
   int32 article_count = 4;
@@ -468,6 +455,8 @@ enum TagStatus {
 message GetTagsRequest {
   optional TagStatus tag_status = 1;
   QueryParams params = 2;
+  optional string user_id = 3;
+  optional string article_id = 4;
 }
 
 message GetTagsResponse {
