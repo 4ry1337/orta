@@ -1,0 +1,43 @@
+[package]
+name = "storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Framework:
+tonic.workspace = true
+tonic-types.workspace = true
+tonic-reflection.workspace = true
+
+# Storage
+minio = {git="https://github.com/minio/minio-rs.git"}
+
+# Async Runtime:
+tokio.workspace = true
+
+# Logging:
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Serialisation/Deserialisation:
+prost.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# Time:
+chrono.workspace = true
+
+# Error:
+anyhow.workspace = true
+
+# Utils
+slug.workspace = true
+secrecy.workspace = true
+shared = { path = "../shared" }
+
+[dev-dependencies]
+sqlx-cli.workspace = true
+cargo-watch.workspace = true
