@@ -4,9 +4,47 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "resource"
+
 
 [dependencies]
+# Framework:
+tonic.workspace = true
+tonic-types.workspace = true
+tonic-reflection.workspace = true
+
+# Async Runtime:
+tokio.workspace = true
+
+# Email
+lettre = "0.11.7"
+lettre_email = "0.9.4"
+
+# Logging:
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Serialisation/Deserialisation:
+prost.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# Message Broker
+amqprs.workspace = true
+
+# Time:
+chrono.workspace = true
+
+# Error:
+anyhow.workspace = true
+
+secrecy.workspace = true
+shared = { path = "../shared" }
 
 [dev-dependencies]
 sqlx-cli.workspace = true
