@@ -4,17 +4,11 @@ import LogoIcon from "@/components/logo";
 import { ModeToggle } from "@/components/theme/toggle";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import {
-  BellIcon,
-  BookmarkIcon,
-  HomeIcon,
-  MagnifyingGlassIcon,
-  Pencil1Icon,
-  PersonIcon,
-} from "@radix-ui/react-icons";
+import { BookmarkIcon, Pencil1Icon, PersonIcon } from "@radix-ui/react-icons";
 import UserButton from "./user/button";
 import { HTMLAttributes } from "react";
 import { useSession } from "@/context/session_context";
+import { Separator } from "./ui/separator";
 
 interface IRoute {
   label: string;
@@ -23,21 +17,16 @@ interface IRoute {
 }
 
 const routes: IRoute[] = [
-  {
-    label: "Home",
-    href: "/",
-    icon: HomeIcon,
-  },
-  {
-    label: "Search",
-    href: "/search",
-    icon: MagnifyingGlassIcon,
-  },
-  {
-    label: "Notifications",
-    href: "/notifications",
-    icon: BellIcon,
-  },
+  // {
+  //   label: "Search",
+  //   href: "/search",
+  //   icon: MagnifyingGlassIcon,
+  // },
+  // {
+  //   label: "Notifications",
+  //   href: "/notifications",
+  //   icon: BellIcon,
+  // },
   {
     label: "Lists",
     href: "/lists",
@@ -49,13 +38,9 @@ interface SidebarProps extends HTMLAttributes<HTMLDivElement> { }
 
 const Sidebar = (props: SidebarProps) => {
   const { data, status } = useSession();
-
   return (
-    <header
-      id="sidebar"
-      className="hidden h-screen shrink-0 px-4 py-2 md:flex xl:w-64"
-    >
-      <div className="flex w-full flex-col justify-between">
+    <header id="sidebar" className="hidden h-screen shrink-0 md:flex xl:w-64">
+      <div className="flex w-full flex-col py-4 px-2 justify-between">
         <section className="flex flex-col justify-center gap-4">
           <div className="inline-flex w-full flex-col items-center justify-center gap-2 xl:flex-row xl:justify-normal">
             <Button
@@ -116,6 +101,7 @@ const Sidebar = (props: SidebarProps) => {
           )}
         </section>
       </div>
+      <Separator orientation="vertical" />
     </header>
   );
 };

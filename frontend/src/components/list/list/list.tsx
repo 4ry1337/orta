@@ -9,7 +9,7 @@ interface ListListProps extends HTMLAttributes<HTMLDivElement> {
 
 const ListList = ({ className, lists }: ListListProps) => {
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("flex flex-col gap-4", className)}>
       {lists.map((list) => (
         <ListCard key={list.id} list={list} />
       ))}

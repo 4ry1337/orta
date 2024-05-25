@@ -1,10 +1,15 @@
 "use client";
 
 import { z } from "zod";
-import { CreateArticleSchema } from "@/lib/definitions";
+import { CreateArticleSchema, UpdateArticleSchema } from "@/lib/definitions";
 import { toast } from "sonner";
 import { Article, FullArticle, Pagination, ResultPaging } from "@/lib/types";
 import { PaginationToUrlParams } from "@/lib/utils";
+import { mutate } from "swr";
+
+const delay = (delay: number) => {
+  return new Promise((resolve) => setTimeout(resolve, delay));
+};
 
 export async function get_articles(option?: {
   usernames?: string[];
@@ -51,6 +56,44 @@ export async function create_article(
     credentials: "include",
     body: JSON.stringify(values),
   }).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    return await res.json();
+  });
+}
+
+export async function get_article(
+  article_id: string,
+): Promise<FullArticle | null> {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}`,
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    return await res.json();
+  });
+}
+
+export async function update_article(
+  article_id: string,
+  values: z.infer<typeof UpdateArticleSchema>,
+): Promise<Article | null> {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(values),
+    },
+  ).then(async (res) => {
     if (!res.ok) {
       toast.error(await res.text());
       return null;

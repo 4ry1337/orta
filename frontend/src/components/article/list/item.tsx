@@ -1,4 +1,4 @@
-import { DisplayDate, cn } from "@/lib/utils";
+import { DisplayDate, cn, slugifier } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,7 @@ interface ArticleCardProps extends HTMLAttributes<HTMLDivElement> {
 const ArticleCard = ({ article }: ArticleCardProps) => {
   return (
     <Card>
-      <Link href={`/article/${article.slug}`}>
+      <Link href={`/article/${slugifier(article.title)}-${article.id}`}>
         <CardHeader>
           <CardTitle>{article.title}</CardTitle>
         </CardHeader>

@@ -6,7 +6,7 @@ import { useSession } from "@/context/session_context";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Auth = () => {
-  const { status, data } = useSession({
+  const { status } = useSession({
     authenticated: false,
   });
 

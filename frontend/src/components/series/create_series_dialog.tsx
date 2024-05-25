@@ -23,27 +23,24 @@ import { z } from "zod";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CreateArticleSchema } from "@/lib/definitions";
-import { create_article } from "@/app/actions/article";
-import { redirect } from "next/navigation";
-import { Pencil1Icon } from "@radix-ui/react-icons";
+import { PlusIcon } from "@radix-ui/react-icons";
+import { CreateSeriesSchema } from "@/lib/definitions";
+import { create_series } from "@/app/actions/series";
+import { mutate } from "swr";
 
-const CreateArticleDialog = () => {
+const CreateSeriesDialog = () => {
   const [pending, startTransition] = useTransition();
 
-  const CreateArticleForm = useForm<z.infer<typeof CreateArticleSchema>>({
-    resolver: zodResolver(CreateArticleSchema),
+  const CreateSeriesForm = useForm<z.infer<typeof CreateSeriesSchema>>({
+    resolver: zodResolver(CreateSeriesSchema),
     defaultValues: {
-      title: "My Story",
+      label: "My Series",
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof CreateArticleSchema>) => {
+  const onSubmit = async (values: z.infer<typeof CreateSeriesSchema>) => {
     startTransition(async () => {
-      const res = await create_article(values);
-      if (res) {
-        redirect(`/article/${res.slug}`);
-      }
+      await create_series(values);
     });
   };
 
@@ -55,27 +52,27 @@ const CreateArticleDialog = () => {
           className="w-full h-auto rounded-xl p-6 border text-card-foreground shadow border-dashed"
         >
           <h3 className="flex gap-2 justify-center items-center font-semibold leading-none tracking-tight text-muted-foreground">
-            <Pencil1Icon className="h-7 w-7" />
-            Create Article
+            <PlusIcon className="h-7 w-7" />
+            Create Series
           </h3>
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Article</DialogTitle>
+          <DialogTitle>Create Series</DialogTitle>
         </DialogHeader>
-        <Form {...CreateArticleForm}>
+        <Form {...CreateSeriesForm}>
           <form
-            id="create_article"
-            className="grid py-4"
-            onSubmit={CreateArticleForm.handleSubmit(onSubmit)}
+            id="create_series"
+            className="grid grid-2 py-4"
+            onSubmit={CreateSeriesForm.handleSubmit(onSubmit)}
           >
             <FormField
-              control={CreateArticleForm.control}
-              name="title"
+              control={CreateSeriesForm.control}
+              name="label"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-4 items-center gap-4">
-                  <FormLabel>Title</FormLabel>
+                  <FormLabel>Label</FormLabel>
                   <FormControl>
                     <Input {...field} className="col-span-3" />
                   </FormControl>
@@ -91,8 +88,8 @@ const CreateArticleDialog = () => {
               Cancel
             </Button>
           </DialogClose>
-          <Button form="create_article" type="submit">
-            Create Article
+          <Button form="create_series" type="submit">
+            Create
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -100,4 +97,4 @@ const CreateArticleDialog = () => {
   );
 };
 
-export default CreateArticleDialog;
+export default CreateSeriesDialog;

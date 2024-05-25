@@ -34,7 +34,11 @@ export const CreateArticleSchema = z.object({
   title: z.string().trim(),
 });
 
-export const CreateListSchema = z.object({
+export const UpdateArticleSchema = z.object({
+  title: z.string().trim(),
+});
+
+// TODO: add images
+export const CreateSeriesSchema = z.object({
   label: z.string().trim(),
-  visibility: z.string().trim(),
 });

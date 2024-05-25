@@ -12,7 +12,10 @@ const ListPopover = () => {
   const { status, data } = useSession({
     authenticated: true,
   });
+
   const [page, setPage] = useState(1);
+
+  const pages: React.ReactNode[] = [];
 
   const { data: lists } = useSWR(
     status == "loading"
@@ -26,6 +29,10 @@ const ListPopover = () => {
       },
     get_lists,
   );
+
+  for (let i = 0; i < page; i++) {
+    pages.push(<div key={i}></div>);
+  }
 
   return (
     <Popover>
@@ -41,7 +48,7 @@ const ListPopover = () => {
             <p className="text-sm text-muted-foreground">Choose the list</p>
           </div>
           <div className="h-36">
-            <ScrollArea>{}</ScrollArea>
+            <ScrollArea>{pages}</ScrollArea>
           </div>
           <div className="grid gap-2">
             <CreateListDialog />

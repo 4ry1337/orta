@@ -11,7 +11,7 @@ interface ArticleListProps extends HTMLAttributes<HTMLDivElement> {
 
 const ArticleList = ({ articles, className }: ArticleListProps) => {
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("flex flex-col gap-4", className)}>
       {articles.map((article) => (
         <ArticleCard key={article.id} article={article} />
       ))}

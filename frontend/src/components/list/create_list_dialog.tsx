@@ -37,7 +37,7 @@ import { create_list } from "@/app/actions/list";
 const CreateListDialog = () => {
   const [pending, startTransition] = useTransition();
 
-  const CreateArticleForm = useForm<z.infer<typeof CreateListSchema>>({
+  const CreateListForm = useForm<z.infer<typeof CreateListSchema>>({
     resolver: zodResolver(CreateListSchema),
     defaultValues: {
       label: "Reading List",
@@ -62,14 +62,14 @@ const CreateListDialog = () => {
         <DialogHeader>
           <DialogTitle>Create List</DialogTitle>
         </DialogHeader>
-        <Form {...CreateArticleForm}>
+        <Form {...CreateListForm}>
           <form
             id="create_article"
             className="grid grid-2 py-4"
-            onSubmit={CreateArticleForm.handleSubmit(onSubmit)}
+            onSubmit={CreateListForm.handleSubmit(onSubmit)}
           >
             <FormField
-              control={CreateArticleForm.control}
+              control={CreateListForm.control}
               name="label"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-4 items-center gap-4">
@@ -82,7 +82,7 @@ const CreateListDialog = () => {
               )}
             />
             <FormField
-              control={CreateArticleForm.control}
+              control={CreateListForm.control}
               name="visibility"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-4 items-center gap-4">
