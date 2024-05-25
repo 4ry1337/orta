@@ -86,6 +86,19 @@ services:
       - prometheus:/etc/prometheus
       - prometheus_data:/prometheus
 
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3.13.2-management
+    hostname: rabbitmq
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    ports:
+      - 15672:15672
+      - 5672:5672
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+
 volumes:
   minio_data: {}
   orta-pg-data: {}
@@ -94,3 +107,4 @@ volumes:
   grafana_data: {}
   prometheus: {}
   prometheus_data: {}
+  rabbitmq: {}
