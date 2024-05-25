@@ -5,21 +5,28 @@ use std::{
 };
 
 use axum::{
-    extract::FromRef,
+    extract::{DefaultBodyLimit, FromRef},
     http::{
         header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
         HeaderValue, Method,
     },
 };
 use axum_extra::extract::cookie::Key;
-use shared::configuration::Settings;
+use minio::s3::{
+    args::{BucketExistsArgs, MakeBucketArgs},
+    creds::StaticProvider,
+    http::BaseUrl,
+    Client, ClientBuilder,
+};
+use secrecy::ExposeSecret;
+use shared::configuration::{Settings, StorageSettings};
 use tokio::{net::TcpListener, signal};
-use tonic::transport::Channel;
 use tower_http::{
     catch_panic::CatchPanicLayer,
     compression::CompressionLayer,
     cors::CorsLayer,
     timeout::{RequestBodyTimeoutLayer, TimeoutLayer},
+    trace::TraceLayer,
 };
 use tracing::info;
 
@@ -28,8 +35,7 @@ use crate::routes;
 #[derive(Clone)]
 pub struct State {
     pub key: Key,
-    pub auth_server: Channel,
-    pub resource_server: Channel,
+    pub storage: Client,
 }
 
 impl FromRef<State> for Key {
@@ -52,25 +58,13 @@ impl Application {
 
         let port = configuration.api_server.port;
 
-        let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
+        let storage = get_minio_client(&configuration.storage).await;
 
-        let auth_server = Channel::from_shared(format!(
-            "http://localhost:{}",
-            configuration.auth_server.port
-        ))?
-        .connect()
-        .await?;
-        let resource_server = Channel::from_shared(format!(
-            "http://localhost:{}",
-            configuration.resource_server.port
-        ))?
-        .connect()
-        .await?;
+        let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
         let state = Arc::new(State {
             key: Key::generate(),
-            auth_server,
-            resource_server,
+            storage,
         });
 
         let listener = TcpListener::bind(&address).await?;
@@ -109,8 +103,10 @@ impl Application {
         axum::serve(
             self.listener,
             routes::router(self.state.clone())
+                .layer(DefaultBodyLimit::max(1024 * 1024 * 50))
                 .layer(middleware)
                 .layer(cors)
+                .layer(TraceLayer::new_for_http())
                 .with_state(self.state),
         )
         .with_graceful_shutdown(shutdown_signal())
@@ -140,4 +136,37 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
+}
+
+pub async fn get_minio_client(configuration: &StorageSettings) -> Client {
+    let base_url = "http://localhost:9000".parse::<BaseUrl>().unwrap();
+
+    info!("Trying to connect to MinIO at: `{:?}`", base_url);
+
+    let static_provider = StaticProvider::new(
+        configuration.access_key.expose_secret(),
+        configuration.secret_key.expose_secret(),
+        None,
+    );
+
+    let client = ClientBuilder::new(base_url.clone())
+        .provider(Some(Box::new(static_provider)))
+        .build()
+        .unwrap();
+
+    let bucket_name = &configuration.bucket_name;
+
+    let exists: bool = client
+        .bucket_exists(&BucketExistsArgs::new(&bucket_name).unwrap())
+        .await
+        .unwrap();
+
+    if !exists {
+        client
+            .make_bucket(&MakeBucketArgs::new(&bucket_name).unwrap())
+            .await
+            .unwrap();
+    };
+
+    client
 }
