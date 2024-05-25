@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package storage;
+
+
+service StorageService {
+  rpc store(StoreRequest) returns (Asset);
+  // rpc retrive(RetriveRequest) returns (Asset);
+}
+
+message StoreRequest {
+  oneof type {
+    string asset_name = 1;
+    bytes asset_data = 2;
+  } 
+}
+
+message RetriveRequest {
+  string asset_name = 1;
+}
+
+message Asset {}
+

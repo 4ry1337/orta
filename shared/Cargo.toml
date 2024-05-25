@@ -34,7 +34,6 @@ serde_json.workspace = true
 serde-aux = "4.5.0"
 
 # Utils
-rand = { version = "0.8.5", features = ["min_const_gen"] }
 lazy_static.workspace = true
 slug.workspace = true
 secrecy.workspace = true

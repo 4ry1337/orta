@@ -8,3 +8,6 @@ pub mod auth_proto {
 pub mod resource_proto {
     tonic::include_proto!("resource");
 }
+pub mod storage_proto {
+    tonic::include_proto!("storage");
+}
