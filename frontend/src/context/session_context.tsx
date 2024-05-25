@@ -2,10 +2,9 @@
 
 import { get_session, refresh } from "@/app/actions/auth";
 import useSWR from "swr";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { redirect } from "next/navigation";
 import { Session } from "@/lib/types";
-import { toast } from "sonner";
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -29,12 +28,7 @@ export type SessionContextValue<R extends boolean | undefined = undefined> =
   | {
     update: UpdateSession;
     data: null;
-    status: "unauthenticated";
-  }
-  | {
-    update: UpdateSession;
-    data: null;
-    status: "loading";
+    status: "unauthenticated" | "loading";
   };
 
 export const SessionContext = createContext<SessionContextValue | undefined>(
@@ -43,6 +37,7 @@ export const SessionContext = createContext<SessionContextValue | undefined>(
 
 export interface UseSessionOptions<R extends boolean | undefined> {
   authenticated: R;
+  logger?: boolean;
   /** Defaults to `auth` */
   onUnauthenticated?: () => void;
   /** Defaults to `home` */
@@ -70,7 +65,8 @@ export function useSession<R extends boolean | undefined>(
     );
   }
 
-  const { authenticated, onUnauthenticated, onAuthenticated } = options ?? {};
+  const { logger, authenticated, onUnauthenticated, onAuthenticated } =
+    options ?? {};
 
   const notrequiredAndNotLoading =
     authenticated === false && value.status === "authenticated";
@@ -78,29 +74,33 @@ export function useSession<R extends boolean | undefined>(
   const requiredAndNotLoading =
     authenticated === true && value.status === "unauthenticated";
 
-  useEffect(() => {
-    if (notrequiredAndNotLoading) {
-      if (onAuthenticated) onAuthenticated();
-      else redirect("/");
-    }
-    if (requiredAndNotLoading) {
-      if (onUnauthenticated) onUnauthenticated();
-      else redirect("/auth");
-    }
-  }, [
-    requiredAndNotLoading,
-    onUnauthenticated,
-    notrequiredAndNotLoading,
-    onAuthenticated,
-  ]);
-
-  if (notrequiredAndNotLoading || requiredAndNotLoading) {
-    return {
-      data: value.data,
-      update: value.update,
-      status: "loading",
-    } as SessionContextValue<R>;
+  if (logger) {
+    console.log(
+      "notrequiredAndNotLoading > ",
+      authenticated === false && value.status === "authenticated",
+      authenticated === false,
+      value.status === "authenticated",
+    );
+    console.log(
+      "requiredAndNotLoading > ",
+      authenticated === true && value.status === "unauthenticated",
+      authenticated === true,
+      value.status === "unauthenticated",
+    );
   }
+
+  if (requiredAndNotLoading) {
+    if (logger) console.log("redirect to auth");
+    if (onUnauthenticated) onUnauthenticated();
+    else redirect("/auth");
+  }
+  if (notrequiredAndNotLoading) {
+    if (logger) console.log("redirect to main");
+    if (onAuthenticated) onAuthenticated();
+    else redirect("/");
+  }
+
+  if (logger) console.log("useSession > ", value);
 
   return value as SessionContextValue<R>;
 }
@@ -114,30 +114,32 @@ const SessionProvider = (props: SessionProviderProps) => {
     throw new Error("React Context is unavailable in Server Components");
   }
 
+  const [loading, setLoading] = useState(true);
+
+  useSWR("session", refresh, {
+    refreshInterval: 5 * 60 * 1000,
+    onSuccess(data, key, config) {
+      setToken(data);
+      if (data === null) {
+        setLoading(false);
+      }
+    },
+  });
+
   const { children } = props;
 
   const [token, setToken] = useState<string | null | undefined>(undefined);
 
   const [session, setSession] = useState<Session | null>(null);
 
-  const token_res = useSWR("session", refresh, {
-    refreshInterval: 5 * 60 * 1000,
-    onSuccess(data, key, config) {
-      if (data !== token) {
-        setToken(data);
-      }
-    },
-  });
-
   const session_res = useSWR(token, get_session, {
     onSuccess(data, key, config) {
       if (data != session) {
         setSession(data);
       }
+      setLoading(false);
     },
   });
-
-  const [loading, setLoading] = useState(false);
 
   let value:
     | {
@@ -148,47 +150,31 @@ const SessionProvider = (props: SessionProviderProps) => {
     | {
       update: UpdateSession;
       data: null;
-      status: "unauthenticated";
+      status: "unauthenticated" | "loading";
     }
-    | {
-      update: UpdateSession;
-      data: null;
-      status: "loading";
-    }
-    | undefined = useMemo(
-      () =>
-        loading
-          ? {
-            data: null,
-            status: "loading",
-            async update() {
-              return null;
-            },
-          }
-          : session !== null
-            ? {
-              data: session,
-              status: "authenticated",
-              async update() {
-                setLoading(true);
-                const newSession = await get_session();
-                setLoading(false);
-                if (newSession) {
-                  setSession(newSession);
-                }
-                return newSession;
-              },
+    | undefined = useMemo(() => {
+      return session
+        ? {
+          data: session,
+          status: "authenticated",
+          async update() {
+            setLoading(true);
+            const newSession = await get_session();
+            setLoading(false);
+            if (newSession) {
+              setSession(newSession);
             }
-            : {
-              data: session,
-              status: "unauthenticated",
-              async update() {
-                toast.error("Not authenticated");
-                return null;
-              },
-            },
-      [session, token],
-    );
+            return newSession;
+          },
+        }
+        : {
+          data: session,
+          status: loading ? "loading" : "unauthenticated",
+          async update() {
+            return null;
+          },
+        };
+    }, [session, session_res.isLoading, loading]);
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
