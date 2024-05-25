@@ -6,7 +6,7 @@ use shared::{
     resource_proto::{
         user_service_server::UserService, DeleteUserRequest, DeleteUserResponse, FollowUserRequest,
         FollowUserResponse, GetUserRequest, GetUsersRequest, GetUsersResponse, UnfollowUserRequest,
-        UnfollowUserResponse, UpdateUserRequest, UpdateUserResponse, User,
+        UnfollowUserResponse, UpdateUserRequest, User,
     },
     utils::params::Filter,
 };
@@ -35,6 +35,8 @@ impl UserService for UserServiceImpl {
         };
 
         let input = request.get_ref();
+
+        info!("Get Users Request {:#?}", input);
 
         let total = match UserRepositoryImpl::total(&mut transaction).await {
             Ok(total) => match total {
@@ -82,7 +84,7 @@ impl UserService for UserServiceImpl {
 
         let input = request.get_ref();
 
-        info!("fetchibg user: {}", input.username);
+        info!("Get User Request {:#?}", input);
 
         let user =
             match UserRepositoryImpl::find_by_username(&mut transaction, &input.username).await {
@@ -96,54 +98,6 @@ impl UserService for UserServiceImpl {
                 }
             };
 
-        // let articles = match ArticleRepositoryImpl::find_by_authors(
-        //     &mut transaction,
-        //     vec![user.username.clone()],
-        // )
-        // .await
-        // {
-        //     Ok(articles) => articles,
-        //     Err(err) => {
-        //         error!("{:#?}", err);
-        //         return Err(Status::internal("Something went wrong"));
-        //     }
-        // };
-        //
-        // let articles = articles
-        //     .iter()
-        //     .map(|article| FullArticle::from(article))
-        //     .collect();
-        //
-        // let lists = match ListRepositoryImpl::find_by_user(&mut transaction, user.id).await {
-        //     Ok(lists) => lists,
-        //     Err(err) => {
-        //         error!("{:#?}", err);
-        //         return Err(Status::internal("Something went wrong"));
-        //     }
-        // };
-        //
-        // let lists = lists.iter().map(|list| List::from(list)).collect();
-        //
-        // let serieses = match SeriesRepositoryImpl::find_by_user(&mut transaction, user.id).await {
-        //     Ok(serieses) => serieses,
-        //     Err(err) => {
-        //         error!("{:#?}", err);
-        //         return Err(Status::internal("Something went wrong"));
-        //     }
-        // };
-        //
-        // let serieses = serieses.iter().map(|series| Series::from(series)).collect();
-        //
-        // let tags = match TagRepositoryImpl::find_by_user(&mut transaction, user.id).await {
-        //     Ok(tags) => tags,
-        //     Err(err) => {
-        //         error!("{:#?}", err);
-        //         return Err(Status::internal("Something went wrong"));
-        //     }
-        // };
-        //
-        // let interests = tags.iter().map(|tag| Tag::from(tag)).collect();
-
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(User::from(&user))),
             Err(err) => {
@@ -156,7 +110,7 @@ impl UserService for UserServiceImpl {
     async fn update_user(
         &self,
         request: Request<UpdateUserRequest>,
-    ) -> Result<Response<UpdateUserResponse>, Status> {
+    ) -> Result<Response<User>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -166,7 +120,9 @@ impl UserService for UserServiceImpl {
         };
         let input = request.get_ref();
 
-        let user = match UserRepositoryImpl::find(&mut transaction, input.id).await {
+        info!("Update User Request {:#?}", input);
+
+        let user = match UserRepositoryImpl::find(&mut transaction, &input.id).await {
             Ok(user) => user,
             Err(err) => {
                 error!("{:#?}", err);
@@ -180,9 +136,9 @@ impl UserService for UserServiceImpl {
         let user = match UserRepositoryImpl::update(
             &mut transaction,
             &UpdateUser {
-                id: user.id,
-                username: input.username.clone(),
-                image: user.image.clone(),
+                id: user.id.to_owned(),
+                username: input.username.to_owned(),
+                image: user.image.to_owned(),
             },
         )
         .await
@@ -205,9 +161,7 @@ impl UserService for UserServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(UpdateUserResponse {
-                message: format!("User updated: {}", user.id),
-            })),
+            Ok(_) => Ok(Response::new(User::from(&user))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -229,7 +183,9 @@ impl UserService for UserServiceImpl {
 
         let input = request.get_ref();
 
-        let user = match UserRepositoryImpl::find(&mut transaction, input.id).await {
+        info!("Soft Delete User Request {:#?}", input);
+
+        let user = match UserRepositoryImpl::find(&mut transaction, &input.id).await {
             Ok(user) => user,
             Err(err) => {
                 error!("{:#?}", err);
@@ -240,7 +196,7 @@ impl UserService for UserServiceImpl {
             }
         };
 
-        let user = match UserRepositoryImpl::soft_delete(&mut transaction, user.id).await {
+        let user = match UserRepositoryImpl::soft_delete(&mut transaction, &user.id).await {
             Ok(user) => user,
             Err(err) => {
                 error!("{:#?}", err);

@@ -5,10 +5,10 @@ use shared::{
     repositories::article_repository::{ArticleRepository, ArticleRepositoryImpl},
     resource_proto::{
         article_service_server::ArticleService, AddAuthorRequest, AddAuthorResponse, Article,
-        CreateArticleRequest, DeleteArticleRequest, DeleteArticleResponse, FullArticle,
-        GetArticleRequest, GetArticlesRequest, GetArticlesResponse, RemoveAuthorRequest,
-        RemoveAuthorResponse, UpdateArticleRequest, UpdateArticleResponse, UpdateTagsRequest,
-        UpdateTagsResponse,
+        ArticleVersion, CreateArticleRequest, DeleteArticleRequest, DeleteArticleResponse,
+        FullArticle, GetArticleRequest, GetArticlesRequest, GetArticlesResponse, GetHistoryRequest,
+        GetHistoryResponse, RemoveAuthorRequest, RemoveAuthorResponse, SaveArticleRequest,
+        UpdateArticleRequest, UpdateTagsRequest, UpdateTagsResponse,
     },
     utils::params::Filter,
 };
@@ -19,7 +19,6 @@ use crate::{
     application::AppState,
     utils::permissions::{is_owner, ContentType},
 };
-
 #[derive(Clone)]
 pub struct ArticleServiceImpl {
     pub state: Arc<AppState>,
@@ -41,11 +40,13 @@ impl ArticleService for ArticleServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Create Article Request {:#?}", input);
+
         let article = match ArticleRepositoryImpl::create(
             &mut transaction,
             &CreateArticle {
-                user_id: input.user_id,
-                title: input.title.clone(),
+                user_id: input.user_id.to_owned(),
+                title: input.title.to_owned(),
             },
         )
         .await
@@ -90,13 +91,13 @@ impl ArticleService for ArticleServiceImpl {
 
         let input = request.get_ref();
 
-        info!("{:#?}", input);
+        info!("Get Articles Request {:#?}", input);
 
         let total = match ArticleRepositoryImpl::total(
             &mut transaction,
             input.usernames.to_owned(),
-            input.list_id,
-            input.series_id,
+            input.list_id.as_deref(),
+            input.series_id.as_deref(),
         )
         .await
         {
@@ -114,8 +115,8 @@ impl ArticleService for ArticleServiceImpl {
             &mut transaction,
             &Filter::from(&input.params),
             input.usernames.to_owned(),
-            input.list_id,
-            input.series_id,
+            input.list_id.as_deref(),
+            input.series_id.as_deref(),
         )
         .await
         {
@@ -154,12 +155,9 @@ impl ArticleService for ArticleServiceImpl {
 
         let input = request.get_ref();
 
-        let article = match ArticleRepositoryImpl::find_by_slug(
-            &mut transaction,
-            &input.article_slug,
-        )
-        .await
-        {
+        info!("Get Article Request {:#?}", input);
+
+        let article = match ArticleRepositoryImpl::find(&mut transaction, &input.article_id).await {
             Ok(article) => article,
             Err(err) => {
                 error!("{:#?}", err);
@@ -182,7 +180,7 @@ impl ArticleService for ArticleServiceImpl {
     async fn update_article(
         &self,
         request: Request<UpdateArticleRequest>,
-    ) -> Result<Response<UpdateArticleResponse>, Status> {
+    ) -> Result<Response<Article>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -193,11 +191,13 @@ impl ArticleService for ArticleServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Update Article Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::Article,
-            input.user_id,
-            input.article_id,
+            &input.user_id,
+            &input.article_id,
         )
         .await
         {
@@ -218,7 +218,7 @@ impl ArticleService for ArticleServiceImpl {
         let article = match ArticleRepositoryImpl::update(
             &mut transaction,
             &UpdateArticle {
-                id: input.article_id,
+                id: input.article_id.to_owned(),
                 title: input.title.clone(),
             },
         )
@@ -239,9 +239,7 @@ impl ArticleService for ArticleServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(UpdateArticleResponse {
-                message: format!("Updated article: {}", article.id),
-            })),
+            Ok(_) => Ok(Response::new(Article::from(&article))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -263,11 +261,13 @@ impl ArticleService for ArticleServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Delete Article Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::Article,
-            input.user_id,
-            input.article_id,
+            &input.user_id,
+            &input.article_id,
         )
         .await
         {
@@ -287,7 +287,7 @@ impl ArticleService for ArticleServiceImpl {
             }
         };
 
-        let article = match ArticleRepositoryImpl::delete(&mut transaction, input.article_id).await
+        let article = match ArticleRepositoryImpl::delete(&mut transaction, &input.article_id).await
         {
             Ok(article) => article,
             Err(err) => {
@@ -321,11 +321,13 @@ impl ArticleService for ArticleServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Add Author Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::Article,
-            input.author_id,
-            input.article_id,
+            &input.author_id,
+            &input.article_id,
         )
         .await
         {
@@ -348,8 +350,8 @@ impl ArticleService for ArticleServiceImpl {
         let authors = match ArticleRepositoryImpl::add_author(
             &mut transaction,
             &AddAuthor {
-                user_id: input.user_id,
-                article_id: input.article_id,
+                user_id: input.user_id.to_owned(),
+                article_id: input.article_id.to_owned(),
             },
         )
         .await
@@ -396,11 +398,13 @@ impl ArticleService for ArticleServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Remove Author Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::Article,
-            input.author_id,
-            input.article_id,
+            &input.author_id,
+            &input.article_id,
         )
         .await
         {
@@ -423,8 +427,8 @@ impl ArticleService for ArticleServiceImpl {
         let authors = match ArticleRepositoryImpl::delete_author(
             &mut transaction,
             &DeleteAuthor {
-                user_id: input.user_id,
-                article_id: input.article_id,
+                user_id: input.user_id.to_owned(),
+                article_id: input.article_id.to_owned(),
             },
         )
         .await
@@ -462,5 +466,152 @@ impl ArticleService for ArticleServiceImpl {
         request: Request<UpdateTagsRequest>,
     ) -> Result<Response<UpdateTagsResponse>, Status> {
         Err(Status::unimplemented("unimplemented"))
+    }
+
+    async fn get_history(
+        &self,
+        request: Request<GetHistoryRequest>,
+    ) -> Result<Response<GetHistoryResponse>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get History Request {:#?}", input);
+
+        match is_owner(
+            &mut transaction,
+            ContentType::Article,
+            &input.user_id,
+            &input.article_id,
+        )
+        .await
+        {
+            Ok(is_owner) => {
+                if !is_owner {
+                    return Err(Status::permission_denied("Forbidden"));
+                }
+            }
+            Err(err) => {
+                error!("{:#?}", err);
+
+                // TODO check if works
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::not_found("Article not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let total = match ArticleRepositoryImpl::versions(&mut transaction, &input.article_id).await
+        {
+            Ok(total) => match total {
+                Some(total) => total,
+                None => 0,
+            },
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let article_versions = match ArticleRepositoryImpl::history(
+            &mut transaction,
+            &input.article_id,
+            &Filter::from(&input.params),
+        )
+        .await
+        {
+            Ok(article_versions) => article_versions,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let article_versions = article_versions
+            .iter()
+            .map(|article_version| ArticleVersion::from(article_version))
+            .collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(GetHistoryResponse {
+                total,
+                article_versions,
+            })),
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn save(
+        &self,
+        request: Request<SaveArticleRequest>,
+    ) -> Result<Response<ArticleVersion>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get History Request {:#?}", input);
+
+        match is_owner(
+            &mut transaction,
+            ContentType::Article,
+            &input.user_id,
+            &input.article_id,
+        )
+        .await
+        {
+            Ok(is_owner) => {
+                if !is_owner {
+                    return Err(Status::permission_denied("Forbidden"));
+                }
+            }
+            Err(err) => {
+                error!("{:#?}", err);
+
+                // TODO check if works
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::not_found("Article not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let article_version = match ArticleRepositoryImpl::save(
+            &mut transaction,
+            &input.article_id,
+            &input.content,
+            input.device_id.as_deref(),
+        )
+        .await
+        {
+            Ok(article_version) => article_version,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(ArticleVersion::from(&article_version))),
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
     }
 }

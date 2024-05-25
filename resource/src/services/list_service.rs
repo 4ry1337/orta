@@ -13,7 +13,7 @@ use shared::{
         list_service_server::ListService, AddArticleListRequest, AddArticleListResponse,
         CreateListRequest, DeleteListRequest, DeleteListResponse, GetListRequest, GetListsRequest,
         GetListsResponse, List, RemoveArticleListRequest, RemoveArticleListResponse,
-        UpdateListRequest, UpdateListResponse,
+        UpdateListRequest,
     },
     utils::params::Filter,
 };
@@ -48,21 +48,22 @@ impl ListService for ListServiceImpl {
 
         info!("Get Lists Request {:#?}", input);
 
-        let total = match ListRepositoryImpl::total(&mut transaction, input.user_id).await {
-            Ok(total) => match total {
-                Some(total) => total,
-                None => 0,
-            },
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
+        let total =
+            match ListRepositoryImpl::total(&mut transaction, input.user_id.as_deref()).await {
+                Ok(total) => match total {
+                    Some(total) => total,
+                    None => 0,
+                },
+                Err(err) => {
+                    error!("{:#?}", err);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
 
         let lists = match ListRepositoryImpl::find_all(
             &mut transaction,
             &Filter::from(&input.params),
-            input.user_id,
+            input.user_id.as_deref(),
         )
         .await
         {
@@ -97,8 +98,7 @@ impl ListService for ListServiceImpl {
 
         info!("Get List Request {:#?}", input);
 
-        let list = match ListRepositoryImpl::find_by_slug(&mut transaction, &input.list_slug).await
-        {
+        let list = match ListRepositoryImpl::find(&mut transaction, &input.list_id).await {
             Ok(list) => list,
             Err(err) => {
                 error!("{:#?}", err);
@@ -108,19 +108,6 @@ impl ListService for ListServiceImpl {
                 return Err(Status::internal("Something went wrong"));
             }
         };
-
-        // let articles = match ListRepositoryImpl::find_articles(&mut transaction, list.id).await {
-        //     Ok(articles) => articles,
-        //     Err(err) => {
-        //         error!("{:#?}", err);
-        //         return Err(Status::internal("Something went wrong"));
-        //     }
-        // };
-        //
-        // let articles = articles
-        //     .iter()
-        //     .map(|article| FullArticle::from(article))
-        //     .collect();
 
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(List::from(&list))),
@@ -150,9 +137,9 @@ impl ListService for ListServiceImpl {
         let list = match ListRepositoryImpl::create(
             &mut transaction,
             &CreateList {
-                user_id: input.user_id,
-                label: input.label.clone(),
-                image: input.image.clone(),
+                user_id: input.user_id.to_owned(),
+                label: input.label.to_owned(),
+                image: input.image.to_owned(),
                 visibility: Visibility::Public,
             },
         )
@@ -187,7 +174,7 @@ impl ListService for ListServiceImpl {
     async fn update_list(
         &self,
         request: Request<UpdateListRequest>,
-    ) -> Result<Response<UpdateListResponse>, Status> {
+    ) -> Result<Response<List>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -203,8 +190,8 @@ impl ListService for ListServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::List,
-            input.user_id,
-            input.list_id,
+            &input.user_id,
+            &input.list_id,
         )
         .await
         {
@@ -225,9 +212,9 @@ impl ListService for ListServiceImpl {
         let list = match ListRepositoryImpl::update(
             &mut transaction,
             &UpdateList {
-                id: input.list_id,
-                label: input.label.clone(),
-                image: input.image.clone(),
+                id: input.list_id.to_owned(),
+                label: input.label.to_owned(),
+                image: input.image.to_owned(),
                 visibility: None,
             },
         )
@@ -248,9 +235,7 @@ impl ListService for ListServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(UpdateListResponse {
-                message: format!("Updated list: {}", list.id),
-            })),
+            Ok(_) => Ok(Response::new(List::from(&list))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -277,8 +262,8 @@ impl ListService for ListServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::List,
-            input.user_id,
-            input.list_id,
+            &input.user_id,
+            &input.list_id,
         )
         .await
         {
@@ -295,7 +280,7 @@ impl ListService for ListServiceImpl {
                 return Err(Status::internal("Something went wrong"));
             }
         };
-        let list = match ListRepositoryImpl::delete(&mut transaction, input.list_id).await {
+        let list = match ListRepositoryImpl::delete(&mut transaction, &input.list_id).await {
             Ok(list) => list,
             Err(err) => {
                 error!("{:#?}", err);
@@ -333,8 +318,8 @@ impl ListService for ListServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::List,
-            input.user_id,
-            input.list_id,
+            &input.user_id,
+            &input.list_id,
         )
         .await
         {
@@ -352,7 +337,7 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let article = match ArticleRepositoryImpl::find(&mut transaction, input.article_id).await {
+        let article = match ArticleRepositoryImpl::find(&mut transaction, &input.article_id).await {
             Ok(article) => article,
             Err(err) => {
                 error!("{:#?}", err);
@@ -363,19 +348,16 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let reponse = match ListRepositoryImpl::add_article(
-            &mut transaction,
-            input.list_id,
-            article.id,
-        )
-        .await
-        {
-            Ok(reponse) => reponse,
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
+        let reponse =
+            match ListRepositoryImpl::add_article(&mut transaction, &input.list_id, &article.id)
+                .await
+            {
+                Ok(reponse) => reponse,
+                Err(err) => {
+                    error!("{:#?}", err);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
 
         match transaction.commit().await {
             Ok(()) => Ok(Response::new(AddArticleListResponse {
@@ -402,13 +384,13 @@ impl ListService for ListServiceImpl {
 
         let input = request.get_ref();
 
-        info!("Remove Article to List Request {:#?}", input);
+        info!("Remove Article from List Request {:#?}", input);
 
         match is_owner(
             &mut transaction,
             ContentType::List,
-            input.user_id,
-            input.list_id,
+            &input.user_id,
+            &input.list_id,
         )
         .await
         {
@@ -426,7 +408,7 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let article = match ArticleRepositoryImpl::find(&mut transaction, input.article_id).await {
+        let article = match ArticleRepositoryImpl::find(&mut transaction, &input.article_id).await {
             Ok(article) => article,
             Err(err) => {
                 error!("{:#?}", err);
@@ -438,7 +420,7 @@ impl ListService for ListServiceImpl {
         };
 
         let reponse =
-            match ListRepositoryImpl::remove_article(&mut transaction, input.list_id, article.id)
+            match ListRepositoryImpl::remove_article(&mut transaction, &input.list_id, &article.id)
                 .await
             {
                 Ok(reponse) => reponse,

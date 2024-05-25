@@ -7,12 +7,12 @@ use shared::{
         series_service_server::SeriesService, AddArticleSeriesRequest, AddArticleSeriesResponse,
         CreateSeriesRequest, DeleteSeriesRequest, DeleteSeriesResponse, GetSeriesRequest,
         GetSeriesesRequest, GetSeriesesResponse, RemoveArticleSeriesRequest,
-        RemoveArticleSeriesResponse, Series, UpdateSeriesRequest, UpdateSeriesResponse,
+        RemoveArticleSeriesResponse, Series, UpdateSeriesRequest,
     },
     utils::params::Filter,
 };
 use tonic::{Request, Response, Status};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
@@ -39,6 +39,8 @@ impl SeriesService for SeriesServiceImpl {
         };
 
         let input = request.get_ref();
+
+        info!("Get Serieses Request {:#?}", input);
 
         let total = match SeriesRepositoryImpl::total(&mut transaction).await {
             Ok(total) => match total {
@@ -90,17 +92,18 @@ impl SeriesService for SeriesServiceImpl {
 
         let input = request.get_ref();
 
-        let series =
-            match SeriesRepositoryImpl::find_by_slug(&mut transaction, &input.series_slug).await {
-                Ok(list) => list,
-                Err(err) => {
-                    error!("{:#?}", err);
-                    if let sqlx::error::Error::RowNotFound = err {
-                        return Err(Status::not_found("List not found"));
-                    }
-                    return Err(Status::internal("Something went wrong"));
+        info!("Get Series Request {:#?}", input);
+
+        let series = match SeriesRepositoryImpl::find(&mut transaction, &input.series_id).await {
+            Ok(list) => list,
+            Err(err) => {
+                error!("{:#?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::not_found("List not found"));
                 }
-            };
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
 
         // let articles = match SeriesRepositoryImpl::find_articles(&mut transaction, series.id).await
         // {
@@ -139,12 +142,14 @@ impl SeriesService for SeriesServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Create Series Request {:#?}", input);
+
         let series = match SeriesRepositoryImpl::create(
             &mut transaction,
             &CreateSeries {
-                user_id: input.user_id,
-                label: input.label.clone(),
-                image: input.image.clone(),
+                user_id: input.user_id.to_owned(),
+                label: input.label.to_owned(),
+                image: input.image.to_owned(),
             },
         )
         .await
@@ -178,7 +183,7 @@ impl SeriesService for SeriesServiceImpl {
     async fn update_series(
         &self,
         request: Request<UpdateSeriesRequest>,
-    ) -> Result<Response<UpdateSeriesResponse>, Status> {
+    ) -> Result<Response<Series>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -189,11 +194,13 @@ impl SeriesService for SeriesServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Update Series Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::Series,
-            input.user_id,
-            input.series_id,
+            &input.user_id,
+            &input.series_id,
         )
         .await
         {
@@ -214,9 +221,9 @@ impl SeriesService for SeriesServiceImpl {
         let series = match SeriesRepositoryImpl::update(
             &mut transaction,
             &UpdateSeries {
-                id: input.series_id,
-                label: input.label.clone(),
-                image: input.image.clone(),
+                id: input.series_id.to_owned(),
+                label: input.label.to_owned(),
+                image: input.image.to_owned(),
             },
         )
         .await
@@ -224,21 +231,19 @@ impl SeriesService for SeriesServiceImpl {
             Ok(series) => series,
             Err(err) => {
                 error!("{:#?}", err);
-                if let Some(database_error) = err.as_database_error() {
-                    if let Some(constraint) = database_error.constraint() {
-                        if constraint == "series_slug_key" {
-                            return Err(Status::internal("Retry"));
-                        }
-                    }
-                }
+                // if let Some(database_error) = err.as_database_error() {
+                //     if let Some(constraint) = database_error.constraint() {
+                //         if constraint == "series_slug_key" {
+                //             return Err(Status::internal("Retry"));
+                //         }
+                //     }
+                // }
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(UpdateSeriesResponse {
-                message: format!("Updated series: {}", series.label),
-            })),
+            Ok(_) => Ok(Response::new(Series::from(&series))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -260,11 +265,13 @@ impl SeriesService for SeriesServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Delete Series Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::Series,
-            input.user_id,
-            input.series_id,
+            &input.user_id,
+            &input.series_id,
         )
         .await
         {
@@ -282,7 +289,7 @@ impl SeriesService for SeriesServiceImpl {
             }
         };
 
-        let series = match SeriesRepositoryImpl::delete(&mut transaction, input.series_id).await {
+        let series = match SeriesRepositoryImpl::delete(&mut transaction, &input.series_id).await {
             Ok(series) => series,
             Err(err) => {
                 error!("{:#?}", err);
@@ -315,11 +322,13 @@ impl SeriesService for SeriesServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Add Article to Series Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::Series,
-            input.user_id,
-            input.series_id,
+            &input.user_id,
+            &input.series_id,
         )
         .await
         {
@@ -340,8 +349,8 @@ impl SeriesService for SeriesServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::Article,
-            input.user_id,
-            input.article_id,
+            &input.user_id,
+            &input.article_id,
         )
         .await
         {
@@ -361,8 +370,8 @@ impl SeriesService for SeriesServiceImpl {
 
         let reponse = match SeriesRepositoryImpl::add_article(
             &mut transaction,
-            input.series_id,
-            input.article_id,
+            &input.series_id,
+            &input.article_id,
         )
         .await
         {
@@ -398,11 +407,13 @@ impl SeriesService for SeriesServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Remove Article from Series Request {:#?}", input);
+
         match is_owner(
             &mut transaction,
             ContentType::Series,
-            input.user_id,
-            input.series_id,
+            &input.user_id,
+            &input.series_id,
         )
         .await
         {
@@ -423,8 +434,8 @@ impl SeriesService for SeriesServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::Article,
-            input.user_id,
-            input.article_id,
+            &input.user_id,
+            &input.article_id,
         )
         .await
         {
@@ -444,8 +455,8 @@ impl SeriesService for SeriesServiceImpl {
 
         let reponse = match SeriesRepositoryImpl::remove_article(
             &mut transaction,
-            input.series_id,
-            input.article_id,
+            &input.series_id,
+            &input.article_id,
         )
         .await
         {

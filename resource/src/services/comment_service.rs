@@ -6,7 +6,7 @@ use shared::{
     resource_proto::{
         comment_service_server::CommentService, Comment, CreateCommentRequest,
         DeleteCommentRequest, DeleteCommentResponse, GetCommentsRequest, GetCommentsResponse,
-        UpdateCommentRequest, UpdateCommentResponse,
+        UpdateCommentRequest,
     },
     utils::params::Filter,
 };
@@ -42,8 +42,8 @@ impl CommentService for CommentServiceImpl {
         let comment = match CommentRepositoryImpl::create(
             &mut transaction,
             &CreateComment {
-                user_id: input.user_id,
-                target_id: input.target_id,
+                user_id: input.user_id.to_owned(),
+                target_id: input.target_id.to_owned(),
                 content: input.content.to_owned(),
                 r#type: input.r#type().into(),
             },
@@ -92,7 +92,7 @@ impl CommentService for CommentServiceImpl {
 
         let total = match CommentRepositoryImpl::total(
             &mut transaction,
-            input.target_id,
+            &input.target_id,
             input.r#type().into(),
         )
         .await
@@ -109,7 +109,7 @@ impl CommentService for CommentServiceImpl {
 
         let comments = match CommentRepositoryImpl::find_all(
             &mut transaction,
-            input.target_id,
+            &input.target_id,
             input.r#type().into(),
             Filter::from(&input.params),
         )
@@ -139,7 +139,7 @@ impl CommentService for CommentServiceImpl {
     async fn update_comment(
         &self,
         request: Request<UpdateCommentRequest>,
-    ) -> Result<Response<UpdateCommentResponse>, Status> {
+    ) -> Result<Response<Comment>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -153,8 +153,8 @@ impl CommentService for CommentServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::Comment,
-            input.user_id,
-            input.comment_id,
+            &input.user_id,
+            &input.comment_id,
         )
         .await
         {
@@ -174,10 +174,10 @@ impl CommentService for CommentServiceImpl {
             }
         };
 
-        match CommentRepositoryImpl::update(
+        let comment = match CommentRepositoryImpl::update(
             &mut transaction,
             &UpdateComment {
-                id: input.comment_id,
+                id: input.comment_id.to_owned(),
                 content: input.content.to_owned(),
             },
         )
@@ -191,9 +191,7 @@ impl CommentService for CommentServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(UpdateCommentResponse {
-                message: format!("Updated comment"),
-            })),
+            Ok(_) => Ok(Response::new(Comment::from(&comment))),
             Err(err) => {
                 error!("{:#?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -218,8 +216,8 @@ impl CommentService for CommentServiceImpl {
         match is_owner(
             &mut transaction,
             ContentType::Comment,
-            input.user_id,
-            input.comment_id,
+            &input.user_id,
+            &input.comment_id,
         )
         .await
         {
@@ -239,7 +237,7 @@ impl CommentService for CommentServiceImpl {
             }
         };
 
-        match CommentRepositoryImpl::delete(&mut transaction, input.comment_id).await {
+        match CommentRepositoryImpl::delete(&mut transaction, &input.comment_id).await {
             Ok(comment) => comment,
             Err(err) => {
                 error!("{:#?}", err);

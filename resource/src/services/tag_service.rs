@@ -6,7 +6,7 @@ use shared::{
     utils::params::Filter,
 };
 use tonic::{Request, Response, Status};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::application::AppState;
 
@@ -31,9 +31,13 @@ impl TagService for TagServiceImpl {
 
         let input = request.get_ref();
 
+        info!("Get Tags Request {:#?}", input);
+
         let tags = match TagRepositoryImpl::find_all(
             &mut transaction,
             input.tag_status.map(|_| input.tag_status().into()),
+            input.user_id.as_deref(),
+            input.article_id.as_deref(),
             &Filter::from(&input.params),
         )
         .await
