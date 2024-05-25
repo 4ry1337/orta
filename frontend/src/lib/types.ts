@@ -19,7 +19,7 @@ export type ResultPaging<T> = {
 };
 
 export type Session = {
-  user_id: number;
+  user_id: string;
   image?: string;
   username: string;
   role: string;
@@ -27,7 +27,7 @@ export type Session = {
 };
 
 export type User = {
-  id: number;
+  id: string;
   username: string;
   email: string;
   email_verified?: string;
@@ -42,9 +42,8 @@ export type User = {
 };
 
 export type Article = {
-  id: number;
+  id: string;
   title: string;
-  slug: string;
   like_count: number;
   comment_count: number;
   created_at: string;
@@ -53,9 +52,8 @@ export type Article = {
 };
 
 export type Tag = {
-  id: number;
-  label: string;
   slug: string;
+  label: string;
   article_count: number;
   tag_status: string;
   created_at: string;
@@ -68,8 +66,8 @@ export type FullArticle = Article & {
 };
 
 export type List = {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   label: string;
   slug: string;
   image?: string;
@@ -80,8 +78,8 @@ export type List = {
 };
 
 export type Series = {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   label: string;
   slug: string;
   image?: string;
