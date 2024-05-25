@@ -64,16 +64,14 @@ pub struct Pagination {
 
 #[derive(Debug, Deserialize)]
 pub struct PathParams {
-    pub comment_id: Option<i32>,
-    pub user_id: Option<i32>,
-    pub article_id: Option<i32>,
-    pub series_id: Option<i32>,
-    pub tag_id: Option<i32>,
-    pub list_id: Option<i32>,
+    pub comment_id: Option<String>,
+    pub user_id: Option<String>,
+    pub asset_name: Option<String>,
+    pub series_id: Option<String>,
+    pub tag_id: Option<String>,
+    pub list_id: Option<String>,
     pub username: Option<String>,
-    pub article_slug: Option<String>,
-    pub list_slug: Option<String>,
-    pub series_slug: Option<String>,
+    pub asset: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
