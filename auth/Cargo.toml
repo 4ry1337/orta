@@ -49,4 +49,5 @@ anyhow.workspace = true
 # Utils
 slug.workspace = true
 secrecy.workspace = true
+rand = { version = "0.8.5", features = ["min_const_gen"] }
 shared = { path = "../shared" }

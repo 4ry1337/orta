@@ -1,7 +1,9 @@
 use hmac::{digest::InvalidLength, Hmac, Mac};
 use secrecy::ExposeSecret;
 use sha2::Sha256;
-use shared::{configuration::CONFIG, utils::random_string::generate};
+use shared::configuration::CONFIG;
+
+use super::random_string::generate;
 
 pub fn generate_fingerprint() -> Result<(String, String), InvalidLength> {
     let fingerprint = generate(50);

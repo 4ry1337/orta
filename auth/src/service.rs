@@ -10,17 +10,17 @@ use shared::{
         account_repository::{AccountRepository, AccountRepositoryImpl},
         user_repository::{UserRepository, UserRepositoryImpl},
     },
-    utils::{
-        jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
-        random_string::generate,
-    },
+    utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
 };
 use tonic::{Request, Response, Status};
 use tracing::error;
 
 use crate::{
     application::AppState,
-    utils::fingerprint::{generate_fingerprint, verify_fingerprint_hash},
+    utils::{
+        fingerprint::{generate_fingerprint, verify_fingerprint_hash},
+        random_string::generate,
+    },
 };
 
 #[derive(Clone)]
@@ -76,6 +76,7 @@ impl AuthService for AuthServiceImpl {
         };
 
         let salt = generate(6);
+
         let hashed_password = match bcrypt::hash(input.password.to_owned(), 10) {
             Ok(password) => password + &salt,
             Err(err) => {
@@ -83,13 +84,14 @@ impl AuthService for AuthServiceImpl {
                 return Err(Status::internal("Something went wrong"));
             }
         };
+
         match AccountRepositoryImpl::create(
             &mut transaction,
             &CreateAccount {
-                user_id: user.id,
+                user_id: user.id.clone(),
                 r#type: "credentails".to_string(),
                 provider: "credentails".to_string(),
-                provider_account_id: user.id.to_string(),
+                provider_account_id: user.id.clone(),
                 expires_at: None,
                 refresh_token: None,
                 access_token: None,
@@ -116,7 +118,7 @@ impl AuthService for AuthServiceImpl {
         }
 
         let access_token = match AccessToken::generate(AccessTokenPayload {
-            user_id: user.id,
+            user_id: user.id.clone(),
             email: user.email,
             username: user.username,
             image: user.image,
@@ -138,7 +140,7 @@ impl AuthService for AuthServiceImpl {
         };
 
         let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
-            user_id: user.id,
+            user_id: user.id.clone(),
             fingerprint: fingerprint_hash,
         }) {
             Ok(refresh_token) => refresh_token,
@@ -180,7 +182,7 @@ impl AuthService for AuthServiceImpl {
             }
         };
 
-        let account = match AccountRepositoryImpl::find_by_user(&mut transaction, user.id).await {
+        let account = match AccountRepositoryImpl::find_by_user(&mut transaction, &user.id).await {
             Ok(acccount) => acccount,
             Err(err) => {
                 error!("{}", err);
@@ -225,7 +227,7 @@ impl AuthService for AuthServiceImpl {
         };
 
         let access_token = match AccessToken::generate(AccessTokenPayload {
-            user_id: user.id,
+            user_id: user.id.clone(),
             email: user.email,
             username: user.username,
             image: user.image,
@@ -247,7 +249,7 @@ impl AuthService for AuthServiceImpl {
         };
 
         let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
-            user_id: user.id,
+            user_id: user.id.clone(),
             fingerprint: fingerprint_hash,
         }) {
             Ok(refresh_token) => refresh_token,
@@ -301,9 +303,7 @@ impl AuthService for AuthServiceImpl {
             }
         };
         let user =
-            match UserRepositoryImpl::find(&mut transaction, refresh_token_payload.payload.user_id)
-                .await
-            {
+            match UserRepositoryImpl::find(&mut transaction, &refresh_token_payload.sub).await {
                 Ok(user) => user,
                 Err(error) => {
                     if let sqlx::error::Error::RowNotFound = error {
