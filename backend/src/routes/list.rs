@@ -11,10 +11,11 @@ use shared::{
     models::{enums::Visibility, list_model::List},
     resource_proto::{
         self, list_service_client::ListServiceClient, AddArticleListRequest, CreateListRequest,
-        DeleteListRequest, GetListRequest, GetListsRequest, QueryParams, UpdateListRequest,
+        DeleteListRequest, GetListRequest, GetListsRequest, QueryParams,
     },
     utils::jwt::AccessTokenPayload,
 };
+use tonic::transport::Channel;
 use tracing::{error, info};
 
 use crate::{
@@ -28,16 +29,18 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct ListsQueryParams {
     label: Option<String>,
-    user_id: Option<i32>,
+    user_id: Option<String>,
 }
 
 pub async fn get_lists(
+    Extension(channel): Extension<Channel>,
     Query(query): Query<ListsQueryParams>,
     Query(pagination): Query<Pagination>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
 ) -> Response {
     info!("Get Lists Request {:#?} {:#?}", query, pagination);
-    match ListServiceClient::new(state.resource_server.clone())
+
+    match ListServiceClient::new(channel)
         .get_lists(GetListsRequest {
             user_id: query.user_id,
             query: query.label,
@@ -70,16 +73,20 @@ pub async fn get_lists(
     }
 }
 
-pub async fn get_list(State(state): State<AppState>, Path(path): Path<PathParams>) -> Response {
-    let list_slug = match path.list_slug {
+pub async fn get_list(
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
+    Path(path): Path<PathParams>,
+) -> Response {
+    let list_id = match path.list_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    info!("Get List Request {}", list_slug);
+    info!("Get List Request {:#?}", list_id);
 
-    match ListServiceClient::new(state.resource_server.clone())
-        .get_list(GetListRequest { list_slug })
+    match ListServiceClient::new(channel)
+        .get_list(GetListRequest { list_id })
         .await
     {
         Ok(res) => (StatusCode::OK, Json(json!(List::from(res.get_ref())))).into_response(),
@@ -100,12 +107,14 @@ pub struct PostListRequestBody {
 }
 
 pub async fn post_list(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(payload): Json<PostListRequestBody>,
 ) -> Response {
     info!("Post List Request {:#?} {:#?}", user, payload);
-    match ListServiceClient::new(state.resource_server.clone())
+
+    match ListServiceClient::new(channel)
         .create_list(CreateListRequest {
             user_id: user.user_id,
             label: payload.label,
@@ -124,36 +133,22 @@ pub async fn post_list(
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct PatchListRequestBody {
-    pub label: Option<String>,
-    pub image: Option<String>,
-    pub visibility: Option<Visibility>,
-}
-
-pub async fn patch_list(
+pub async fn delete_list(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
-    Path(params): Path<PathParams>,
-    Json(payload): Json<PatchListRequestBody>,
+    State(_state): State<AppState>,
+    Path(path): Path<PathParams>,
 ) -> Response {
-    let list_id = match params.list_id {
+    let list_id = match path.list_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    info!(
-        "Patch List Request {:#?} {:#?} {:#?}",
-        user, list_id, payload
-    );
-    match ListServiceClient::new(state.resource_server.clone())
-        .update_list(UpdateListRequest {
+    info!("Delete List Request {:#?} {:#?}", user, list_id);
+
+    match ListServiceClient::new(channel)
+        .delete_list(DeleteListRequest {
             user_id: user.user_id,
             list_id,
-            label: payload.label,
-            image: payload.image,
-            visibility: payload
-                .visibility
-                .map(|visibility| resource_proto::Visibility::from(visibility) as i32),
         })
         .await
     {
@@ -166,17 +161,31 @@ pub async fn patch_list(
         }
     }
 }
+#[derive(Debug, Deserialize)]
+pub struct PatchListRequestBody {
+    pub label: Option<String>,
+    pub image: Option<String>,
+    pub visibility: Option<Visibility>,
+}
 
-pub async fn delete_list(
+pub async fn patch_list(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
+    Json(payload): Json<PatchListRequestBody>,
 ) -> Response {
     let list_id = match params.list_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match ListServiceClient::new(state.resource_server.clone())
+
+    info!(
+        "Patch List Request {:#?} {:#?} {:#?}",
+        user, list_id, payload
+    );
+
+    match ListServiceClient::new(channel)
         .delete_list(DeleteListRequest {
             user_id: user.user_id,
             list_id,
@@ -195,12 +204,13 @@ pub async fn delete_list(
 
 #[derive(Debug, Deserialize)]
 pub struct PutListArticleRequestBody {
-    pub article_id: i32,
+    pub article_id: String,
 }
 
 pub async fn put_list_article(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<PutListArticleRequestBody>,
 ) -> Response {
@@ -209,7 +219,12 @@ pub async fn put_list_article(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    match ListServiceClient::new(state.resource_server.clone())
+    info!(
+        "Put Article to List Request {:#?} {:#?} {:#?}",
+        payload, list_id, user
+    );
+
+    match ListServiceClient::new(channel)
         .add_article(AddArticleListRequest {
             user_id: user.user_id,
             list_id,
@@ -229,12 +244,13 @@ pub async fn put_list_article(
 
 #[derive(Debug, Deserialize)]
 pub struct DeleteListArticleRequestBody {
-    pub article_id: i32,
+    pub article_id: String,
 }
 
 pub async fn delete_list_article(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<DeleteListArticleRequestBody>,
 ) -> Response {
@@ -243,7 +259,12 @@ pub async fn delete_list_article(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    match ListServiceClient::new(state.resource_server.clone())
+    info!(
+        "Delete Article to List Request {:#?} {:#?} {:#?}",
+        payload, list_id, user
+    );
+
+    match ListServiceClient::new(channel)
         .add_article(AddArticleListRequest {
             user_id: user.user_id,
             list_id,

@@ -17,6 +17,7 @@ use shared::{
     },
     utils::jwt::AccessTokenPayload,
 };
+use tonic::transport::Channel;
 use tracing::{error, info};
 
 use crate::{
@@ -30,17 +31,18 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct ArticlesQueryParams {
     usernames: Option<Vec<String>>,
-    list_id: Option<i32>,
-    series_id: Option<i32>,
+    list_id: Option<String>,
+    series_id: Option<String>,
 }
 
 pub async fn get_articles(
+    Extension(channel): Extension<Channel>,
     Query(query): Query<ArticlesQueryParams>,
     Query(pagination): Query<Pagination>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
 ) -> Response {
-    info!("Get Articles {:#?} {:#?}", query, pagination);
-    match ArticleServiceClient::new(state.resource_server.clone())
+    info!("Get Articles Request {:#?} {:#?}", query, pagination);
+    match ArticleServiceClient::new(channel)
         .get_articles(GetArticlesRequest {
             usernames: query.usernames.unwrap_or_default(),
             list_id: query.list_id,
@@ -79,15 +81,17 @@ pub async fn get_articles(
 }
 
 pub async fn get_article(
-    State(state): State<AppState>,
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let article_slug = match params.article_slug {
+    let article_id = match params.asset_name {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match ArticleServiceClient::new(state.resource_server.clone())
-        .get_article(GetArticleRequest { article_slug })
+    info!("Get Article Request {}", article_id);
+    match ArticleServiceClient::new(channel)
+        .get_article(GetArticleRequest { article_id })
         .await
     {
         Ok(res) => (
@@ -110,11 +114,14 @@ pub struct PostArticleRequestBody {
 }
 
 pub async fn post_article(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(payload): Json<PostArticleRequestBody>,
 ) -> Response {
-    match ArticleServiceClient::new(state.resource_server.clone())
+    info!("Post Articles Request {:#?} {:#?}", user, payload);
+
+    match ArticleServiceClient::new(channel)
         .create_article(CreateArticleRequest {
             title: payload.title,
             user_id: user.user_id,
@@ -141,16 +148,21 @@ pub struct PatchArticleRequestBody {
 }
 
 pub async fn patch_article(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<PatchArticleRequestBody>,
 ) -> Response {
-    let article_id = match params.article_id {
+    let article_id = match params.asset_name {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match ArticleServiceClient::new(state.resource_server.clone())
+    info!(
+        "Patch Articles Request {:#?} {:#?} {:#?}",
+        user, article_id, payload
+    );
+    match ArticleServiceClient::new(channel)
         .update_article(UpdateArticleRequest {
             title: payload.title,
             user_id: user.user_id,
@@ -158,7 +170,7 @@ pub async fn patch_article(
         })
         .await
     {
-        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Ok(res) => (StatusCode::OK, Json(json!(Article::from(res.get_ref())))).into_response(),
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();
@@ -169,15 +181,17 @@ pub async fn patch_article(
 }
 
 pub async fn delete_article(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let article_id = match params.article_id {
+    let article_id = match params.asset_name {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match ArticleServiceClient::new(state.resource_server.clone())
+    info!("Delete Articles Request {:#?} {:#?}", user, article_id);
+    match ArticleServiceClient::new(channel)
         .delete_article(DeleteArticleRequest {
             user_id: user.user_id,
             article_id,
@@ -196,21 +210,27 @@ pub async fn delete_article(
 
 #[derive(Debug, Deserialize)]
 pub struct PutAuthorRequestBody {
-    pub user_id: i32,
+    pub user_id: String,
 }
 
 pub async fn put_author(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<PutAuthorRequestBody>,
 ) -> Response {
-    let article_id = match params.article_id {
+    let article_id = match params.asset_name {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    match ArticleServiceClient::new(state.resource_server.clone())
+    info!(
+        "Put Author to Articles Request {:#?} {:#?} {:#?}",
+        user, payload, article_id
+    );
+
+    match ArticleServiceClient::new(channel)
         .add_author(AddAuthorRequest {
             author_id: user.user_id,
             article_id,
@@ -230,20 +250,26 @@ pub async fn put_author(
 
 #[derive(Debug, Deserialize)]
 pub struct DeleteAuthorRequestBody {
-    pub user_id: i32,
+    pub user_id: String,
 }
 pub async fn delete_author(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<DeleteAuthorRequestBody>,
 ) -> Response {
-    let article_id = match params.article_id {
+    let article_id = match params.asset_name {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    match ArticleServiceClient::new(state.resource_server.clone())
+    info!(
+        "Delete Author to Articles Request {:#?} {:#?} {:#?}",
+        user, payload, article_id
+    );
+
+    match ArticleServiceClient::new(channel)
         .remove_author(RemoveAuthorRequest {
             author_id: user.user_id,
             article_id,

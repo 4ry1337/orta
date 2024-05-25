@@ -2,7 +2,7 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -11,21 +11,29 @@ use shared::{
     models::{enums::TagStatus, tag_model::Tag},
     resource_proto::{self, tag_service_client::TagServiceClient, GetTagsRequest},
 };
-use tracing::error;
+use tonic::transport::Channel;
+use tracing::{error, info};
 
 use crate::{application::AppState, utils::mapper::code_to_statudecode};
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct TagsQueryParams {
+    user_id: Option<String>,
+    article_id: Option<String>,
     tag_status: Option<TagStatus>,
 }
 
 pub async fn get_tags(
-    State(state): State<AppState>,
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
     Query(query): Query<TagsQueryParams>,
 ) -> Response {
-    match TagServiceClient::new(state.resource_server.clone())
+    info!("Get Tags Request {:#?}", query);
+
+    match TagServiceClient::new(channel)
         .get_tags(GetTagsRequest {
+            user_id: query.user_id,
+            article_id: query.article_id,
             tag_status: query
                 .tag_status
                 .map(|tag_status| resource_proto::TagStatus::from(tag_status) as i32),

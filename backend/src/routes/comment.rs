@@ -14,7 +14,8 @@ use shared::{
     },
     utils::jwt::AccessTokenPayload,
 };
-use tracing::error;
+use tonic::transport::Channel;
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
@@ -26,18 +27,22 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct CommentsQueryParams {
-    id: i32,
+    id: String,
     r#type: CommentableType,
+    user_id: Option<String>,
 }
 
 pub async fn get_comments(
-    State(state): State<AppState>,
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
     Query(query): Query<CommentsQueryParams>,
     Query(pagination): Query<Pagination>,
 ) -> Response {
-    match CommentServiceClient::new(state.resource_server.clone())
+    info!("Get Comments Request {:#?} {:#?}", query, pagination);
+
+    match CommentServiceClient::new(channel)
         .get_comments(GetCommentsRequest {
-            user_id: None,
+            user_id: query.user_id,
             target_id: query.id,
             r#type: resource_proto::CommentableType::from(query.r#type) as i32,
             params: Some(QueryParams {
@@ -90,12 +95,18 @@ pub struct PostCommentRequestBody {
 }
 
 pub async fn post_comment(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Query(query): Query<CommentsQueryParams>,
     Json(payload): Json<PostCommentRequestBody>,
 ) -> Response {
-    match CommentServiceClient::new(state.resource_server.clone())
+    info!(
+        "Post Comment Request {:#?} {:#?} {:#?}",
+        user, query, payload
+    );
+
+    match CommentServiceClient::new(channel)
         .create_comment(CreateCommentRequest {
             user_id: user.user_id,
             target_id: query.id,
@@ -104,7 +115,11 @@ pub async fn post_comment(
         })
         .await
     {
-        Ok(res) => (StatusCode::OK, Json(json!(Comment::from(res.get_ref())))).into_response(),
+        Ok(res) => (
+            StatusCode::CREATED,
+            Json(json!(Comment::from(res.get_ref()))),
+        )
+            .into_response(),
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();
@@ -120,8 +135,9 @@ pub struct PatchCommentRequestBody {
 }
 
 pub async fn patch_comment(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<PatchCommentRequestBody>,
 ) -> Response {
@@ -129,7 +145,13 @@ pub async fn patch_comment(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match CommentServiceClient::new(state.resource_server.clone())
+
+    info!(
+        "Patch Comment Request {:#?} {:#?} {:#?}",
+        user, comment_id, payload
+    );
+
+    match CommentServiceClient::new(channel)
         .update_comment(UpdateCommentRequest {
             comment_id,
             user_id: user.user_id,
@@ -137,7 +159,7 @@ pub async fn patch_comment(
         })
         .await
     {
-        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Ok(res) => (StatusCode::OK, Json(json!(Comment::from(res.get_ref())))).into_response(),
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();
@@ -148,15 +170,17 @@ pub async fn patch_comment(
 }
 
 pub async fn delete_comment(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
     let comment_id = match params.comment_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match CommentServiceClient::new(state.resource_server.clone())
+    info!("Delete Comment Request {:#?} {:#?}", user, comment_id);
+    match CommentServiceClient::new(channel)
         .delete_comment(DeleteCommentRequest {
             comment_id,
             user_id: user.user_id,

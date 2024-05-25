@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
-    Json, Router,
+    Extension, Json, Router,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use cookie::SameSite;
@@ -13,6 +13,7 @@ use shared::{
     configuration::CONFIG,
 };
 use time::Duration;
+use tonic::transport::Channel;
 use tracing::{error, info};
 use validator::Validate;
 
@@ -33,9 +34,13 @@ pub struct SignUpRequest {
     pub password: String,
 }
 
-pub async fn signup(State(state): State<AppState>, Json(payload): Json<SignUpRequest>) -> Response {
+pub async fn signup(
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
+    Json(payload): Json<SignUpRequest>,
+) -> Response {
     info!("Signup request");
-    let res = match AuthServiceClient::new(state.auth_server.clone())
+    let res = match AuthServiceClient::new(channel)
         .signup(SignupRequest {
             email: payload.email,
             password: payload.password,
@@ -87,9 +92,13 @@ pub struct SignInRequest {
     pub password: String,
 }
 
-pub async fn signin(State(state): State<AppState>, Json(payload): Json<SignInRequest>) -> Response {
+pub async fn signin(
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
+    Json(payload): Json<SignInRequest>,
+) -> Response {
     info!("Signin request");
-    let res = match AuthServiceClient::new(state.auth_server.clone())
+    let res = match AuthServiceClient::new(channel)
         .signin(SigninRequest {
             email: payload.email,
             password: payload.password,

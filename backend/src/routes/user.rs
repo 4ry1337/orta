@@ -14,6 +14,7 @@ use shared::{
     },
     utils::jwt::AccessTokenPayload,
 };
+use tonic::transport::Channel;
 use tracing::{error, info};
 
 use crate::{
@@ -24,8 +25,12 @@ use crate::{
     },
 };
 
-pub async fn get_users(Query(query): Query<Pagination>, State(state): State<AppState>) -> Response {
-    match UserServiceClient::new(state.resource_server.clone())
+pub async fn get_users(
+    Extension(channel): Extension<Channel>,
+    Query(query): Query<Pagination>,
+    State(_state): State<AppState>,
+) -> Response {
+    match UserServiceClient::new(channel)
         .get_users(GetUsersRequest {
             query: None,
             params: Some(QueryParams {
@@ -57,13 +62,17 @@ pub async fn get_users(Query(query): Query<Pagination>, State(state): State<AppS
     }
 }
 
-pub async fn get_user(State(state): State<AppState>, Path(params): Path<PathParams>) -> Response {
+pub async fn get_user(
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
     info!("Get User Request");
     let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match UserServiceClient::new(state.resource_server.clone())
+    match UserServiceClient::new(channel)
         .get_user(GetUserRequest { username })
         .await
     {
@@ -86,7 +95,7 @@ pub async fn get_user(State(state): State<AppState>, Path(params): Path<PathPara
 // }
 //
 // pub async fn post_user(
-//     State(state): State<AppState>,
+// State(_state): State<AppState>,
 //     Json(payload): Json<CreateUserRequestBody>,
 // ) -> Response {
 //     match UserServiceClient::new(state.auth_server.clone())
@@ -112,11 +121,12 @@ pub struct PatchUserRequestBody {
 }
 
 pub async fn patch_user(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(payload): Json<PatchUserRequestBody>,
 ) -> Response {
-    match UserServiceClient::new(state.auth_server.clone())
+    match UserServiceClient::new(channel)
         .update_user(UpdateUserRequest {
             id: user.user_id,
             username: payload.username,
@@ -126,7 +136,7 @@ pub async fn patch_user(
         })
         .await
     {
-        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Ok(res) => (StatusCode::OK, Json(json!(User::from(res.get_ref())))).into_response(),
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();
@@ -137,7 +147,7 @@ pub async fn patch_user(
 }
 
 // pub async fn delete_user(
-//     State(state): State<AppState>,
+// State(_state): State<AppState>,
 //     Path(params): Path<PathParams>,
 // ) -> Response {
 //     let user_id = match params.user_id {

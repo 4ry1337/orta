@@ -1,12 +1,18 @@
 use axum::{
     handler::Handler,
     middleware,
-    routing::{get, patch, put},
+    routing::{get, patch, post, put},
     Router,
 };
 use axum_prometheus::PrometheusMetricLayer;
 
-use crate::{application::AppState, middlewares::auth::auth_middleware};
+use crate::{
+    application::AppState,
+    middlewares::{
+        auth::auth_middleware,
+        service_client::{auth_service_middleware, resource_service_middleware},
+    },
+};
 
 use self::{
     admin::health_checker,
@@ -14,13 +20,14 @@ use self::{
         delete_article, delete_author, get_article, get_articles, patch_article, post_article,
         put_author,
     },
+    assets::{get_asset, post_asset},
     comment::{delete_comment, get_comments, patch_comment, post_comment},
     list::{
         delete_list, delete_list_article, get_list, get_lists, patch_list, post_list,
         put_list_article,
     },
     series::{
-        delete_series, delete_series_article, get_serieses, patch_series, post_series,
+        delete_series, delete_series_article, get_series, get_serieses, patch_series, post_series,
         put_series_article,
     },
     user::{get_user, get_users, patch_user},
@@ -28,6 +35,7 @@ use self::{
 
 pub mod admin;
 pub mod article;
+pub mod assets;
 pub mod auth;
 pub mod comment;
 pub mod list;
@@ -41,26 +49,37 @@ pub fn router(state: AppState) -> Router<AppState> {
         .nest(
             "/api",
             Router::new()
-                .merge(auth::router(state.clone()))
+                .nest(
+                    "/assets",
+                    Router::new()
+                        .route("/", post(post_asset))
+                        .route("/:asset_name", get(get_asset)),
+                )
+                .merge(
+                    auth::router(state.clone()).layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        auth_service_middleware,
+                    )),
+                )
                 .nest(
                     "/admin",
                     Router::new()
                         .route("/healthchecker", get(health_checker))
                         .route("/metrics", get(|| async move { metric_handle.render() }))
-                        .layer(middleware::from_fn_with_state(
-                            state.clone(),
-                            auth_middleware,
-                        )),
+                        .layer(middleware::from_fn(auth_middleware)),
                 )
                 .nest(
                     "/users",
-                    Router::new().route("/", get(get_users)).route(
-                        "/:username",
-                        get(get_user).patch(patch_user.layer(middleware::from_fn_with_state(
-                            state.clone(),
-                            auth_middleware,
-                        ))),
-                    ),
+                    Router::new()
+                        .route("/", get(get_users))
+                        .route(
+                            "/:username",
+                            get(get_user).patch(patch_user.layer(middleware::from_fn_with_state(
+                                state.clone(),
+                                auth_middleware,
+                            ))),
+                        )
+                        .layer(middleware::from_fn(resource_service_middleware)),
                 )
                 .nest(
                     "/articles",
@@ -72,24 +91,33 @@ pub fn router(state: AppState) -> Router<AppState> {
                             )),
                         )
                         .nest(
-                            "/slug/:article_slug",
-                            Router::new().route("/", get(get_article)),
-                        )
-                        .nest(
-                            "/id/:article_id",
+                            "/:article_id",
                             Router::new()
-                                .route("/", patch(patch_article).delete(delete_article))
-                                .route("/authors", put(put_author).delete(delete_author))
-                                // .route(
-                                //     "/tags",
-                                //     put(StatusCode::NOT_IMPLEMENTED)
-                                //         .delete(StatusCode::NOT_IMPLEMENTED),
-                                // )
-                                .layer(middleware::from_fn_with_state(
-                                    state.clone(),
-                                    auth_middleware,
-                                )),
-                        ),
+                                .route(
+                                    "/",
+                                    get(get_article)
+                                        .patch(patch_article.layer(middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        )))
+                                        .delete(delete_article.layer(
+                                            middleware::from_fn_with_state(
+                                                state.clone(),
+                                                auth_middleware,
+                                            ),
+                                        )),
+                                )
+                                .route(
+                                    "/authors",
+                                    put(put_author).delete(delete_author).layer(
+                                        middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        ),
+                                    ),
+                                ),
+                        )
+                        .layer(middleware::from_fn(resource_service_middleware)),
                 )
                 .nest(
                     "/lists",
@@ -101,20 +129,32 @@ pub fn router(state: AppState) -> Router<AppState> {
                                 auth_middleware,
                             ))),
                         )
-                        .nest("/slug/:list_slug", Router::new().route("/", get(get_list)))
                         .nest(
-                            "/id/:list_id",
+                            "/:list_id",
                             Router::new()
-                                .route("/", patch(patch_list).delete(delete_list))
+                                .route(
+                                    "/",
+                                    get(get_list)
+                                        .patch(patch_list.layer(middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        )))
+                                        .delete(delete_list.layer(middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        ))),
+                                )
                                 .route(
                                     "/articles",
-                                    put(put_list_article).delete(delete_list_article),
-                                )
-                                .layer(middleware::from_fn_with_state(
-                                    state.clone(),
-                                    auth_middleware,
-                                )),
-                        ),
+                                    put(put_list_article).delete(delete_list_article).layer(
+                                        middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        ),
+                                    ),
+                                ),
+                        )
+                        .layer(middleware::from_fn(resource_service_middleware)),
                 )
                 .nest(
                     "/series",
@@ -126,18 +166,33 @@ pub fn router(state: AppState) -> Router<AppState> {
                             )),
                         )
                         .nest(
-                            "/id/:series_id",
+                            "/:series_id",
                             Router::new()
-                                .route("/", patch(patch_series).delete(delete_series))
+                                .route(
+                                    "/",
+                                    get(get_series)
+                                        .patch(patch_series.layer(middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        )))
+                                        .delete(delete_series.layer(
+                                            middleware::from_fn_with_state(
+                                                state.clone(),
+                                                auth_middleware,
+                                            ),
+                                        )),
+                                )
                                 .route(
                                     "/articles",
-                                    put(put_series_article).delete(delete_series_article),
-                                )
-                                .layer(middleware::from_fn_with_state(
-                                    state.clone(),
-                                    auth_middleware,
-                                )),
-                        ),
+                                    put(put_series_article).delete(delete_series_article).layer(
+                                        middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        ),
+                                    ),
+                                ),
+                        )
+                        .layer(middleware::from_fn(resource_service_middleware)),
                 )
                 .nest(
                     "/comments",
@@ -153,7 +208,8 @@ pub fn router(state: AppState) -> Router<AppState> {
                             patch(patch_comment).delete(delete_comment).layer(
                                 middleware::from_fn_with_state(state.clone(), auth_middleware),
                             ),
-                        ),
+                        )
+                        .layer(middleware::from_fn(resource_service_middleware)),
                 ),
         )
         .layer(prometheus_layer)

@@ -16,7 +16,8 @@ use shared::{
     },
     utils::jwt::AccessTokenPayload,
 };
-use tracing::error;
+use tonic::transport::Channel;
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
@@ -29,15 +30,18 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct SeriesQueryParams {
     label: Option<String>,
-    user_id: Option<i32>,
+    user_id: Option<String>,
 }
 
 pub async fn get_serieses(
+    Extension(channel): Extension<Channel>,
     Query(query): Query<SeriesQueryParams>,
     Query(pagination): Query<Pagination>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
 ) -> Response {
-    match SeriesServiceClient::new(state.resource_server.clone())
+    info!("Get Series Request {:#?} {:#?}", query, pagination);
+
+    match SeriesServiceClient::new(channel)
         .get_serieses(GetSeriesesRequest {
             user_id: query.user_id,
             query: query.label,
@@ -74,14 +78,20 @@ pub async fn get_serieses(
     }
 }
 
-pub async fn get_series(State(state): State<AppState>, Path(path): Path<PathParams>) -> Response {
-    let series_slug = match path.series_slug {
+pub async fn get_series(
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
+    Path(path): Path<PathParams>,
+) -> Response {
+    let series_id = match path.series_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    match SeriesServiceClient::new(state.resource_server.clone())
-        .get_series(GetSeriesRequest { series_slug })
+    info!("Get Series Request {:#?}", series_id);
+
+    match SeriesServiceClient::new(channel)
+        .get_series(GetSeriesRequest { series_id })
         .await
     {
         Ok(res) => (StatusCode::OK, Json(json!(Series::from(res.get_ref())))).into_response(),
@@ -101,11 +111,13 @@ pub struct PostSeriesRequestBody {
 }
 
 pub async fn post_series(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(payload): Json<PostSeriesRequestBody>,
 ) -> Response {
-    match SeriesServiceClient::new(state.resource_server.clone())
+    info!("Post Series Request {:#?} {:#?}", user, payload);
+    match SeriesServiceClient::new(channel)
         .create_series(CreateSeriesRequest {
             user_id: user.user_id,
             image: payload.image,
@@ -134,8 +146,9 @@ pub struct PatchSeriesRequestBody {
 }
 
 pub async fn patch_series(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<PatchSeriesRequestBody>,
 ) -> Response {
@@ -143,7 +156,13 @@ pub async fn patch_series(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match SeriesServiceClient::new(state.resource_server.clone())
+
+    info!(
+        "Patch Series Request {:#?} {:#?} {:#?}",
+        series_id, user, payload
+    );
+
+    match SeriesServiceClient::new(channel)
         .update_series(UpdateSeriesRequest {
             user_id: user.user_id,
             series_id,
@@ -152,7 +171,7 @@ pub async fn patch_series(
         })
         .await
     {
-        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Ok(res) => (StatusCode::OK, Json(json!(Series::from(res.get_ref())))).into_response(),
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();
@@ -163,15 +182,19 @@ pub async fn patch_series(
 }
 
 pub async fn delete_series(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
     let series_id = match params.series_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match SeriesServiceClient::new(state.resource_server.clone())
+
+    info!("Patch Series Request {:#?} {:#?}", series_id, user);
+
+    match SeriesServiceClient::new(channel)
         .delete_series(DeleteSeriesRequest {
             user_id: user.user_id,
             series_id,
@@ -190,12 +213,13 @@ pub async fn delete_series(
 
 #[derive(Debug, Deserialize)]
 pub struct AddSeriesArticleRequestBody {
-    pub article_id: i32,
+    pub article_id: String,
 }
 
 pub async fn put_series_article(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<AddSeriesArticleRequestBody>,
 ) -> Response {
@@ -203,7 +227,13 @@ pub async fn put_series_article(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match SeriesServiceClient::new(state.resource_server.clone())
+
+    info!(
+        "Put Article to Series Request {:#?} {:#?} {:#?}",
+        payload, series_id, user
+    );
+
+    match SeriesServiceClient::new(channel)
         .add_article(AddArticleSeriesRequest {
             user_id: user.user_id,
             series_id,
@@ -223,12 +253,13 @@ pub async fn put_series_article(
 
 #[derive(Debug, Deserialize)]
 pub struct DeleteSeriesArticleRequestBody {
-    pub article_id: i32,
+    pub article_id: String,
 }
 
 pub async fn delete_series_article(
+    Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<DeleteSeriesArticleRequestBody>,
 ) -> Response {
@@ -236,7 +267,13 @@ pub async fn delete_series_article(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    match SeriesServiceClient::new(state.resource_server.clone())
+
+    info!(
+        "Delete Article from Series Request {:#?} {:#?} {:#?}",
+        payload, series_id, user
+    );
+
+    match SeriesServiceClient::new(channel)
         .remove_article(RemoveArticleSeriesRequest {
             user_id: user.user_id,
             series_id,

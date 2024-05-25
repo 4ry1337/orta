@@ -15,6 +15,7 @@ use shared::{
     utils::jwt::AccessTokenPayload,
 };
 use time::Duration;
+use tonic::transport::Channel;
 use tracing::{error, info};
 
 use crate::{
@@ -47,7 +48,11 @@ pub fn router(state: AppState) -> Router<AppState> {
 
 //TODO: should i add secure?
 
-pub async fn refresh(cookies: CookieJar, State(state): State<AppState>) -> Response {
+pub async fn refresh(
+    Extension(channel): Extension<Channel>,
+    cookies: CookieJar,
+    State(_state): State<AppState>,
+) -> Response {
     info!("Refresh token request");
     let refresh_token_with_prefix = match cookies.get(&CONFIG.cookies.refresh_token.name) {
         Some(refresh_token_cookie) => refresh_token_cookie.value(),
@@ -81,7 +86,7 @@ pub async fn refresh(cookies: CookieJar, State(state): State<AppState>) -> Respo
             }
         };
 
-    match AuthServiceClient::new(state.auth_server.clone())
+    match AuthServiceClient::new(channel)
         .refresh(RefreshRequest {
             fingerprint,
             refresh_token,
