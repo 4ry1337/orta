@@ -35,7 +35,7 @@ pub async fn get_asset(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().data.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -73,7 +73,7 @@ pub async fn post_asset(
     {
         Ok(res) => (StatusCode::CREATED, res.get_ref().asset_name.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()

@@ -4,6 +4,11 @@ use std::{
     time::Duration,
 };
 
+use amqprs::{
+    callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+    channel::QueueDeclareArguments,
+    connection::{Connection, OpenConnectionArguments},
+};
 use axum::{
     extract::{DefaultBodyLimit, FromRef},
     http::{
@@ -12,7 +17,8 @@ use axum::{
     },
 };
 use axum_extra::extract::cookie::Key;
-use shared::configuration::Settings;
+use secrecy::ExposeSecret;
+use shared::configuration::{MessageBrokerSettings, Settings};
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
@@ -63,7 +69,6 @@ impl Application {
         Ok(Self {
             port,
             listener,
-            // address,
             state,
         })
     }
@@ -125,4 +130,38 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
+}
+
+async fn get_message_broker_client(configuration: MessageBrokerSettings) {
+    let args = OpenConnectionArguments::new(
+        &configuration.hostname,
+        configuration.port,
+        &configuration.username,
+        configuration.password.expose_secret(),
+    )
+    .finish();
+
+    let connection = Connection::open(&args).await.unwrap();
+
+    connection
+        .register_callback(DefaultConnectionCallback)
+        .await
+        .unwrap();
+
+    // open a channel on the connection
+    let channel = connection.open_channel(None).await.unwrap();
+
+    channel
+        .register_callback(DefaultChannelCallback)
+        .await
+        .unwrap();
+
+    // declare a durable queue
+    let (queue_name, _, _) = channel
+        .queue_declare(QueueDeclareArguments::durable_client_named(
+            "email-verification",
+        ))
+        .await
+        .unwrap()
+        .unwrap();
 }

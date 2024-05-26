@@ -9,14 +9,16 @@ use shared::{
         GetSeriesesRequest, GetSeriesesResponse, RemoveArticleSeriesRequest,
         RemoveArticleSeriesResponse, Series, UpdateSeriesRequest,
     },
-    utils::params::Filter,
 };
 use tonic::{Request, Response, Status};
 use tracing::{error, info};
 
 use crate::{
     application::AppState,
-    utils::permissions::{is_owner, ContentType},
+    utils::{
+        permissions::{is_owner, ContentType},
+        split_cursor::parse_cursor,
+    },
 };
 
 #[derive(Clone)]
@@ -33,46 +35,56 @@ impl SeriesService for SeriesServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Get Serieses Request {:#?}", input);
+        info!("Get Serieses Request {:?}", input);
 
-        let total = match SeriesRepositoryImpl::total(&mut transaction).await {
-            Ok(total) => match total {
-                Some(total) => total,
-                None => 0,
-            },
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
+            }
+        };
+        let serieses = match SeriesRepositoryImpl::find_all(
+            &mut transaction,
+            self.state.limit,
+            id,
+            created_at,
+            input.user_id.as_deref(),
+        )
+        .await
+        {
+            Ok(serieses) => serieses,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
-        let serieses =
-            match SeriesRepositoryImpl::find_all(&mut transaction, &Filter::from(&input.params))
-                .await
-            {
-                Ok(serieses) => serieses,
-                Err(err) => {
-                    error!("{:#?}", err);
-                    return Err(Status::internal("Something went wrong"));
-                }
-            };
+        let next_cursor = serieses
+            .last()
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
 
         let serieses = serieses.iter().map(|series| Series::from(series)).collect();
 
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(GetSeriesesResponse {
-                total,
                 series: serieses,
+                next_cursor,
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -85,19 +97,19 @@ impl SeriesService for SeriesServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Get Series Request {:#?}", input);
+        info!("Get Series Request {:?}", input);
 
         let series = match SeriesRepositoryImpl::find(&mut transaction, &input.series_id).await {
             Ok(list) => list,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::not_found("List not found"));
                 }
@@ -109,7 +121,7 @@ impl SeriesService for SeriesServiceImpl {
         // {
         //     Ok(articles) => articles,
         //     Err(err) => {
-        //         error!("{:#?}", err);
+        //         error!("{:?}", err);
         //         return Err(Status::internal("Something went wrong"));
         //     }
         // };
@@ -122,7 +134,7 @@ impl SeriesService for SeriesServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(Series::from(&series))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -135,14 +147,14 @@ impl SeriesService for SeriesServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Create Series Request {:#?}", input);
+        info!("Create Series Request {:?}", input);
 
         let series = match SeriesRepositoryImpl::create(
             &mut transaction,
@@ -156,7 +168,7 @@ impl SeriesService for SeriesServiceImpl {
         {
             Ok(series) => series,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let Some(database_error) = err.as_database_error() {
                     if let Some(constraint) = database_error.constraint() {
                         if constraint == "lists_user_id_fkey" {
@@ -174,7 +186,7 @@ impl SeriesService for SeriesServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(Series::from(&series))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -187,14 +199,14 @@ impl SeriesService for SeriesServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Update Series Request {:#?}", input);
+        info!("Update Series Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -210,7 +222,7 @@ impl SeriesService for SeriesServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::unknown("Series not found"));
                 }
@@ -230,7 +242,7 @@ impl SeriesService for SeriesServiceImpl {
         {
             Ok(series) => series,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 // if let Some(database_error) = err.as_database_error() {
                 //     if let Some(constraint) = database_error.constraint() {
                 //         if constraint == "series_slug_key" {
@@ -245,7 +257,7 @@ impl SeriesService for SeriesServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(Series::from(&series))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -258,14 +270,14 @@ impl SeriesService for SeriesServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Delete Series Request {:#?}", input);
+        info!("Delete Series Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -281,7 +293,7 @@ impl SeriesService for SeriesServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::unknown("Series not found"));
                 }
@@ -292,7 +304,7 @@ impl SeriesService for SeriesServiceImpl {
         let series = match SeriesRepositoryImpl::delete(&mut transaction, &input.series_id).await {
             Ok(series) => series,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -302,7 +314,7 @@ impl SeriesService for SeriesServiceImpl {
                 message: format!("Deleted series: {}", series.id),
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -315,14 +327,14 @@ impl SeriesService for SeriesServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Add Article to Series Request {:#?}", input);
+        info!("Add Article to Series Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -338,7 +350,7 @@ impl SeriesService for SeriesServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::unknown("Series not found"));
                 }
@@ -360,7 +372,7 @@ impl SeriesService for SeriesServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::unknown("Article not found"));
                 }
@@ -377,7 +389,7 @@ impl SeriesService for SeriesServiceImpl {
         {
             Ok(reponse) => reponse,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -387,7 +399,7 @@ impl SeriesService for SeriesServiceImpl {
                 message: format!("Article {} added to Series {}", reponse.1, reponse.0),
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -400,14 +412,14 @@ impl SeriesService for SeriesServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Remove Article from Series Request {:#?}", input);
+        info!("Remove Article from Series Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -423,7 +435,7 @@ impl SeriesService for SeriesServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::unknown("Series not found"));
                 }
@@ -445,7 +457,7 @@ impl SeriesService for SeriesServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::unknown("Article not found"));
                 }
@@ -462,7 +474,7 @@ impl SeriesService for SeriesServiceImpl {
         {
             Ok(reponse) => reponse,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -472,7 +484,7 @@ impl SeriesService for SeriesServiceImpl {
                 message: format!("Article {} removed to Series {}", reponse.1, reponse.0),
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }

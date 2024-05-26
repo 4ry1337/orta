@@ -11,8 +11,8 @@ use shared::{
     models::series_model::Series,
     resource_proto::{
         series_service_client::SeriesServiceClient, AddArticleSeriesRequest, CreateSeriesRequest,
-        DeleteSeriesRequest, GetSeriesRequest, GetSeriesesRequest, QueryParams,
-        RemoveArticleSeriesRequest, UpdateSeriesRequest,
+        DeleteSeriesRequest, GetSeriesRequest, GetSeriesesRequest, RemoveArticleSeriesRequest,
+        UpdateSeriesRequest,
     },
     utils::jwt::AccessTokenPayload,
 };
@@ -23,7 +23,7 @@ use crate::{
     application::AppState,
     utils::{
         mapper::code_to_statudecode,
-        params::{Metadata, Pagination, PathParams, ResultPaging},
+        params::{CursorPagination, PathParams, ResultPaging},
     },
 };
 
@@ -36,20 +36,17 @@ pub struct SeriesQueryParams {
 pub async fn get_serieses(
     Extension(channel): Extension<Channel>,
     Query(query): Query<SeriesQueryParams>,
-    Query(pagination): Query<Pagination>,
+    Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
-    info!("Get Series Request {:#?} {:#?}", query, pagination);
+    info!("Get Series Request {:?} {:?}", query, cursor);
 
     match SeriesServiceClient::new(channel)
         .get_serieses(GetSeriesesRequest {
             user_id: query.user_id,
             query: query.label,
-            params: Some(QueryParams {
-                order_by: None,
-                per_page: Some(pagination.per_page),
-                page: Some(pagination.page),
-            }),
+            limit: cursor.limit,
+            cursor: cursor.cursor,
         })
         .await
     {
@@ -58,8 +55,7 @@ pub async fn get_serieses(
             (
                 StatusCode::OK,
                 Json(json!(ResultPaging::<Series> {
-                    total: res.total,
-                    pagination: Metadata::new(res.total, pagination.per_page, pagination.page),
+                    next_cursor: res.next_cursor.to_owned(),
                     items: res
                         .series
                         .iter()
@@ -70,7 +66,7 @@ pub async fn get_serieses(
                 .into_response()
         }
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -88,7 +84,7 @@ pub async fn get_series(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    info!("Get Series Request {:#?}", series_id);
+    info!("Get Series Request {:?}", series_id);
 
     match SeriesServiceClient::new(channel)
         .get_series(GetSeriesRequest { series_id })
@@ -96,7 +92,7 @@ pub async fn get_series(
     {
         Ok(res) => (StatusCode::OK, Json(json!(Series::from(res.get_ref())))).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -116,7 +112,7 @@ pub async fn post_series(
     State(_state): State<AppState>,
     Json(payload): Json<PostSeriesRequestBody>,
 ) -> Response {
-    info!("Post Series Request {:#?} {:#?}", user, payload);
+    info!("Post Series Request {:?} {:?}", user, payload);
     match SeriesServiceClient::new(channel)
         .create_series(CreateSeriesRequest {
             user_id: user.user_id,
@@ -131,7 +127,7 @@ pub async fn post_series(
         )
             .into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -158,7 +154,7 @@ pub async fn patch_series(
     };
 
     info!(
-        "Patch Series Request {:#?} {:#?} {:#?}",
+        "Patch Series Request {:?} {:?} {:?}",
         series_id, user, payload
     );
 
@@ -173,7 +169,7 @@ pub async fn patch_series(
     {
         Ok(res) => (StatusCode::OK, Json(json!(Series::from(res.get_ref())))).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -192,7 +188,7 @@ pub async fn delete_series(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    info!("Patch Series Request {:#?} {:#?}", series_id, user);
+    info!("Patch Series Request {:?} {:?}", series_id, user);
 
     match SeriesServiceClient::new(channel)
         .delete_series(DeleteSeriesRequest {
@@ -203,7 +199,7 @@ pub async fn delete_series(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -229,7 +225,7 @@ pub async fn put_series_article(
     };
 
     info!(
-        "Put Article to Series Request {:#?} {:#?} {:#?}",
+        "Put Article to Series Request {:?} {:?} {:?}",
         payload, series_id, user
     );
 
@@ -243,7 +239,7 @@ pub async fn put_series_article(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -269,7 +265,7 @@ pub async fn delete_series_article(
     };
 
     info!(
-        "Delete Article from Series Request {:#?} {:#?} {:#?}",
+        "Delete Article from Series Request {:?} {:?} {:?}",
         payload, series_id, user
     );
 
@@ -283,7 +279,7 @@ pub async fn delete_series_article(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()

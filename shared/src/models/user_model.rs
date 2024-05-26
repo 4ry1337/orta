@@ -15,6 +15,7 @@ pub struct User {
     pub urls: Vec<String>,
     pub follower_count: i32,
     pub following_count: i32,
+    pub created_at: DateTime<Utc>,
     pub approved_at: Option<DateTime<Utc>>,
     pub deleted_at: Option<DateTime<Utc>>,
 }
@@ -40,6 +41,7 @@ impl<'r> sqlx::Decode<'r, Postgres> for User {
         let urls = decoder.try_decode()?;
         let follower_count = decoder.try_decode()?;
         let following_count = decoder.try_decode()?;
+        let created_at = decoder.try_decode()?;
         let approved_at = decoder.try_decode()?;
         let deleted_at = decoder.try_decode()?;
         Ok(Self {
@@ -53,6 +55,7 @@ impl<'r> sqlx::Decode<'r, Postgres> for User {
             urls,
             follower_count,
             following_count,
+            created_at,
             approved_at,
             deleted_at,
         })

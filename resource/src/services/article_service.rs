@@ -10,14 +10,16 @@ use shared::{
         GetHistoryResponse, RemoveAuthorRequest, RemoveAuthorResponse, SaveArticleRequest,
         UpdateArticleRequest, UpdateTagsRequest, UpdateTagsResponse,
     },
-    utils::params::Filter,
 };
 use tonic::{Request, Response, Status};
 use tracing::{error, info};
 
 use crate::{
     application::AppState,
-    utils::permissions::{is_owner, ContentType},
+    utils::{
+        permissions::{is_owner, ContentType},
+        split_cursor::parse_cursor,
+    },
 };
 #[derive(Clone)]
 pub struct ArticleServiceImpl {
@@ -33,14 +35,14 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Create Article Request {:#?}", input);
+        info!("Create Article Request {:?}", input);
 
         let article = match ArticleRepositoryImpl::create(
             &mut transaction,
@@ -53,7 +55,7 @@ impl ArticleService for ArticleServiceImpl {
         {
             Ok(article) => article,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let Some(database_error) = err.as_database_error() {
                     if let Some(constraint) = database_error.constraint() {
                         if constraint == "authors_author_id_fkey" {
@@ -71,7 +73,7 @@ impl ArticleService for ArticleServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(Article::from(&article))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -84,48 +86,49 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Get Articles Request {:#?}", input);
+        info!("Get Articles Request {:?}", input);
 
-        let total = match ArticleRepositoryImpl::total(
-            &mut transaction,
-            input.usernames.to_owned(),
-            input.list_id.as_deref(),
-            input.series_id.as_deref(),
-        )
-        .await
-        {
-            Ok(total) => match total {
-                Some(total) => total,
-                None => 0,
-            },
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
             }
         };
 
         let articles = match ArticleRepositoryImpl::find_all(
             &mut transaction,
-            &Filter::from(&input.params),
             input.usernames.to_owned(),
             input.list_id.as_deref(),
             input.series_id.as_deref(),
+            self.state.limit,
+            id,
+            created_at,
         )
         .await
         {
             Ok(articles) => articles,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
+
+        let next_cursor = articles
+            .last()
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
 
         let articles = articles
             .iter()
@@ -133,9 +136,12 @@ impl ArticleService for ArticleServiceImpl {
             .collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetArticlesResponse { total, articles })),
+            Ok(_) => Ok(Response::new(GetArticlesResponse {
+                articles,
+                next_cursor,
+            })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -148,19 +154,19 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Get Article Request {:#?}", input);
+        info!("Get Article Request {:?}", input);
 
         let article = match ArticleRepositoryImpl::find(&mut transaction, &input.article_id).await {
             Ok(article) => article,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::not_found("Article not found"));
                 }
@@ -171,7 +177,7 @@ impl ArticleService for ArticleServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(FullArticle::from(&article))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -184,14 +190,14 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Update Article Request {:#?}", input);
+        info!("Update Article Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -207,7 +213,7 @@ impl ArticleService for ArticleServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let sqlx::error::Error::RowNotFound = err {
                     return Err(Status::unknown("Article not found"));
                 }
@@ -226,7 +232,7 @@ impl ArticleService for ArticleServiceImpl {
         {
             Ok(article) => article,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let Some(database_error) = err.as_database_error() {
                     if let Some(constraint) = database_error.constraint() {
                         if constraint == "articles_slug_key" {
@@ -241,7 +247,7 @@ impl ArticleService for ArticleServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(Article::from(&article))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -254,14 +260,14 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Delete Article Request {:#?}", input);
+        info!("Delete Article Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -277,7 +283,7 @@ impl ArticleService for ArticleServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
 
                 // TODO check if works
                 if let sqlx::error::Error::RowNotFound = err {
@@ -291,7 +297,7 @@ impl ArticleService for ArticleServiceImpl {
         {
             Ok(article) => article,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -301,7 +307,7 @@ impl ArticleService for ArticleServiceImpl {
                 message: format!("Deleted article: {}", article.id),
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -314,14 +320,14 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Add Author Request {:#?}", input);
+        info!("Add Author Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -337,7 +343,7 @@ impl ArticleService for ArticleServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
 
                 // TODO check if works
                 if let sqlx::error::Error::RowNotFound = err {
@@ -358,7 +364,7 @@ impl ArticleService for ArticleServiceImpl {
         {
             Ok(users) => users,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let Some(database_error) = err.as_database_error() {
                     if let Some(constraint) = database_error.constraint() {
                         if constraint == "authors_author_id_fkey" {
@@ -378,7 +384,7 @@ impl ArticleService for ArticleServiceImpl {
                 message: format!("Author {} added to {}", authors.1, authors.0),
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -391,14 +397,14 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Remove Author Request {:#?}", input);
+        info!("Remove Author Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -414,7 +420,7 @@ impl ArticleService for ArticleServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
 
                 // TODO check if works
                 if let sqlx::error::Error::RowNotFound = err {
@@ -435,7 +441,7 @@ impl ArticleService for ArticleServiceImpl {
         {
             Ok(users) => users,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let Some(database_error) = err.as_database_error() {
                     if let Some(constraint) = database_error.constraint() {
                         if constraint == "authors_author_id_fkey" {
@@ -455,7 +461,7 @@ impl ArticleService for ArticleServiceImpl {
                 message: format!("Author {} deleted from {}", authors.1, authors.0),
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -475,14 +481,14 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Get History Request {:#?}", input);
+        info!("Get History Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -498,7 +504,7 @@ impl ArticleService for ArticleServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
 
                 // TODO check if works
                 if let sqlx::error::Error::RowNotFound = err {
@@ -508,31 +514,38 @@ impl ArticleService for ArticleServiceImpl {
             }
         };
 
-        let total = match ArticleRepositoryImpl::versions(&mut transaction, &input.article_id).await
-        {
-            Ok(total) => match total {
-                Some(total) => total,
-                None => 0,
-            },
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
             }
         };
 
         let article_versions = match ArticleRepositoryImpl::history(
             &mut transaction,
             &input.article_id,
-            &Filter::from(&input.params),
+            self.state.limit,
+            id,
+            created_at,
         )
         .await
         {
             Ok(article_versions) => article_versions,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
+
+        let next_cursor = article_versions
+            .last()
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
 
         let article_versions = article_versions
             .iter()
@@ -541,11 +554,11 @@ impl ArticleService for ArticleServiceImpl {
 
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(GetHistoryResponse {
-                total,
                 article_versions,
+                next_cursor,
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -558,14 +571,14 @@ impl ArticleService for ArticleServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        info!("Get History Request {:#?}", input);
+        info!("Get History Request {:?}", input);
 
         match is_owner(
             &mut transaction,
@@ -581,7 +594,7 @@ impl ArticleService for ArticleServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
 
                 // TODO check if works
                 if let sqlx::error::Error::RowNotFound = err {
@@ -601,7 +614,7 @@ impl ArticleService for ArticleServiceImpl {
         {
             Ok(article_version) => article_version,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -609,7 +622,7 @@ impl ArticleService for ArticleServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(ArticleVersion::from(&article_version))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }

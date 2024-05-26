@@ -1,11 +1,14 @@
 use axum::{
-    extract::DefaultBodyLimit,
+    extract::{DefaultBodyLimit, State},
     handler::Handler,
+    http::StatusCode,
     middleware,
+    response::{IntoResponse, Response},
     routing::{get, patch, post, put},
     Router,
 };
 use axum_prometheus::PrometheusMetricLayer;
+use tracing::info;
 
 use crate::{
     application::AppState,
@@ -214,8 +217,15 @@ pub fn router(state: AppState) -> Router<AppState> {
                             ),
                         )
                         .layer(middleware::from_fn(resource_service_middleware)),
-                ),
+                )
+                .route("/notify", get(test_notification)),
         )
         .layer(DefaultBodyLimit::max(1024 * 1024 * 50))
         .layer(prometheus_layer)
+}
+
+pub async fn test_notification(State(state): State<AppState>) -> Response {
+    info!("test notification faired");
+
+    (StatusCode::OK, "test notification faired").into_response()
 }

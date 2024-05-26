@@ -675,6 +675,7 @@ dependencies = [
 name = "backend"
 version = "0.1.0"
 dependencies = [
+ "amqprs",
  "anyhow",
  "async-trait",
  "axum 0.7.5",

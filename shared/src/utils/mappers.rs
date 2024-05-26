@@ -143,6 +143,7 @@ impl From<&user_model::User> for User {
             urls: value.urls.clone(),
             following_count: value.following_count,
             follower_count: value.follower_count,
+            created_at: W(&value.created_at).into(),
             approved_at: W(value.approved_at.as_ref()).into(),
             deleted_at: W(value.deleted_at.as_ref()).into(),
         }
@@ -162,6 +163,7 @@ impl From<&User> for user_model::User {
             urls: value.urls.clone(),
             following_count: value.following_count,
             follower_count: value.follower_count,
+            created_at: W(value.created_at.as_ref()).into(),
             approved_at: W(value.approved_at.as_ref()).into(),
             deleted_at: W(value.deleted_at.as_ref()).into(),
         }

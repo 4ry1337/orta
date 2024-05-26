@@ -1,12 +1,10 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::{
-    models::{
-        comment_model::{Comment, CreateComment, UpdateComment},
-        enums::CommentableType,
-    },
-    utils::params::Filter,
+use crate::models::{
+    comment_model::{Comment, CreateComment, UpdateComment},
+    enums::CommentableType,
 };
 
 #[async_trait]
@@ -14,16 +12,13 @@ pub trait CommentRepository<DB, E>
 where
     DB: Database,
 {
-    async fn total(
-        transaction: &mut Transaction<'_, DB>,
-        target_id: &str,
-        r#type: CommentableType,
-    ) -> Result<Option<i64>, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         target_id: &str,
         r#type: CommentableType,
-        filters: Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<Comment>, E>;
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
@@ -45,29 +40,13 @@ pub struct CommentRepositoryImpl;
 
 #[async_trait]
 impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
-    async fn total(
-        transaction: &mut Transaction<'_, Postgres>,
-        target_id: &str,
-        r#type: CommentableType,
-    ) -> Result<Option<i64>, Error> {
-        sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)
-            FROM comments
-            WHERE target_id = $1 AND type = $2
-            "#n,
-            target_id,
-            r#type as CommentableType
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         target_id: &str,
         r#type: CommentableType,
-        filters: Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<Comment>, Error> {
         sqlx::query_as!(
             Comment,
@@ -81,15 +60,15 @@ impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
                 created_at,
                 updated_at
             FROM comments
-            WHERE target_id = $1 AND type = $2
-            ORDER BY created_at ASC
+            WHERE (target_id = $1 AND type = $2) AND (($4::text IS NULL AND $5::timestamptz IS NULL) OR (id, created_at) < ($4, $5))
+            ORDER BY id DESC, created_at DESC
             LIMIT $3
-            OFFSET $4
             "#n,
             target_id,
             r#type as CommentableType,
-            filters.limit,
-            filters.offset
+            limit,
+            id,
+            created_at
         )
         .fetch_all(&mut **transaction)
         .await

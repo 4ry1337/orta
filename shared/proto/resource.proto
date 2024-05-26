@@ -4,12 +4,6 @@ package resource;
 
 import "google/protobuf/timestamp.proto";
 
-message QueryParams {
-  optional string order_by = 1;
-  optional int64 page = 2;
-  optional int64 per_page = 3;
-}
-
 message User {
   string id = 1;
   string username = 2;
@@ -21,8 +15,9 @@ message User {
   repeated string urls = 8;
   int32 follower_count = 9;
   int32 following_count = 10;
-  optional google.protobuf.Timestamp approved_at = 11;
-  optional google.protobuf.Timestamp deleted_at = 12;
+  google.protobuf.Timestamp created_at = 11;
+  optional google.protobuf.Timestamp approved_at = 12;
+  optional google.protobuf.Timestamp deleted_at = 13;
 }
 
 enum Role {
@@ -33,12 +28,13 @@ enum Role {
 
 message GetUsersRequest {
   optional string query = 1;
-  QueryParams params = 2;
+  int64 limit = 2;
+  optional string cursor = 3;
 }
 
 message GetUsersResponse {
-  int64 total = 1;
   repeated User users = 2;
+  optional string nextCursor = 3;
 }
 
 message GetUserRequest {
@@ -80,11 +76,34 @@ message UnfollowUserResponse {
   string message = 1;
 }
 
+message FollowersRequest {
+  string id = 1;
+  int64 limit = 2;
+  optional string cursor = 3;
+}
+
+message FollowingRequest {
+  string id = 1;
+  optional string cursor = 3;
+}
+
+message FollowersResponse {
+  repeated User users = 2;
+  optional string nextCursor = 3;
+}
+
+message FollowingResponse {
+  repeated User users = 2;
+  optional string nextCursor = 3;
+}
+
 service UserService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
   rpc GetUser(GetUserRequest) returns (User);
   rpc UpdateUser(UpdateUserRequest) returns (User);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc Followers(FollowersRequest) returns (FollowersResponse);
+  rpc Following(FollowingRequest) returns (FollowingResponse);
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
   rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
 }
@@ -124,12 +143,13 @@ message GetArticlesRequest {
   repeated string usernames = 1;
   optional string list_id = 2;
   optional string series_id = 3;
-  QueryParams params = 4;
+  optional string cursor = 4;
+  int64 limit = 5;
 }
 
 message GetArticlesResponse {
-  int64 total = 1;
   repeated FullArticle articles = 2;
+  optional string nextCursor = 3;
 }
 
 message GetArticleRequest {
@@ -178,6 +198,7 @@ message RemoveAuthorResponse {
 
 message UpdateTagsRequest {
   repeated int32 tags = 1;
+  int64 limit = 2;
 }
 
 message UpdateTagsResponse {
@@ -195,12 +216,12 @@ message GetHistoryRequest {
   string user_id = 1;
   string article_id = 2;
   optional string query = 3;
-  QueryParams params = 4;
+  optional string cursor = 4;
 }
 
 message GetHistoryResponse {
-  int64 total = 1;
   repeated ArticleVersion article_versions = 2;
+  optional string nextCursor = 3;
 }
 
 service ArticleService {
@@ -242,13 +263,14 @@ message CreateListRequest {
 
 message GetListsRequest {
   optional string query = 1;
-  QueryParams params = 2;
-  optional string user_id = 3;
+  optional string user_id = 2;
+  optional string cursor = 3;
+  int64 limit = 4;
 }
 
 message GetListsResponse {
-  int64 total = 1;
   repeated List lists = 2;
+  optional string nextCursor = 3;
 }
 
 message GetListRequest {
@@ -320,13 +342,14 @@ message CreateSeriesRequest {
 
 message GetSeriesesRequest {
   optional string query = 1;
-  QueryParams params = 2;
-  optional string user_id = 3;
+  optional string user_id = 2;
+  optional string cursor = 3;
+  int64 limit = 4;
 }
 
 message GetSeriesesResponse {
-  int64 total = 1;
   repeated Series series = 2;
+  optional string nextCursor = 3;
 }
 
 message GetSeriesRequest {
@@ -405,13 +428,14 @@ message CreateCommentRequest {
 message GetCommentsRequest {
   string target_id = 1;
   CommentableType type = 2;
-  QueryParams params = 3;
-  optional string user_id = 4;
+  optional string user_id = 3;
+  optional string cursor = 4;
+  int64 limit = 5;
 }
 
 message GetCommentsResponse {
-  int64 total = 1;
   repeated Comment comments = 2;
+  optional string nextCursor = 3;
 }
 
 message UpdateCommentRequest {
@@ -454,13 +478,15 @@ enum TagStatus {
 
 message GetTagsRequest {
   optional TagStatus tag_status = 1;
-  QueryParams params = 2;
-  optional string user_id = 3;
-  optional string article_id = 4;
+  optional string user_id = 2;
+  optional string article_id = 3;
+  optional string cursor = 4;
+  int64 limit = 5;
 }
 
 message GetTagsResponse {
   repeated Tag tags = 1;
+  optional string nextCursor = 2;
 }
 
 service TagService {

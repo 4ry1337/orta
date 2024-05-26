@@ -8,14 +8,16 @@ use shared::{
         DeleteCommentRequest, DeleteCommentResponse, GetCommentsRequest, GetCommentsResponse,
         UpdateCommentRequest,
     },
-    utils::params::Filter,
 };
 use tonic::{Request, Response, Status};
 use tracing::error;
 
 use crate::{
     application::AppState,
-    utils::permissions::{is_owner, ContentType},
+    utils::{
+        permissions::{is_owner, ContentType},
+        split_cursor::parse_cursor,
+    },
 };
 
 #[derive(Clone)]
@@ -32,7 +34,7 @@ impl CommentService for CommentServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -52,7 +54,7 @@ impl CommentService for CommentServiceImpl {
         {
             Ok(comment) => comment,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 if let Some(database_error) = err.as_database_error() {
                     if let Some(constraint) = database_error.constraint() {
                         if constraint == "comments_commenter_id_fkey" {
@@ -70,7 +72,7 @@ impl CommentService for CommentServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(Comment::from(&comment))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -83,27 +85,23 @@ impl CommentService for CommentServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
 
         let input = request.get_ref();
 
-        let total = match CommentRepositoryImpl::total(
-            &mut transaction,
-            &input.target_id,
-            input.r#type().into(),
-        )
-        .await
-        {
-            Ok(total) => match total {
-                Some(total) => total,
-                None => 0,
-            },
-            Err(err) => {
-                error!("{:#?}", err);
-                return Err(Status::internal("Something went wrong"));
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
             }
         };
 
@@ -111,16 +109,22 @@ impl CommentService for CommentServiceImpl {
             &mut transaction,
             &input.target_id,
             input.r#type().into(),
-            Filter::from(&input.params),
+            self.state.limit,
+            id,
+            created_at,
         )
         .await
         {
             Ok(comments) => comments,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
+
+        let next_cursor = comments
+            .last()
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
 
         let comments = comments
             .iter()
@@ -128,9 +132,12 @@ impl CommentService for CommentServiceImpl {
             .collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetCommentsResponse { total, comments })),
+            Ok(_) => Ok(Response::new(GetCommentsResponse {
+                comments,
+                next_cursor,
+            })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -143,7 +150,7 @@ impl CommentService for CommentServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -164,7 +171,7 @@ impl CommentService for CommentServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
 
                 // TODO check if works
                 if let sqlx::error::Error::RowNotFound = err {
@@ -185,7 +192,7 @@ impl CommentService for CommentServiceImpl {
         {
             Ok(comment) => comment,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -193,7 +200,7 @@ impl CommentService for CommentServiceImpl {
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(Comment::from(&comment))),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }
@@ -206,7 +213,7 @@ impl CommentService for CommentServiceImpl {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -227,7 +234,7 @@ impl CommentService for CommentServiceImpl {
                 }
             }
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
 
                 // TODO check if works
                 if let sqlx::error::Error::RowNotFound = err {
@@ -240,7 +247,7 @@ impl CommentService for CommentServiceImpl {
         match CommentRepositoryImpl::delete(&mut transaction, &input.comment_id).await {
             Ok(comment) => comment,
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         };
@@ -250,7 +257,7 @@ impl CommentService for CommentServiceImpl {
                 message: format!("Delete comment"),
             })),
             Err(err) => {
-                error!("{:#?}", err);
+                error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
             }
         }

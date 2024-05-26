@@ -2,12 +2,9 @@ use async_trait::async_trait;
 use slug::slugify;
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::{
-    models::{
-        enums::TagStatus,
-        tag_model::{CreateTag, Tag, UpdateTag},
-    },
-    utils::params::Filter,
+use crate::models::{
+    enums::TagStatus,
+    tag_model::{CreateTag, Tag, UpdateTag},
 };
 
 #[async_trait]
@@ -17,10 +14,11 @@ where
 {
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
-        tag_status: Option<TagStatus>,
+        limit: i64,
         user_id: Option<&str>,
         article_id: Option<&str>,
-        filters: &Filter,
+        tag_status: Option<TagStatus>,
+        slug: Option<&str>,
     ) -> Result<Vec<Tag>, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, tag_id: &str) -> Result<Tag, E>;
     async fn create(
@@ -51,34 +49,30 @@ pub struct TagRepositoryImpl;
 impl TagRepository<Postgres, Error> for TagRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        tag_status: Option<TagStatus>,
+        limit: i64,
         user_id: Option<&str>,
         article_id: Option<&str>,
-        filters: &Filter,
+        tag_status: Option<TagStatus>,
+        slug: Option<&str>,
     ) -> Result<Vec<Tag>, Error> {
         sqlx::query_as!(
             Tag,
             r#"
             SELECT
-                t.label,
-                t.slug,
-                t.article_count,
-                t.tag_status AS "tag_status: TagStatus",
-                t.created_at,
-                t.updated_at
-            FROM tags t
-            LEFT JOIN interests i ON t.slug = i.tag_slug
-            LEFT JOIN articletags at ON t.slug = at.tag_slug
-            WHERE (at.article_id = $5 OR i.user_id = $4) AND tag_status = coalesce($1, tag_status)
-            ORDER BY t.created_at DESC
-            LIMIT $2
-            OFFSET $3
+                label,
+                slug,
+                article_count,
+                tag_status AS "tag_status: TagStatus",
+                created_at,
+                updated_at
+            FROM tags
+            WHERE tag_status = coalesce($2, tag_status) AND (($3::text IS NULL) OR (slug > $3))
+            ORDER BY slug ASC
+            LIMIT $1
             "#n,
+            limit,
             tag_status as Option<TagStatus>,
-            filters.limit,
-            filters.offset,
-            user_id,
-            article_id,
+            slug
         )
         .fetch_all(&mut **transaction)
         .await

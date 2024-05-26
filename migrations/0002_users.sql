@@ -11,6 +11,7 @@ CREATE TABLE Users (
   urls TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
   follower_count INTEGER NOT NULL DEFAULT 0,
   following_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   approved_at TIMESTAMPTZ,
   deleted_at TIMESTAMPTZ
 );
@@ -29,7 +30,8 @@ CREATE TABLE Accounts (
   id_token TEXT,
   session_state TEXT,
   password TEXT,
-  salt TEXT 
+  salt TEXT, 
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now ()
 );
 
 CREATE TABLE Verification_token (

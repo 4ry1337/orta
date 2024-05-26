@@ -1,12 +1,10 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::{
-    models::{
-        enums::Visibility,
-        list_model::{CreateList, List, UpdateList},
-    },
-    utils::params::Filter,
+use crate::models::{
+    enums::Visibility,
+    list_model::{CreateList, List, UpdateList},
 };
 
 #[async_trait]
@@ -14,13 +12,11 @@ pub trait ListRepository<DB, E>
 where
     DB: Database,
 {
-    async fn total(
-        transaction: &mut Transaction<'_, DB>,
-        user_id: Option<&str>,
-    ) -> Result<Option<i64>, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
-        filters: &Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
         user_id: Option<&str>,
     ) -> Result<Vec<List>, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, list_id: &str) -> Result<List, E>;
@@ -50,20 +46,11 @@ pub struct ListRepositoryImpl;
 
 #[async_trait]
 impl ListRepository<Postgres, Error> for ListRepositoryImpl {
-    async fn total(
-        transaction: &mut Transaction<'_, Postgres>,
-        user_id: Option<&str>,
-    ) -> Result<Option<i64>, Error> {
-        sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM lists WHERE user_id = COALESCE($1, user_id)",
-            user_id
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        filters: &Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
         user_id: Option<&str>,
     ) -> Result<Vec<List>, Error> {
         sqlx::query_as!(
@@ -79,13 +66,13 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 created_at,
                 updated_at
             FROM lists
-            WHERE user_id = COALESCE($3, user_id)
-            ORDER BY created_at DESC
+            WHERE user_id = COALESCE($4, user_id) AND (($2::text IS NULL AND $3::timestamptz IS NULL) OR (id, created_at) < ($2, $3))
+            ORDER BY id DESC, created_at DESC
             LIMIT $1
-            OFFSET $2
-            "#n,
-            filters.limit,
-            filters.offset,
+            "#,
+            limit,
+            id,
+            created_at,
             user_id
         )
         .fetch_all(&mut **transaction)

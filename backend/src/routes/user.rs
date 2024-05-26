@@ -9,8 +9,7 @@ use serde_json::json;
 use shared::{
     models::user_model::User,
     resource_proto::{
-        user_service_client::UserServiceClient, GetUserRequest, GetUsersRequest, QueryParams,
-        UpdateUserRequest,
+        user_service_client::UserServiceClient, GetUserRequest, GetUsersRequest, UpdateUserRequest,
     },
     utils::jwt::AccessTokenPayload,
 };
@@ -21,23 +20,20 @@ use crate::{
     application::AppState,
     utils::{
         mapper::code_to_statudecode,
-        params::{Metadata, Pagination, PathParams, ResultPaging},
+        params::{CursorPagination, PathParams, ResultPaging},
     },
 };
 
 pub async fn get_users(
     Extension(channel): Extension<Channel>,
-    Query(query): Query<Pagination>,
+    Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
     match UserServiceClient::new(channel)
         .get_users(GetUsersRequest {
             query: None,
-            params: Some(QueryParams {
-                order_by: None,
-                per_page: Some(query.per_page),
-                page: Some(query.page),
-            }),
+            limit: cursor.limit,
+            cursor: cursor.cursor,
         })
         .await
     {
@@ -46,8 +42,7 @@ pub async fn get_users(
             (
                 StatusCode::OK,
                 Json(json!(ResultPaging::<User> {
-                    total: res.total,
-                    pagination: Metadata::new(res.total, query.per_page, query.page),
+                    next_cursor: res.next_cursor.to_owned(),
                     items: res.users.iter().map(|user| User::from(user)).collect()
                 })),
             )

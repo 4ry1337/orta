@@ -12,8 +12,8 @@ use shared::{
     models::article_model::{Article, FullArticle},
     resource_proto::{
         article_service_client::ArticleServiceClient, AddAuthorRequest, CreateArticleRequest,
-        DeleteArticleRequest, GetArticleRequest, GetArticlesRequest, QueryParams,
-        RemoveAuthorRequest, UpdateArticleRequest,
+        DeleteArticleRequest, GetArticleRequest, GetArticlesRequest, RemoveAuthorRequest,
+        UpdateArticleRequest,
     },
     utils::jwt::AccessTokenPayload,
 };
@@ -24,7 +24,7 @@ use crate::{
     application::AppState,
     utils::{
         mapper::code_to_statudecode,
-        params::{Metadata, Pagination, PathParams, ResultPaging},
+        params::{CursorPagination, PathParams, ResultPaging},
     },
 };
 
@@ -38,20 +38,17 @@ pub struct ArticlesQueryParams {
 pub async fn get_articles(
     Extension(channel): Extension<Channel>,
     Query(query): Query<ArticlesQueryParams>,
-    Query(pagination): Query<Pagination>,
+    Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
-    info!("Get Articles Request {:#?} {:#?}", query, pagination);
+    info!("Get Articles Request {:?} {:?}", query, cursor);
     match ArticleServiceClient::new(channel)
         .get_articles(GetArticlesRequest {
             usernames: query.usernames.unwrap_or_default(),
             list_id: query.list_id,
             series_id: query.series_id,
-            params: Some(QueryParams {
-                order_by: None,
-                per_page: Some(pagination.per_page),
-                page: Some(pagination.page),
-            }),
+            cursor: cursor.cursor,
+            limit: cursor.limit,
         })
         .await
     {
@@ -60,8 +57,7 @@ pub async fn get_articles(
             (
                 StatusCode::OK,
                 Json(json!(ResultPaging::<FullArticle> {
-                    total: res.total,
-                    pagination: Metadata::new(res.total, pagination.per_page, pagination.page),
+                    next_cursor: res.next_cursor.to_owned(),
                     items: res
                         .articles
                         .iter()
@@ -72,7 +68,7 @@ pub async fn get_articles(
                 .into_response()
         }
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -100,7 +96,7 @@ pub async fn get_article(
         )
             .into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -119,7 +115,7 @@ pub async fn post_article(
     State(_state): State<AppState>,
     Json(payload): Json<PostArticleRequestBody>,
 ) -> Response {
-    info!("Post Articles Request {:#?} {:#?}", user, payload);
+    info!("Post Articles Request {:?} {:?}", user, payload);
 
     match ArticleServiceClient::new(channel)
         .create_article(CreateArticleRequest {
@@ -134,7 +130,7 @@ pub async fn post_article(
         )
             .into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -159,7 +155,7 @@ pub async fn patch_article(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
     info!(
-        "Patch Articles Request {:#?} {:#?} {:#?}",
+        "Patch Articles Request {:?} {:?} {:?}",
         user, article_id, payload
     );
     match ArticleServiceClient::new(channel)
@@ -172,7 +168,7 @@ pub async fn patch_article(
     {
         Ok(res) => (StatusCode::OK, Json(json!(Article::from(res.get_ref())))).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -190,7 +186,7 @@ pub async fn delete_article(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    info!("Delete Articles Request {:#?} {:#?}", user, article_id);
+    info!("Delete Articles Request {:?} {:?}", user, article_id);
     match ArticleServiceClient::new(channel)
         .delete_article(DeleteArticleRequest {
             user_id: user.user_id,
@@ -200,7 +196,7 @@ pub async fn delete_article(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -226,7 +222,7 @@ pub async fn put_author(
     };
 
     info!(
-        "Put Author to Articles Request {:#?} {:#?} {:#?}",
+        "Put Author to Articles Request {:?} {:?} {:?}",
         user, payload, article_id
     );
 
@@ -240,7 +236,7 @@ pub async fn put_author(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -265,7 +261,7 @@ pub async fn delete_author(
     };
 
     info!(
-        "Delete Author to Articles Request {:#?} {:#?} {:#?}",
+        "Delete Author to Articles Request {:?} {:?} {:?}",
         user, payload, article_id
     );
 
@@ -279,7 +275,7 @@ pub async fn delete_author(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()

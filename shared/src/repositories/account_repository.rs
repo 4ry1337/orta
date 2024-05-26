@@ -1,10 +1,8 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::{
-    models::account_model::{Account, CreateAccount, UpdateAccount},
-    utils::params::Filter,
-};
+use crate::models::account_model::{Account, CreateAccount, UpdateAccount};
 
 #[async_trait]
 pub trait AccountRepository<DB, E>
@@ -13,7 +11,9 @@ where
 {
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
-        filters: &Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<Account>, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, account_id: &str) -> Result<Account, E>;
     async fn find_by_user(
@@ -38,20 +38,22 @@ pub struct AccountRepositoryImpl;
 impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        filters: &Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<Account>, Error> {
         sqlx::query_as!(
             Account,
             r#"
             SELECT *
             FROM accounts
-            ORDER BY $1
-            LIMIT $2
-            OFFSET $3
+            WHERE (($2::text IS NULL AND $3::timestamptz IS NULL) OR (id, created_at) < ($2, $3))
+            ORDER BY id DESC, created_at DESC
+            LIMIT $1
             "#,
-            filters.order_by,
-            filters.limit,
-            filters.offset
+            limit,
+            id,
+            created_at
         )
         .fetch_all(&mut **transaction)
         .await

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(sqlx::FromRow, Deserialize, Serialize, Debug)]
@@ -16,6 +17,7 @@ pub struct Account {
     pub session_state: Option<String>,
     pub password: Option<String>,
     pub salt: Option<String>,
+    pub created_at: DateTime<Utc>,
 }
 
 pub struct CreateAccount {

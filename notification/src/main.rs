@@ -1,9 +1,8 @@
-use std::str;
-
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-    channel::{BasicConsumeArguments, QueueDeclareArguments},
+    channel::{BasicConsumeArguments, QueueBindArguments, QueueDeclareArguments},
     connection::{Connection, OpenConnectionArguments},
+    consumer::DefaultConsumer,
 };
 use secrecy::ExposeSecret;
 use shared::configuration::CONFIG;
@@ -11,7 +10,7 @@ use tokio::sync::Notify;
 use tracing::info;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<tokio::io::Error>> {
+async fn main() {
     // construct a subscriber that prints formatted traces to stdout
     // Start configuring a `fmt` subscriber
     let subscriber = tracing_subscriber::fmt()
@@ -60,31 +59,31 @@ async fn main() -> Result<(), Box<tokio::io::Error>> {
 
     // declare a durable queue
     let (queue_name, _, _) = channel
-        .queue_declare(QueueDeclareArguments::durable_client_named(
-            "email-verification",
-        ))
+        .queue_declare(QueueDeclareArguments::durable_client_named("notification"))
         .await
         .unwrap()
         .unwrap();
 
-    info!(queue_name);
+    // bind the queue to exchange
+    let routing_key = "amqprs.email-verification";
+    let exchange_name = "amq.direct";
 
-    let consumer_args = BasicConsumeArguments::new(&queue_name, "notification");
+    channel
+        .queue_bind(QueueBindArguments::new(
+            &queue_name,
+            exchange_name,
+            routing_key,
+        ))
+        .await
+        .unwrap();
 
-    let (_ctag, mut rx) = channel.basic_consume_rx(consumer_args).await.unwrap();
+    let args = BasicConsumeArguments::new(&queue_name, "notification").finish();
 
-    tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if let Some(payload) = msg.content {
-                println!(" [x] Received {:?}", str::from_utf8(&payload).unwrap());
-            }
-        }
-    });
-
-    println!(" [*] Waiting for messages. To exit press CTRL+C");
+    channel
+        .basic_consume(DefaultConsumer::new(args.no_ack), args)
+        .await
+        .unwrap();
 
     let guard = Notify::new();
     guard.notified().await;
-
-    Ok(())
 }

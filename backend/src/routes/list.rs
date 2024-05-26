@@ -11,7 +11,7 @@ use shared::{
     models::{enums::Visibility, list_model::List},
     resource_proto::{
         self, list_service_client::ListServiceClient, AddArticleListRequest, CreateListRequest,
-        DeleteListRequest, GetListRequest, GetListsRequest, QueryParams,
+        DeleteListRequest, GetListRequest, GetListsRequest,
     },
     utils::jwt::AccessTokenPayload,
 };
@@ -22,7 +22,7 @@ use crate::{
     application::AppState,
     utils::{
         mapper::code_to_statudecode,
-        params::{Metadata, Pagination, PathParams, ResultPaging},
+        params::{CursorPagination, PathParams, ResultPaging},
     },
 };
 
@@ -35,20 +35,17 @@ pub struct ListsQueryParams {
 pub async fn get_lists(
     Extension(channel): Extension<Channel>,
     Query(query): Query<ListsQueryParams>,
-    Query(pagination): Query<Pagination>,
+    Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
-    info!("Get Lists Request {:#?} {:#?}", query, pagination);
+    info!("Get Lists Request {:?} {:?}", query, cursor);
 
     match ListServiceClient::new(channel)
         .get_lists(GetListsRequest {
             user_id: query.user_id,
             query: query.label,
-            params: Some(QueryParams {
-                order_by: None,
-                per_page: Some(pagination.per_page),
-                page: Some(pagination.page),
-            }),
+            cursor: cursor.cursor,
+            limit: cursor.limit,
         })
         .await
     {
@@ -57,15 +54,14 @@ pub async fn get_lists(
             (
                 StatusCode::OK,
                 Json(json!(ResultPaging::<List> {
-                    total: res.total,
-                    pagination: Metadata::new(res.total, pagination.per_page, pagination.page),
+                    next_cursor: res.next_cursor.to_owned(),
                     items: res.lists.iter().map(|list| List::from(list)).collect()
                 })),
             )
                 .into_response()
         }
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -83,7 +79,7 @@ pub async fn get_list(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    info!("Get List Request {:#?}", list_id);
+    info!("Get List Request {:?}", list_id);
 
     match ListServiceClient::new(channel)
         .get_list(GetListRequest { list_id })
@@ -91,7 +87,7 @@ pub async fn get_list(
     {
         Ok(res) => (StatusCode::OK, Json(json!(List::from(res.get_ref())))).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -112,7 +108,7 @@ pub async fn post_list(
     State(_state): State<AppState>,
     Json(payload): Json<PostListRequestBody>,
 ) -> Response {
-    info!("Post List Request {:#?} {:#?}", user, payload);
+    info!("Post List Request {:?} {:?}", user, payload);
 
     match ListServiceClient::new(channel)
         .create_list(CreateListRequest {
@@ -125,7 +121,7 @@ pub async fn post_list(
     {
         Ok(res) => (StatusCode::CREATED, Json(json!(List::from(res.get_ref())))).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -143,7 +139,7 @@ pub async fn delete_list(
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
-    info!("Delete List Request {:#?} {:#?}", user, list_id);
+    info!("Delete List Request {:?} {:?}", user, list_id);
 
     match ListServiceClient::new(channel)
         .delete_list(DeleteListRequest {
@@ -154,7 +150,7 @@ pub async fn delete_list(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -180,10 +176,7 @@ pub async fn patch_list(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
 
-    info!(
-        "Patch List Request {:#?} {:#?} {:#?}",
-        user, list_id, payload
-    );
+    info!("Patch List Request {:?} {:?} {:?}", user, list_id, payload);
 
     match ListServiceClient::new(channel)
         .delete_list(DeleteListRequest {
@@ -194,7 +187,7 @@ pub async fn patch_list(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -220,7 +213,7 @@ pub async fn put_list_article(
     };
 
     info!(
-        "Put Article to List Request {:#?} {:#?} {:#?}",
+        "Put Article to List Request {:?} {:?} {:?}",
         payload, list_id, user
     );
 
@@ -234,7 +227,7 @@ pub async fn put_list_article(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
@@ -260,7 +253,7 @@ pub async fn delete_list_article(
     };
 
     info!(
-        "Delete Article to List Request {:#?} {:#?} {:#?}",
+        "Delete Article to List Request {:?} {:?} {:?}",
         payload, list_id, user
     );
 
@@ -274,7 +267,7 @@ pub async fn delete_list_article(
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
-            error!("{:#?}", err);
+            error!("{:?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()

@@ -1,15 +1,12 @@
-use crate::{
-    models::{
-        article_model::{
-            AddAuthor, Article, ArticleVersion, CreateArticle, DeleteAuthor, FullArticle,
-            UpdateArticle,
-        },
-        tag_model::Tag,
-        user_model::User,
+use crate::models::{
+    article_model::{
+        AddAuthor, Article, ArticleVersion, CreateArticle, DeleteAuthor, FullArticle, UpdateArticle,
     },
-    utils::params::Filter,
+    tag_model::Tag,
+    user_model::User,
 };
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use sqlx::{Database, Error, Postgres, Transaction};
 
 #[async_trait]
@@ -17,22 +14,18 @@ pub trait ArticleRepository<DB, E>
 where
     DB: Database,
 {
-    async fn total(
-        transaction: &mut Transaction<'_, DB>,
-        usernames: Vec<String>,
-        list_id: Option<&str>,
-        series_id: Option<&str>,
-    ) -> Result<Option<i64>, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_article: &CreateArticle,
     ) -> Result<Article, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
-        filters: &Filter,
         usernames: Vec<String>,
         list_id: Option<&str>,
         series_id: Option<&str>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<FullArticle>, E>;
     async fn find(
         transaction: &mut Transaction<'_, DB>,
@@ -58,7 +51,9 @@ where
     async fn history(
         transaction: &mut Transaction<'_, DB>,
         article_id: &str,
-        filters: &Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<ArticleVersion>, E>;
     async fn save(
         transaction: &mut Transaction<'_, DB>,
@@ -73,40 +68,14 @@ pub struct ArticleRepositoryImpl;
 
 #[async_trait]
 impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
-    async fn total(
-        transaction: &mut Transaction<'_, Postgres>,
-        usernames: Vec<String>,
-        _list_id: Option<&str>,
-        _series_id: Option<&str>,
-    ) -> Result<Option<i64>, Error> {
-        sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)
-            FROM articles a
-            LEFT JOIN authors au ON a.id = au.article_id
-            LEFT JOIN users u ON au.author_id = u.id
-            LEFT JOIN articleversions av ON a.id = av.article_id
-            LEFT JOIN articletags at ON a.id = at.article_id
-            LEFT JOIN tags t ON at.tag_slug = t.slug
-            LEFT JOIN listarticle la ON a.id = la.article_id
-            LEFT JOIN seriesarticle sa ON a.id = sa.article_id
-            GROUP BY a.id
-            HAVING array_agg(u.username) @> $1
-            "#,
-            &usernames,
-            // list_id,
-            // series_id
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        filters: &Filter,
         usernames: Vec<String>,
         _list_id: Option<&str>,
         _series_id: Option<&str>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
             FullArticle,
@@ -124,14 +93,15 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             LEFT JOIN tags t ON at.tag_slug = t.slug
             LEFT JOIN listarticle la ON a.id = la.article_id
             LEFT JOIN seriesarticle sa ON a.id = sa.article_id
+            WHERE (($2::text IS NULL AND $3::timestamptz IS NULL) OR (a.id, a.created_at) < ($2, $3))
             GROUP BY a.id, av.content
-            HAVING array_agg(u.username) @> $3
-            ORDER BY a.created_at DESC
+            HAVING array_agg(u.username) @> $4
+            ORDER BY a.id DESC, a.created_at DESC
             LIMIT $1
-            OFFSET $2;
             "#n,
-            filters.limit,
-            filters.offset,
+            limit,
+            id,
+            created_at,
             &usernames,
         )
         .fetch_all(&mut **transaction)
@@ -286,21 +256,23 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
     async fn history(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: &str,
-        filters: &Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<ArticleVersion>, Error> {
         sqlx::query_as!(
             ArticleVersion,
             r#"
             SELECT *
             FROM articleversions
-            WHERE article_id = $1
-            ORDER BY created_at DESC
-            LIMIT $2
-            OFFSET $3
+            WHERE article_id = $4 AND (($2::text IS NULL AND $3::timestamptz IS NULL) OR (id, created_at) < ($2, $3))
+            ORDER BY id DESC, created_at DESC
+            LIMIT $1
             "#n,
+            limit,
+            id,
+            created_at,
             article_id,
-            filters.limit,
-            filters.offset,
         )
         .fetch_all(&mut **transaction)
         .await

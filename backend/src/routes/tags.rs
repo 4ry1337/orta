@@ -14,7 +14,10 @@ use shared::{
 use tonic::transport::Channel;
 use tracing::{error, info};
 
-use crate::{application::AppState, utils::mapper::code_to_statudecode};
+use crate::{
+    application::AppState,
+    utils::{mapper::code_to_statudecode, params::CursorPagination},
+};
 
 #[derive(Debug, Deserialize)]
 pub struct TagsQueryParams {
@@ -26,6 +29,7 @@ pub struct TagsQueryParams {
 pub async fn get_tags(
     Extension(channel): Extension<Channel>,
     State(_state): State<AppState>,
+    Query(cursor): Query<CursorPagination>,
     Query(query): Query<TagsQueryParams>,
 ) -> Response {
     info!("Get Tags Request {:#?}", query);
@@ -37,7 +41,8 @@ pub async fn get_tags(
             tag_status: query
                 .tag_status
                 .map(|tag_status| resource_proto::TagStatus::from(tag_status) as i32),
-            params: None,
+            limit: cursor.limit,
+            cursor: cursor.cursor,
         })
         .await
     {

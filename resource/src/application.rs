@@ -23,6 +23,7 @@ use crate::services::{
 
 pub struct AppState {
     pub db: PgPool,
+    pub limit: i64,
 }
 
 pub struct Application {
@@ -41,7 +42,10 @@ impl Application {
 
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
-        let state = Arc::new(AppState { db: pool });
+        let state = Arc::new(AppState {
+            db: pool,
+            limit: configuration.query.per_page,
+        });
 
         let server = Server::builder()
             .add_service(UserServiceServer::new(UserServiceImpl {

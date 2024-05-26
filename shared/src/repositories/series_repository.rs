@@ -1,20 +1,20 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use sqlx::{Database, Error, Postgres, Transaction};
 
-use crate::{
-    models::series_model::{CreateSeries, Series, UpdateSeries},
-    utils::params::Filter,
-};
+use crate::models::series_model::{CreateSeries, Series, UpdateSeries};
 
 #[async_trait]
 pub trait SeriesRepository<DB, E>
 where
     DB: Database,
 {
-    async fn total(transaction: &mut Transaction<'_, DB>) -> Result<Option<i64>, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
-        filters: &Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        user_id: Option<&str>,
     ) -> Result<Vec<Series>, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
@@ -49,28 +49,26 @@ pub struct SeriesRepositoryImpl;
 
 #[async_trait]
 impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
-    async fn total(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<i64>, Error> {
-        sqlx::query_scalar!("SELECT COUNT(*) FROM series")
-            .fetch_one(&mut **transaction)
-            .await
-    }
-
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        filters: &Filter,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        user_id: Option<&str>,
     ) -> Result<Vec<Series>, Error> {
         sqlx::query_as!(
             Series,
             r#"
             SELECT *
             FROM series
-            ORDER BY $1
-            LIMIT $2
-            OFFSET $3
-            "#n,
-            filters.order_by,
-            filters.limit,
-            filters.offset
+            WHERE user_id = COALESCE($4, user_id) AND (($2::text IS NULL AND $3::timestamptz IS NULL) OR (id, created_at) < ($2, $3))
+            ORDER BY id DESC, created_at DESC
+            LIMIT $1
+            "#,
+            limit,
+            id,
+            created_at,
+            user_id,
         )
         .fetch_all(&mut **transaction)
         .await
