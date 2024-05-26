@@ -19,9 +19,6 @@ axum-extra = {version="0.9.3", features = ["cookie-private", "query", "cookie", 
 axum_typed_multipart = "0.11.1"
 cookie = "0.18"
 
-# Storage
-minio = {git="https://github.com/minio/minio-rs.git"}
-
 # Middleware:
 tower = { version = "0.4.13", features = ["util", "timeout"] }
 tower-http = { version = "0.5.2", features = ["cors", "fs", "trace", "compression-full", "decompression-full", "catch-panic", "timeout"] }

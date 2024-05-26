@@ -1,4 +1,5 @@
 use axum::{
+    extract::DefaultBodyLimit,
     handler::Handler,
     middleware,
     routing::{get, patch, post, put},
@@ -10,7 +11,9 @@ use crate::{
     application::AppState,
     middlewares::{
         auth::auth_middleware,
-        service_client::{auth_service_middleware, resource_service_middleware},
+        service_client::{
+            auth_service_middleware, resource_service_middleware, storage_service_middleware,
+        },
     },
 };
 
@@ -53,7 +56,8 @@ pub fn router(state: AppState) -> Router<AppState> {
                     "/assets",
                     Router::new()
                         .route("/", post(post_asset))
-                        .route("/:asset_name", get(get_asset)),
+                        .route("/:asset_name", get(get_asset))
+                        .layer(middleware::from_fn(storage_service_middleware)),
                 )
                 .merge(
                     auth::router(state.clone()).layer(middleware::from_fn_with_state(
@@ -212,5 +216,6 @@ pub fn router(state: AppState) -> Router<AppState> {
                         .layer(middleware::from_fn(resource_service_middleware)),
                 ),
         )
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 50))
         .layer(prometheus_layer)
 }

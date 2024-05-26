@@ -54,20 +54,25 @@ pub async fn auth_service_middleware(mut req: Request, next: Next) -> Response {
     }
 }
 
-// pub async fn storage_service_middleware(mut req: Request, next: Next) -> Response {
-//
-//     match storage_endpoint.connect().await {
-//         Ok(client) => {
-//             req.extensions_mut().insert(client);
-//             return next.run(req).await;
-//         }
-//         Err(err) => {
-//             error!("Storage Server Unavailable {:?}", err);
-//             return (
-//                 StatusCode::SERVICE_UNAVAILABLE,
-//                 "Service is currently unavailable",
-//             )
-//                 .into_response();
-//         }
-//     }
-// }
+pub async fn storage_service_middleware(mut req: Request, next: Next) -> Response {
+    let storage_endpoint = Channel::from_shared(format!(
+        "http://{}:{}",
+        &CONFIG.storage_server.host, &CONFIG.storage_server.port
+    ))
+    .unwrap();
+
+    match storage_endpoint.connect().await {
+        Ok(client) => {
+            req.extensions_mut().insert(client);
+            return next.run(req).await;
+        }
+        Err(err) => {
+            error!("Storage Server Unavailable {:?}", err);
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Service is currently unavailable",
+            )
+                .into_response();
+        }
+    }
+}

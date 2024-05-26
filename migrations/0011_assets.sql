@@ -1,7 +1,6 @@
-CREATE TABLE Assets (
-  id TEXT DEFAULT nanoid () PRIMARY KEY,
-  type TEXT NOT NULL,
-  filename TEXT NOT NULL,
-  permalink TEXT NOT NULL,
-  created_at timestamptz not null default now (),
-);
+-- CREATE TABLE Assets (
+--   asset_name TEXT PRIMARY KEY,
+--   content_type TEXT NOT NULL,
+--   url TEXT NOT NULL,
+--   created_at timestamptz not null default now (),
+-- );

@@ -12,14 +12,7 @@ use axum::{
     },
 };
 use axum_extra::extract::cookie::Key;
-use minio::s3::{
-    args::{BucketExistsArgs, MakeBucketArgs},
-    creds::StaticProvider,
-    http::BaseUrl,
-    Client, ClientBuilder,
-};
-use secrecy::ExposeSecret;
-use shared::configuration::{Settings, StorageSettings};
+use shared::configuration::Settings;
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
@@ -35,7 +28,6 @@ use crate::routes;
 #[derive(Clone)]
 pub struct State {
     pub key: Key,
-    pub storage: Client,
 }
 
 impl FromRef<State> for Key {
@@ -58,13 +50,10 @@ impl Application {
 
         let port = configuration.api_server.port;
 
-        let storage = get_minio_client(&configuration.storage).await;
-
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
         let state = Arc::new(State {
             key: Key::generate(),
-            storage,
         });
 
         let listener = TcpListener::bind(&address).await?;
@@ -136,37 +125,4 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
-}
-
-pub async fn get_minio_client(configuration: &StorageSettings) -> Client {
-    let base_url = "http://localhost:9000".parse::<BaseUrl>().unwrap();
-
-    info!("Trying to connect to MinIO at: `{:?}`", base_url);
-
-    let static_provider = StaticProvider::new(
-        configuration.access_key.expose_secret(),
-        configuration.secret_key.expose_secret(),
-        None,
-    );
-
-    let client = ClientBuilder::new(base_url.clone())
-        .provider(Some(Box::new(static_provider)))
-        .build()
-        .unwrap();
-
-    let bucket_name = &configuration.bucket_name;
-
-    let exists: bool = client
-        .bucket_exists(&BucketExistsArgs::new(&bucket_name).unwrap())
-        .await
-        .unwrap();
-
-    if !exists {
-        client
-            .make_bucket(&MakeBucketArgs::new(&bucket_name).unwrap())
-            .await
-            .unwrap();
-    };
-
-    client
 }

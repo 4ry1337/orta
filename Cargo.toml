@@ -13,7 +13,7 @@ edition = "2021"
 authors = ["Rakhat Yskak yskak.rakhat@gmail.com"]
 
 [workspace.dependencies]
-tonic = "0.11.0"
+tonic = {version="0.11.0", features=["gzip"]}
 tonic-types = "0.11.0"
 tonic-reflection = "0.11.0"
 

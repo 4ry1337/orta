@@ -1,7 +1,4 @@
-use std::{
-    net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
-};
+use std::net::{Ipv4Addr, SocketAddr};
 
 use minio::s3::{
     args::{BucketExistsArgs, MakeBucketArgs},
@@ -14,7 +11,6 @@ use shared::{
     configuration::{Settings, StorageSettings},
     storage_proto::storage_service_server::StorageServiceServer,
 };
-use tokio::sync::Mutex;
 use tonic::transport::{server::Router, Server};
 use tracing::info;
 
@@ -28,7 +24,7 @@ pub struct Application {
 
 impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
-        info!("Building auth service");
+        info!("Building storage service");
 
         let client = get_minio_client(&configuration.storage).await;
 
@@ -37,13 +33,13 @@ impl Application {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
         let storage_service = StorageServiceImpl {
-            client: Arc::new(Mutex::new(client)),
+            client,
             bucket_name: configuration.storage.bucket_name,
         };
 
         let server = Server::builder().add_service(StorageServiceServer::new(storage_service));
 
-        info!("Finished auth service build");
+        info!("Finished storage service build");
 
         Ok(Self {
             port,
