@@ -236,6 +236,8 @@ impl AuthService for AuthServiceImpl {
                     }
                 };
 
+            println!("{:?}", token);
+
             let channel = match self.state.connection.open_channel(None).await {
                 Ok(channel) => channel,
                 Err(err) => {
@@ -254,6 +256,8 @@ impl AuthService for AuthServiceImpl {
                     CONFIG.client.host, CONFIG.client.port, token.token
                 ),
             };
+
+            println!("{}", verification_link);
 
             let payload = json!(VerificationMessage {
                 email: user.email.to_owned(),
@@ -276,6 +280,10 @@ impl AuthService for AuthServiceImpl {
                 .await
             {
                 Ok(()) => {
+                    if let Err(err) = transaction.commit().await {
+                        error!("{:#?}", err);
+                        return Err(Status::internal("Something went wrong"));
+                    }
                     return Err(Status::not_found(format!(
                         "Email not verified. Verififcation Link send to {}",
                         user.email.to_owned()
@@ -424,6 +432,7 @@ impl AuthService for AuthServiceImpl {
             error!("{:#?}", err);
             return Err(Status::internal("Something went wrong"));
         };
+
         let access_token = match AccessToken::generate(AccessTokenPayload {
             user_id: user.id,
             email: user.email,
@@ -482,6 +491,11 @@ impl AuthService for AuthServiceImpl {
                     return Err(Status::internal("Something went wrong"));
                 }
             };
+
+        if let Err(err) = transaction.commit().await {
+            error!("{:#?}", err);
+            return Err(Status::internal("Something went wrong"));
+        };
 
         let access_token = match AccessToken::generate(AccessTokenPayload {
             user_id: user.id.clone(),

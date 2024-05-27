@@ -3,8 +3,13 @@
 import { z } from "zod";
 import { CreateArticleSchema, UpdateArticleSchema } from "@/lib/definitions";
 import { toast } from "sonner";
-import { Article, FullArticle, Pagination, ResultPaging } from "@/lib/types";
-import { PaginationToUrlParams } from "@/lib/utils";
+import {
+  Article,
+  FullArticle,
+  CursorPagination,
+  ResultPaging,
+} from "@/lib/types";
+import { CursorPaginationToUrlParams } from "@/lib/utils";
 import { mutate } from "swr";
 
 const delay = (delay: number) => {
@@ -15,7 +20,7 @@ export async function get_articles(option?: {
   usernames?: string[];
   list_id?: string;
   series_id?: string;
-  pagination?: Pagination;
+  pagination?: CursorPagination;
 }): Promise<ResultPaging<FullArticle>> {
   const url = new URLSearchParams();
 
@@ -31,7 +36,7 @@ export async function get_articles(option?: {
       url.append("series_id", option.series_id);
     }
 
-    PaginationToUrlParams(url, option.pagination);
+    CursorPaginationToUrlParams(url, option.pagination);
   }
 
   return fetch(

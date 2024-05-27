@@ -29,6 +29,7 @@ export async function signup(values: z.infer<typeof SignUpFormSchema>) {
 }
 
 export async function verify(token: string): Promise<string | null> {
+  console.log(token);
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/credential/verify?token=${token}`,
@@ -47,10 +48,10 @@ export async function verify(token: string): Promise<string | null> {
 
     sessionStorage.setItem("session", session);
 
-    const url = window.location.href;
-    window.location.href = url;
-    if (url.includes("#")) window.location.reload();
-
+    // const url = window.location.href;
+    // window.location.href = url;
+    // if (url.includes("#")) window.location.reload();
+    //
     return session;
   } catch (error) {
     console.error(error);

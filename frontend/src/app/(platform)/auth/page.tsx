@@ -4,11 +4,21 @@ import LogoIcon from "@/components/logo";
 import AuthTabs from "./_components/auth_tabs";
 import { useSession } from "@/context/session_context";
 import { Skeleton } from "@/components/ui/skeleton";
+import useSWR from "swr";
+import { verify } from "@/app/actions/auth";
 
-const Auth = () => {
+const Auth = ({
+  searchParams,
+}: {
+  searchParams: {
+    token: string | null;
+  };
+}) => {
   const { status } = useSession({
     authenticated: false,
   });
+
+  useSWR(searchParams.token, verify);
 
   if (status == "loading") {
     return <Skeleton className="h-screen w-full" />;

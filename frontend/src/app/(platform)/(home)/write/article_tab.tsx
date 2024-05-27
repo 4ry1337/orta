@@ -12,15 +12,9 @@ interface ArticleTabProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const ArticleTab = ({ username }: ArticleTabProps) => {
-  const [page, setPage] = useState(1);
-
   const { data: articles } = useSWR(
     {
       usernames: [username],
-      pagination: {
-        page: page,
-        per_page: 10,
-      },
     },
     get_articles,
   );

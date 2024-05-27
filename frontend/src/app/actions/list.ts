@@ -3,12 +3,12 @@
 import { z } from "zod";
 import { CreateListSchema } from "@/lib/definitions";
 import { toast } from "sonner";
-import { List, Pagination, ResultPaging } from "@/lib/types";
-import { PaginationToUrlParams } from "@/lib/utils";
+import { List, CursorPagination, ResultPaging } from "@/lib/types";
+import { CursorPaginationToUrlParams } from "@/lib/utils";
 
 export async function get_lists(option?: {
   username?: string;
-  pagination?: Pagination;
+  cursor?: CursorPagination;
 }): Promise<ResultPaging<List>> {
   const url = new URLSearchParams();
 
@@ -17,7 +17,7 @@ export async function get_lists(option?: {
       url.append("username", option.username);
     }
 
-    PaginationToUrlParams(url, option.pagination);
+    CursorPaginationToUrlParams(url, option.cursor);
   }
 
   return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/list?${url}`).then(

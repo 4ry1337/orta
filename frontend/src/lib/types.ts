@@ -1,8 +1,6 @@
-export type Pagination = {
-  page?: number;
-  per_page?: number;
-  sort?: string;
-  query?: string;
+export type CursorPagination = {
+  limit: number;
+  cursor: string;
 };
 
 export type Metadata = {
@@ -14,8 +12,7 @@ export type Metadata = {
 
 export type ResultPaging<T> = {
   items: T[];
-  pagination: Metadata;
-  total: number;
+  next_cursor: string;
 };
 
 export type Session = {

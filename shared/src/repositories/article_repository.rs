@@ -82,7 +82,7 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             r#"
             SELECT
                 a.*,
-                av.content,
+                av.content as "content: Option<String>",
                 ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
                 ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
             FROM articles a
@@ -117,7 +117,7 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             r#"
             SELECT
                 a.*,
-                av.content,
+                av.content as "content: Option<String>",
                 ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
                 ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
             FROM articles a

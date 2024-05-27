@@ -85,8 +85,9 @@ impl Application {
                                                     },
                                                     Err(err) => error!("Unable to parse payload: {:?}", err)
                                                 }
+                                            } else {
+                                                warn!("Unknown message type")
                                             }
-                                            warn!("Unknown message type")
                                         }
                                         Err(err) => {
                                             error!("Unable to parse payload string {:?}", err)

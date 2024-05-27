@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Pagination } from "./types";
+import { CursorPagination } from "./types";
 import { format } from "date-fns";
 import slugify from "slugify";
 
@@ -8,22 +8,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const PaginationToUrlParams = (
+export const CursorPaginationToUrlParams = (
   url: URLSearchParams,
-  pagination?: Pagination,
+  cursor?: CursorPagination,
 ) => {
-  if (pagination) {
-    if (pagination.page) {
-      url.append("page", pagination.page.toString());
+  if (cursor) {
+    if (cursor.limit) {
+      url.append("limit", cursor.limit.toString());
     }
-    if (pagination.per_page) {
-      url.append("per_page", pagination.per_page.toString());
-    }
-    if (pagination.query) {
-      url.append("query", pagination.query);
-    }
-    if (pagination.sort) {
-      url.append("sort", pagination.sort);
+    if (cursor.cursor) {
+      url.append("cursor", cursor.cursor);
     }
   }
 };

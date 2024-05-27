@@ -19,7 +19,7 @@ pub struct FullArticle {
     pub title: String,
     pub like_count: i32,
     pub comment_count: i32,
-    pub content: String,
+    pub content: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,

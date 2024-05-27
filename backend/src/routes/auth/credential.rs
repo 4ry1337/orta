@@ -2,7 +2,7 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::post,
+    routing::{get, post},
     Extension, Json, Router,
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
@@ -25,7 +25,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/auth/credential/signup", post(signup))
         .route("/auth/credential/signin", post(signin))
-        .route("/auth/credential/verify", post(signin))
+        .route("/auth/credential/verify", get(verify))
 }
 
 #[derive(Debug, Validate, Deserialize)]

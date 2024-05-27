@@ -128,7 +128,7 @@ message FullArticle {
   optional google.protobuf.Timestamp published_at = 8;
   repeated User users = 9;
   repeated Tag tags = 10;
-  string content = 11;
+  optional string content = 11;
 }
 
 message ArticleVersion {

@@ -1,15 +1,15 @@
 "use client";
 
 import { CreateSeriesSchema } from "@/lib/definitions";
-import { List, Pagination, ResultPaging } from "@/lib/types";
-import { PaginationToUrlParams } from "@/lib/utils";
+import { List, CursorPagination, ResultPaging } from "@/lib/types";
+import { CursorPaginationToUrlParams } from "@/lib/utils";
 import { toast } from "sonner";
 import { z } from "zod";
 
 export async function get_series(option?: {
   user_id?: string;
   label?: string;
-  pagination?: Pagination;
+  cursor?: CursorPagination;
 }): Promise<ResultPaging<List>> {
   const url = new URLSearchParams();
 
@@ -21,7 +21,7 @@ export async function get_series(option?: {
       url.append("label", option.label);
     }
 
-    PaginationToUrlParams(url, option.pagination);
+    CursorPaginationToUrlParams(url, option.cursor);
   }
 
   return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/series?${url}`).then(
