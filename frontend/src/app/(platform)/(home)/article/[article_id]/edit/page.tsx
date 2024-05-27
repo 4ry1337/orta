@@ -32,9 +32,7 @@ const ArticleEditPage = ({ params }: { params: IParams }) => {
           <TabsTrigger value="preview">Preview</TabsTrigger>
           <TabsTrigger value="article">Article</TabsTrigger>
         </TabsList>
-        <TabsContent value="editor" className="">
-          <Editor />
-        </TabsContent>
+        <TabsContent value="editor" className=""></TabsContent>
         <TabsContent value="preview" className="">
           <div>Preview</div>
         </TabsContent>
@@ -46,6 +44,7 @@ const ArticleEditPage = ({ params }: { params: IParams }) => {
   }
 
   // <ArticleCard article={article} />
+  // <Editor />
   return <Skeleton className="w-full min-h-screen" />;
 };
 
