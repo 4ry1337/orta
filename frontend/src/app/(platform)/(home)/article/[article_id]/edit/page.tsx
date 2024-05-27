@@ -8,6 +8,7 @@ import ArticleCard from "@/components/article/list/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import ArticleSettingsTab from "./settings_tab";
 import { get_id } from "@/lib/utils";
+import Editor from "./_components/editor";
 
 interface IParams {
   article_id: string;
@@ -21,14 +22,9 @@ const ArticleEditPage = ({ params }: { params: IParams }) => {
   const { data: article, isLoading } = useSWR(
     get_id(params.article_id),
     get_article,
-    {
-      onSuccess(data, key, config) {
-        console.log(data);
-      },
-    },
   );
 
-  if (article)
+  if (article) {
     return (
       <Tabs defaultValue={"editor"} className="h-full">
         <TabsList>
@@ -36,19 +32,20 @@ const ArticleEditPage = ({ params }: { params: IParams }) => {
           <TabsTrigger value="preview">Preview</TabsTrigger>
           <TabsTrigger value="article">Article</TabsTrigger>
         </TabsList>
-        <TabsContent value="editor">
-          <ArticleCard article={article} />
-          <div>Hello world</div>
+        <TabsContent value="editor" className="">
+          <Editor />
         </TabsContent>
-        <TabsContent value="preview">
+        <TabsContent value="preview" className="">
           <div>Preview</div>
         </TabsContent>
-        <TabsContent value="article">
+        <TabsContent value="article" className="">
           <ArticleSettingsTab article={article} />
         </TabsContent>
       </Tabs>
     );
+  }
 
+  // <ArticleCard article={article} />
   return <Skeleton className="w-full min-h-screen" />;
 };
 

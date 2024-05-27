@@ -27,6 +27,7 @@ import { CreateArticleSchema } from "@/lib/definitions";
 import { create_article } from "@/app/actions/article";
 import { redirect } from "next/navigation";
 import { Pencil1Icon } from "@radix-ui/react-icons";
+import { slugifier } from "@/lib/utils";
 
 const CreateArticleDialog = () => {
   const [pending, startTransition] = useTransition();
@@ -40,9 +41,9 @@ const CreateArticleDialog = () => {
 
   const onSubmit = async (values: z.infer<typeof CreateArticleSchema>) => {
     startTransition(async () => {
-      const res = await create_article(values);
-      if (res) {
-        redirect(`/article/${res.slug}`);
+      const article = await create_article(values);
+      if (article) {
+        redirect(`/article/${slugifier(article.title)}-${article.id}`);
       }
     });
   };

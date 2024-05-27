@@ -6,7 +6,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ELEMENT_FORMAT_OPTIONS } from "@/lib/editing";
 import {
   ElementFormatType,
   FORMAT_ELEMENT_COMMAND,
@@ -22,6 +21,7 @@ import {
   Indent,
   Outdent,
 } from "lucide-react";
+import { ELEMENT_FORMAT_OPTIONS } from "../utils/editing";
 
 // const ElementFormatOptions = [
 //   {
@@ -39,13 +39,11 @@ const ElementFormatSelect = ({
   value: ElementFormatType;
   isRTL: boolean;
 }) => {
-  const formatOption = ELEMENT_FORMAT_OPTIONS[value || "left"];
-
   return (
     <Select
       required={true}
       name="Formatting Options"
-      value={value}
+      value={value == "" ? "left" : value}
       defaultValue="left"
       onValueChange={(value: ElementFormatType | "indent" | "outdent") => {
         if (value === "outdent") {

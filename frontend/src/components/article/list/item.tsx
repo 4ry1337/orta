@@ -25,11 +25,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
           <CardTitle>{article.title}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div>
-            2 years ago when I was still working as a Graphic Designer, there
-            was a UI/ UX Designer who told me “Hey, you should move to the UI/
-            UX...
-          </div>
+          <div>{article.content?.substring(0, 20)}</div>
           <small>{DisplayDate(article.created_at)}</small>
         </CardContent>
       </Link>

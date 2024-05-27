@@ -41,11 +41,20 @@ export type User = {
 export type Article = {
   id: string;
   title: string;
+  content?: string;
   like_count: number;
   comment_count: number;
   created_at: string;
   updated_at?: string;
   published_at?: string;
+};
+
+export type ArticleVersion = {
+  id: string;
+  article_id: string;
+  device_id?: string;
+  content: string;
+  created_at: string;
 };
 
 export type Tag = {

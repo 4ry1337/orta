@@ -17,13 +17,14 @@ const SeriesTab = ({ user_id }: SeriesTabProps) => {
   const { data: series } = useSWR(
     {
       user_id: user_id,
-      pagination: {
-        page: page,
-        per_page: 10,
+      cursor: {
+        cursor: null,
+        limit: 10,
       },
     },
     get_series,
   );
+
   return (
     <div className="space-y-4">
       <CreateSeriesDialog />

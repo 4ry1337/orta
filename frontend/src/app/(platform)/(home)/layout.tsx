@@ -1,4 +1,5 @@
 import Sidebar from "@/components/sidebar_desktop";
+import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const HomeLayout = ({ children }: { children: React.ReactNode }) => {
@@ -7,7 +8,9 @@ const HomeLayout = ({ children }: { children: React.ReactNode }) => {
       <TooltipProvider delayDuration={0}>
         <div className="flex border-x">
           <Sidebar />
-          <main className="min-h-screen p-4 grow">{children}</main>
+          <main className="min-h-screen overflow-x-hidden p-4 grow">
+            {children}
+          </main>
         </div>
       </TooltipProvider>
     </div>

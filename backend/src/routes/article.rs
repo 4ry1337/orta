@@ -81,7 +81,7 @@ pub async fn get_article(
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let article_id = match params.asset_name {
+    let article_id = match params.article_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
@@ -150,7 +150,7 @@ pub async fn patch_article(
     Path(params): Path<PathParams>,
     Json(payload): Json<PatchArticleRequestBody>,
 ) -> Response {
-    let article_id = match params.asset_name {
+    let article_id = match params.article_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
@@ -182,7 +182,7 @@ pub async fn delete_article(
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let article_id = match params.asset_name {
+    let article_id = match params.article_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
@@ -216,7 +216,7 @@ pub async fn put_author(
     Path(params): Path<PathParams>,
     Json(payload): Json<PutAuthorRequestBody>,
 ) -> Response {
-    let article_id = match params.asset_name {
+    let article_id = match params.article_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
@@ -255,7 +255,7 @@ pub async fn delete_author(
     Path(params): Path<PathParams>,
     Json(payload): Json<DeleteAuthorRequestBody>,
 ) -> Response {
-    let article_id = match params.asset_name {
+    let article_id = match params.article_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };

@@ -1,4 +1,5 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,7 +10,6 @@ import {
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
-import { blockTypeToBlockName, rootTypeToRootName } from "@/shared";
 import {
   $isCodeNode,
   CODE_LANGUAGE_FRIENDLY_NAME_MAP,
@@ -49,6 +49,7 @@ import {
   SELECTION_CHANGE_COMMAND,
   UNDO_COMMAND,
 } from "lexical";
+
 import {
   Bold,
   CaseSensitive,
@@ -66,6 +67,7 @@ import {
   Underline,
   Undo,
 } from "lucide-react";
+
 import {
   Dispatch,
   HTMLAttributes,
@@ -73,10 +75,11 @@ import {
   useEffect,
   useState,
 } from "react";
-import { getSelectedNode } from "../utils/getSelectedNode";
+import { blockTypeToBlockName, rootTypeToRootName } from "../utils/editing";
+import { getSelectedNode } from "../utils/get_selected_node";
 import { sanitizeUrl } from "../utils/url";
-import BlockFormatSelect from "./BlockFormatSelect";
-import ElementFormatSelect from "./ElementFormatDropdown";
+import BlockFormatDropDown from "./block_format_select";
+import ElementFormatSelect from "./element_format_select";
 
 function getCodeLanguageOptions(): [string, string][] {
   const options: [string, string][] = [];
@@ -111,7 +114,7 @@ const ToolbarPlugin = ({
     null,
   );
   const [fontSize, setFontSize] = useState<string>("15px");
-  const [fontFamily, setFontFamily] = useState<string>("Arial");
+  const [fontFamily, setFontFamily] = useState<string>("Inter");
   const [elementFormat, setElementFormat] = useState<ElementFormatType>("left");
   const [isLink, setIsLink] = useState(false);
   const [isBold, setIsBold] = useState(false);
@@ -378,235 +381,227 @@ const ToolbarPlugin = ({
   // };
 
   return (
-    <div className={cn(className, "rounded-md border")} {...props}>
-      <ScrollArea>
-        <div className="inline-flex flex-row items-center justify-start gap-4 p-3">
-          <div className="inline-flex flex-row items-center justify-start gap-1">
-            <Button
-              size={"icon"}
-              variant={"ghost"}
-              disabled={!canUndo}
-              onClick={() => {
-                activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
-              }}
-              //title={IS_APPLE ? 'Undo (⌘Z)' : 'Undo (Ctrl+Z)'}
-              aria-label="Undo"
-            >
-              <Undo />
+    <div className={cn("flex flex-row gap-4", className)}>
+      <div className="inline-flex flex-row items-center justify-start gap-1">
+        <Button
+          size={"icon"}
+          variant={"ghost"}
+          disabled={!canUndo}
+          onClick={() => {
+            activeEditor.dispatchCommand(UNDO_COMMAND, undefined);
+          }}
+          //title={IS_APPLE ? 'Undo (⌘Z)' : 'Undo (Ctrl+Z)'}
+          aria-label="Undo"
+        >
+          <Undo />
+        </Button>
+        <Button
+          size={"icon"}
+          variant={"ghost"}
+          disabled={!canRedo}
+          onClick={() => {
+            activeEditor.dispatchCommand(REDO_COMMAND, undefined);
+          }}
+          //title={IS_APPLE ? 'Redo (⌘Y)' : 'Redo (Ctrl+Y)'}
+          aria-label="Redo"
+        >
+          <Redo />
+        </Button>
+      </div>
+      <div className="inline-flex flex-row items-center justify-start gap-1">
+        <BlockFormatDropDown
+          blockType={blockType}
+          rootType={rootType}
+          editor={editor}
+        />
+      </div>
+      <div className="inline-flex flex-row items-center justify-start gap-1">
+        <Toggle
+          pressed={isBold}
+          onClick={() => {
+            activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
+          }}
+          asChild
+        // title={IS_APPLE ? 'Bold (⌘B)' : 'Bold (Ctrl+B)'}
+        // aria-label={`Format text as bold. Shortcut: ${
+        //   IS_APPLE ? '⌘B' : 'Ctrl+B'
+        // }`}
+        >
+          <Button variant={"secondary"} size={"icon"}>
+            <Bold />
+          </Button>
+        </Toggle>
+        <Toggle
+          pressed={isItalic}
+          onClick={() => {
+            activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
+          }}
+          asChild
+        // title={
+        //   IS_APPLE ? 'Italic (⌘I)' : 'Italic (Ctrl+I)'
+        // }
+        // aria-label={`Format text as italics. Shortcut: ${
+        //   IS_APPLE ? '⌘I' : 'Ctrl+I'
+        // }`}
+        >
+          <Button variant={"secondary"} size={"icon"}>
+            <Italic />
+          </Button>
+        </Toggle>
+        <Toggle
+          pressed={isUnderline}
+          onClick={() => {
+            activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
+          }}
+          asChild
+        // title={
+        //   IS_APPLE
+        //     ? 'Underline (⌘U)'
+        //     : 'Underline (Ctrl+U)'
+        // }
+        // aria-label={`Format text to underlined. Shortcut: ${
+        //   IS_APPLE ? '⌘U' : 'Ctrl+U'
+        // }`}
+        >
+          <Button variant={"secondary"} size={"icon"}>
+            <Underline />
+          </Button>
+        </Toggle>
+        <Toggle
+          pressed={isCode}
+          onClick={() => {
+            activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
+          }}
+          asChild
+          title="Insert code block"
+          aria-label="Insert code block"
+        >
+          <Button variant={"secondary"} size={"icon"}>
+            <Code />
+          </Button>
+        </Toggle>
+        <Toggle
+          pressed={isLink}
+          onClick={insertLink}
+          aria-label="Insert link"
+          title="Insert link"
+          asChild
+        >
+          <Button variant={"secondary"} size={"icon"}>
+            <Link />
+          </Button>
+        </Toggle>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            asChild
+            aria-label="Formatting options for additional text styles"
+          >
+            <Button variant={"ghost"} size={"icon"}>
+              <CaseSensitive />
             </Button>
-            <Button
-              size={"icon"}
-              variant={"ghost"}
-              disabled={!canRedo}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem
               onClick={() => {
-                activeEditor.dispatchCommand(REDO_COMMAND, undefined);
+                activeEditor.dispatchCommand(
+                  FORMAT_TEXT_COMMAND,
+                  "strikethrough",
+                );
               }}
-              //title={IS_APPLE ? 'Redo (⌘Y)' : 'Redo (Ctrl+Y)'}
-              aria-label="Redo"
+              title="Strikethrough"
+              className="flex flex-row items-center gap-2 px-2"
+              aria-label="Format text with a strikethrough"
             >
-              <Redo />
+              <Strikethrough />
+              <span>Strikethrough</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript");
+              }}
+              title="Subscript"
+              className="flex flex-row items-center gap-2 px-2"
+              aria-label="Format text with a subscript"
+            >
+              <Subscript />
+              <span>Subscript</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                activeEditor.dispatchCommand(
+                  FORMAT_TEXT_COMMAND,
+                  "superscript",
+                );
+              }}
+              title="Superscript"
+              className="flex flex-row items-center gap-2 px-2"
+              aria-label="Format text with a superscript"
+            >
+              <Superscript />
+              <span>Superscript</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={clearFormatting}
+              className="flex flex-row items-center gap-2 px-2"
+              title="Clear text formatting"
+              aria-label="Clear all text formatting"
+            >
+              <Trash2 />
+              <span>Clear Formatting</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="inline-flex flex-row items-center justify-start gap-1">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="Insert specialized editor node"
+            asChild
+          >
+            <Button variant={"ghost"} className="gap-2">
+              <Plus />
+              <span>Insert</span>
             </Button>
-          </div>
-          <div className="inline-flex flex-row items-center justify-start gap-1">
-            <BlockFormatSelect
-              blockType={blockType}
-              rootType={rootType}
-              editor={editor}
-            />
-          </div>
-          <div className="inline-flex flex-row items-center justify-start gap-1">
-            <Toggle
-              pressed={isBold}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem
               onClick={() => {
-                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
+                activeEditor.dispatchCommand(
+                  INSERT_HORIZONTAL_RULE_COMMAND,
+                  undefined,
+                );
               }}
-              asChild
-            // title={IS_APPLE ? 'Bold (⌘B)' : 'Bold (Ctrl+B)'}
-            // aria-label={`Format text as bold. Shortcut: ${
-            //   IS_APPLE ? '⌘B' : 'Ctrl+B'
-            // }`}
             >
-              <Button variant={"secondary"} size={"icon"}>
-                <Bold />
-              </Button>
-            </Toggle>
-            <Toggle
-              pressed={isItalic}
-              onClick={() => {
-                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
-              }}
-              asChild
-            // title={
-            //   IS_APPLE ? 'Italic (⌘I)' : 'Italic (Ctrl+I)'
-            // }
-            // aria-label={`Format text as italics. Shortcut: ${
-            //   IS_APPLE ? '⌘I' : 'Ctrl+I'
-            // }`}
+              <div className="inline-flex flex-row items-center gap-2 px-2">
+                <SeparatorHorizontal />
+                <span>Horizontal Rule</span>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+            // onClick={() => {
+            //   showModal('Insert Image', (onClose) => (
+            //     <InsertImageDialog
+            //       activeEditor={activeEditor}
+            //       onClose={onClose}
+            //     />
+            //   ));
+            // }}
             >
-              <Button variant={"secondary"} size={"icon"}>
-                <Italic />
-              </Button>
-            </Toggle>
-            <Toggle
-              pressed={isUnderline}
-              onClick={() => {
-                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
-              }}
-              asChild
-            // title={
-            //   IS_APPLE
-            //     ? 'Underline (⌘U)'
-            //     : 'Underline (Ctrl+U)'
-            // }
-            // aria-label={`Format text to underlined. Shortcut: ${
-            //   IS_APPLE ? '⌘U' : 'Ctrl+U'
-            // }`}
-            >
-              <Button variant={"secondary"} size={"icon"}>
-                <Underline />
-              </Button>
-            </Toggle>
-            <Toggle
-              pressed={isCode}
-              onClick={() => {
-                activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code");
-              }}
-              asChild
-              title="Insert code block"
-              aria-label="Insert code block"
-            >
-              <Button variant={"secondary"} size={"icon"}>
-                <Code />
-              </Button>
-            </Toggle>
-            <Toggle
-              pressed={isLink}
-              onClick={insertLink}
-              aria-label="Insert link"
-              title="Insert link"
-              asChild
-            >
-              <Button variant={"secondary"} size={"icon"}>
-                <Link />
-              </Button>
-            </Toggle>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                asChild
-                aria-label="Formatting options for additional text styles"
-              >
-                <Button variant={"ghost"} size={"icon"}>
-                  <CaseSensitive />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  onClick={() => {
-                    activeEditor.dispatchCommand(
-                      FORMAT_TEXT_COMMAND,
-                      "strikethrough",
-                    );
-                  }}
-                  title="Strikethrough"
-                  className="flex flex-row items-center gap-2 px-2"
-                  aria-label="Format text with a strikethrough"
-                >
-                  <Strikethrough />
-                  <span>Strikethrough</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    activeEditor.dispatchCommand(
-                      FORMAT_TEXT_COMMAND,
-                      "subscript",
-                    );
-                  }}
-                  title="Subscript"
-                  className="flex flex-row items-center gap-2 px-2"
-                  aria-label="Format text with a subscript"
-                >
-                  <Subscript />
-                  <span>Subscript</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    activeEditor.dispatchCommand(
-                      FORMAT_TEXT_COMMAND,
-                      "superscript",
-                    );
-                  }}
-                  title="Superscript"
-                  className="flex flex-row items-center gap-2 px-2"
-                  aria-label="Format text with a superscript"
-                >
-                  <Superscript />
-                  <span>Superscript</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={clearFormatting}
-                  className="flex flex-row items-center gap-2 px-2"
-                  title="Clear text formatting"
-                  aria-label="Clear all text formatting"
-                >
-                  <Trash2 />
-                  <span>Clear Formatting</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <div className="inline-flex flex-row items-center justify-start gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label="Insert specialized editor node"
-                asChild
-              >
-                <Button variant={"ghost"} className="gap-2">
-                  <Plus />
-                  <span>Insert</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  onClick={() => {
-                    activeEditor.dispatchCommand(
-                      INSERT_HORIZONTAL_RULE_COMMAND,
-                      undefined,
-                    );
-                  }}
-                >
-                  <div className="inline-flex flex-row items-center gap-2 px-2">
-                    <SeparatorHorizontal />
-                    <span>Horizontal Rule</span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                // onClick={() => {
-                //   showModal('Insert Image', (onClose) => (
-                //     <InsertImageDialog
-                //       activeEditor={activeEditor}
-                //       onClose={onClose}
-                //     />
-                //   ));
-                // }}
-                >
-                  <div className="inline-flex flex-row items-center gap-2 px-2">
-                    <ImageIcon />
-                    <span>Image</span>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <div className="inline-flex flex-row items-center justify-start gap-1">
-            <ElementFormatSelect
-              value={elementFormat}
-              editor={editor}
-              isRTL={isRTL}
-            />
-          </div>
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+              <div className="inline-flex flex-row items-center gap-2 px-2">
+                <ImageIcon />
+                <span>Image</span>
+              </div>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="inline-flex flex-row items-center justify-start gap-1">
+        <ElementFormatSelect
+          value={elementFormat}
+          editor={editor}
+          isRTL={isRTL}
+        />
+      </div>
     </div>
   );
 };

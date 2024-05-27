@@ -5,7 +5,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { blockTypeToBlockName, rootTypeToRootName } from "@/lib/editing";
 import { $createCodeNode } from "@lexical/code";
 import {
   INSERT_CHECK_LIST_COMMAND,
@@ -39,6 +38,7 @@ import {
   Quote,
   Text,
 } from "lucide-react";
+import { blockTypeToBlockName, rootTypeToRootName } from "../utils/editing";
 
 const BlockFormatDropDown = ({
   editor,

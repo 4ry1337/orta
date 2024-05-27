@@ -32,10 +32,10 @@ pub struct CursorPagination {
 pub struct PathParams {
     pub comment_id: Option<String>,
     pub user_id: Option<String>,
-    pub asset_name: Option<String>,
+    pub article_id: Option<String>,
     pub series_id: Option<String>,
     pub tag_id: Option<String>,
     pub list_id: Option<String>,
     pub username: Option<String>,
-    pub asset: Option<String>,
+    pub asset_name: Option<String>,
 }

@@ -22,11 +22,11 @@ import { HTMLAttributes, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-interface articleSettingsProps extends HTMLAttributes<HTMLDivElement> {
+interface ArticleSettingsProps extends HTMLAttributes<HTMLDivElement> {
   article: Article;
 }
 
-const ArticleSettingsTab = ({ article }: articleSettingsProps) => {
+const ArticleSettingsTab = ({ article }: ArticleSettingsProps) => {
   const [pending, startTransition] = useTransition();
   const UpdateArticleForm = useForm<z.infer<typeof UpdateArticleSchema>>({
     resolver: zodResolver(UpdateArticleSchema),
