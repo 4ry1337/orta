@@ -3,6 +3,8 @@ use std::{
     sync::Arc,
 };
 
+use amqprs::connection::{Connection, OpenConnectionArguments};
+use secrecy::ExposeSecret;
 use shared::{
     auth_proto::auth_service_server::AuthServiceServer,
     configuration::{DatabaseSettings, Settings},
@@ -15,6 +17,7 @@ use crate::service::AuthServiceImpl;
 
 pub struct AppState {
     pub db: PgPool,
+    pub connection: Connection,
 }
 
 pub struct Application {
@@ -33,7 +36,20 @@ impl Application {
 
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
-        let state = Arc::new(AppState { db: pool });
+        let args = OpenConnectionArguments::new(
+            &configuration.message_broker.hostname,
+            configuration.message_broker.port,
+            &configuration.message_broker.username,
+            configuration.message_broker.password.expose_secret(),
+        )
+        .finish();
+
+        let connection = Connection::open(&args).await.unwrap();
+
+        let state = Arc::new(AppState {
+            db: pool,
+            connection,
+        });
 
         let auth_service = AuthServiceImpl {
             state: state.clone(),

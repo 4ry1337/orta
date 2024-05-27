@@ -4,11 +4,6 @@ use std::{
     time::Duration,
 };
 
-use amqprs::{
-    callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-    channel::QueueDeclareArguments,
-    connection::{Connection, OpenConnectionArguments},
-};
 use axum::{
     extract::{DefaultBodyLimit, FromRef},
     http::{
@@ -17,8 +12,7 @@ use axum::{
     },
 };
 use axum_extra::extract::cookie::Key;
-use secrecy::ExposeSecret;
-use shared::configuration::{MessageBrokerSettings, Settings};
+use shared::configuration::{Settings, CONFIG};
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     catch_panic::CatchPanicLayer,
@@ -74,8 +68,12 @@ impl Application {
     }
 
     pub async fn run(self) -> Result<(), std::io::Error> {
+        let client_url = match CONFIG.client.ssl {
+            true => format!("https://{}:{}", CONFIG.client.host, CONFIG.client.port),
+            false => format!("http://{}:{}", CONFIG.client.host, CONFIG.client.port),
+        };
         let cors = CorsLayer::new()
-            .allow_origin("http://localhost:4000".parse::<HeaderValue>().unwrap())
+            .allow_origin(client_url.parse::<HeaderValue>().unwrap())
             .allow_methods([
                 Method::GET,
                 Method::POST,
@@ -130,38 +128,4 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
-}
-
-async fn get_message_broker_client(configuration: MessageBrokerSettings) {
-    let args = OpenConnectionArguments::new(
-        &configuration.hostname,
-        configuration.port,
-        &configuration.username,
-        configuration.password.expose_secret(),
-    )
-    .finish();
-
-    let connection = Connection::open(&args).await.unwrap();
-
-    connection
-        .register_callback(DefaultConnectionCallback)
-        .await
-        .unwrap();
-
-    // open a channel on the connection
-    let channel = connection.open_channel(None).await.unwrap();
-
-    channel
-        .register_callback(DefaultChannelCallback)
-        .await
-        .unwrap();
-
-    // declare a durable queue
-    let (queue_name, _, _) = channel
-        .queue_declare(QueueDeclareArguments::durable_client_named(
-            "email-verification",
-        ))
-        .await
-        .unwrap()
-        .unwrap();
 }

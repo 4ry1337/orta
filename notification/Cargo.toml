@@ -22,8 +22,7 @@ tonic-reflection.workspace = true
 tokio.workspace = true
 
 # Email
-lettre = "0.11.7"
-lettre_email = "0.9.4"
+lettre = {version = "0.11.7", features = ["serde", "smtp-transport", "tokio1-native-tls"]}
 
 # Logging:
 tracing.workspace = true

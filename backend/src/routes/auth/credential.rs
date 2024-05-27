@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
@@ -9,7 +9,9 @@ use axum_extra::extract::{cookie::Cookie, CookieJar};
 use cookie::SameSite;
 use serde::Deserialize;
 use shared::{
-    auth_proto::{auth_service_client::AuthServiceClient, SigninRequest, SignupRequest},
+    auth_proto::{
+        auth_service_client::AuthServiceClient, SigninRequest, SignupRequest, VerifyEmailRequest,
+    },
     configuration::CONFIG,
 };
 use time::Duration;
@@ -23,6 +25,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/auth/credential/signup", post(signup))
         .route("/auth/credential/signin", post(signin))
+        .route("/auth/credential/verify", post(signin))
 }
 
 #[derive(Debug, Validate, Deserialize)]
@@ -40,7 +43,7 @@ pub async fn signup(
     Json(payload): Json<SignUpRequest>,
 ) -> Response {
     info!("Signup request");
-    let res = match AuthServiceClient::new(channel)
+    match AuthServiceClient::new(channel)
         .signup(SignupRequest {
             email: payload.email,
             password: payload.password,
@@ -48,40 +51,14 @@ pub async fn signup(
         })
         .await
     {
-        Ok(res) => res.get_ref().to_owned(),
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             return (status_code, message).into_response();
         }
-    };
-
-    let fingerprint_cookie: Cookie = Cookie::build((
-        &CONFIG.cookies.fingerprint.name,
-        format!("{}.{}", CONFIG.cookies.salt, res.fingerprint),
-    ))
-    .path("/")
-    .http_only(true)
-    .same_site(SameSite::Lax)
-    .max_age(Duration::minutes(CONFIG.cookies.refresh_token.duration))
-    .into();
-
-    let refresh_token_cookie: Cookie = Cookie::build((
-        &CONFIG.cookies.refresh_token.name,
-        format!("{}.{}", CONFIG.cookies.salt, res.refresh_token),
-    ))
-    .path("/")
-    .http_only(true)
-    .same_site(SameSite::Lax)
-    .max_age(Duration::minutes(CONFIG.cookies.refresh_token.duration))
-    .into();
-
-    let cookies = CookieJar::new()
-        .add(refresh_token_cookie)
-        .add(fingerprint_cookie);
-
-    (StatusCode::OK, cookies, res.access_token).into_response()
+    }
 }
 
 #[derive(Debug, Validate, Deserialize)]
@@ -140,4 +117,53 @@ pub async fn signin(
     (StatusCode::OK, cookies, res.access_token).into_response()
 }
 
-// TODO activiaton links
+#[derive(Debug, Deserialize)]
+pub struct VerifyQueryParams {
+    token: String,
+}
+
+pub async fn verify(
+    Extension(channel): Extension<Channel>,
+    State(_state): State<AppState>,
+    Query(query): Query<VerifyQueryParams>,
+) -> Response {
+    info!("Verify request");
+    let res = match AuthServiceClient::new(channel)
+        .verify_email(VerifyEmailRequest { token: query.token })
+        .await
+    {
+        Ok(res) => res.get_ref().to_owned(),
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    };
+
+    let fingerprint_cookie: Cookie = Cookie::build((
+        &CONFIG.cookies.fingerprint.name,
+        format!("{}.{}", CONFIG.cookies.salt, res.fingerprint),
+    ))
+    .path("/")
+    .http_only(true)
+    .same_site(SameSite::Lax)
+    .max_age(Duration::minutes(CONFIG.cookies.fingerprint.duration))
+    .into();
+
+    let refresh_token_cookie: Cookie = Cookie::build((
+        &CONFIG.cookies.refresh_token.name,
+        format!("{}.{}", CONFIG.cookies.salt, res.refresh_token),
+    ))
+    .path("/")
+    .http_only(true)
+    .same_site(SameSite::Lax)
+    .max_age(Duration::minutes(CONFIG.cookies.refresh_token.duration))
+    .into();
+
+    let cookies = CookieJar::new()
+        .add(refresh_token_cookie)
+        .add(fingerprint_cookie);
+
+    (StatusCode::OK, cookies, res.access_token).into_response()
+}

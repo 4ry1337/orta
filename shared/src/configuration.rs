@@ -76,6 +76,7 @@ impl TryFrom<String> for Environment {
 
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct Settings {
+    pub client: ApplicationSettings,
     pub api_server: ApplicationSettings,
     pub resource_server: ApplicationSettings,
     pub auth_server: ApplicationSettings,
@@ -87,6 +88,7 @@ pub struct Settings {
     pub auth: AuthSettings,
     pub query: QuerySettings,
     pub message_broker: MessageBrokerSettings,
+    pub mail: MailSettings,
     // pub redis_uri: Secret<String>,
 }
 
@@ -95,6 +97,7 @@ pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
+    pub ssl: bool,
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -206,3 +209,12 @@ pub struct MessageBrokerSettings {
 //         std::time::Duration::from_millis(self.timeout_milliseconds)
 //     }
 // }
+
+#[derive(Debug, serde::Deserialize, Clone)]
+pub struct MailSettings {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub smtp_port: u32,
+    pub smtp_host: String,
+    pub smtp_user: String,
+    pub smtp_password: Secret<String>,
+}

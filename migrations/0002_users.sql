@@ -35,11 +35,9 @@ CREATE TABLE Accounts (
 );
 
 CREATE TABLE Verification_token (
-  identifier TEXT NOT NULL,
-  expires TIMESTAMPTZ NOT NULL,
-  token TEXT NOT NULL,
-
-  PRIMARY KEY (identifier, token)
+  token TEXT DEFAULT nanoid(15) PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES Users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE UNIQUE INDEX Account_provider_provider_account_id_key ON Accounts(provider, provider_account_id);

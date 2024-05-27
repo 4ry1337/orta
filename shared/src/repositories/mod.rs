@@ -6,3 +6,4 @@ pub mod list_repository;
 pub mod series_repository;
 pub mod tag_repository;
 pub mod user_repository;
+pub mod validation_token;

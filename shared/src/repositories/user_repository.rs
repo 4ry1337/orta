@@ -241,8 +241,8 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
         sqlx::query_as!(
             User,
             r#"
-            INSERT INTO users (username, email, email_verified, image)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO users (username, email, image)
+            VALUES ($1, $2, $3)
             RETURNING
                 id,
                 username,
@@ -260,7 +260,6 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             "#,
             create_user.username,
             create_user.email,
-            create_user.email_verified,
             create_user.image,
         )
         .fetch_one(&mut **transaction)

@@ -25,6 +25,16 @@ jsonwebtoken.workspace = true
 chrono.workspace = true
 time.workspace = true
 
+# Async Runtime:
+tokio.workspace = true
+
+# Logging:
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Message Broker
+amqprs.workspace = true
+
 # Serialisation/Deserialisation:
 prost.workspace = true
 prost-types.workspace = true

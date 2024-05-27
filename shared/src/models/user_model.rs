@@ -65,7 +65,6 @@ impl<'r> sqlx::Decode<'r, Postgres> for User {
 pub struct CreateUser {
     pub username: String,
     pub email: String,
-    pub email_verified: Option<DateTime<Utc>>,
     pub image: Option<String>,
 }
 
@@ -73,4 +72,11 @@ pub struct UpdateUser {
     pub id: String,
     pub username: Option<String>,
     pub image: Option<String>,
+}
+
+#[derive(Clone, sqlx::FromRow, Serialize, Deserialize, Debug)]
+pub struct ValidationToken {
+    pub token: String,
+    pub user_id: String,
+    pub expires_at: DateTime<Utc>,
 }

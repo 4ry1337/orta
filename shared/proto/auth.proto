@@ -3,8 +3,8 @@ syntax = "proto3";
 package auth;
 
 service AuthService {
-  rpc Signup(SignupRequest) returns (AuthResponse);
-  rpc Signin(SigninRequest) returns (AuthResponse);
+  rpc Signup(SignupRequest) returns (SignupResponse);
+  rpc Signin(SigninRequest) returns (SigninResponse);
   rpc Refresh(RefreshRequest) returns (RefreshResponse);
   rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse);
 }
@@ -15,12 +15,16 @@ message SignupRequest {
   string usermame = 3;
 }
 
+message SignupResponse {
+  string message = 1;
+}
+
 message SigninRequest {
   string email = 1;
   string password = 2;
 }
 
-message AuthResponse {
+message SigninResponse {
   string access_token = 1;
   string refresh_token = 2;
   string fingerprint = 3;
@@ -38,6 +42,9 @@ message RefreshResponse {
 message VerifyEmailRequest {
   string token = 1;
 }
+
 message VerifyEmailResponse {
-  string token = 1;
+  string access_token = 1;
+  string refresh_token = 2;
+  string fingerprint = 3;
 }

@@ -1,16 +1,24 @@
 use std::sync::Arc;
 
+use amqprs::{channel::BasicPublishArguments, BasicProperties, DELIVERY_MODE_PERSISTENT};
+use chrono::Utc;
+use serde_json::json;
 use shared::{
     auth_proto::{
-        auth_service_server::AuthService, AuthResponse, RefreshRequest, RefreshResponse,
-        SigninRequest, SignupRequest, VerifyEmailRequest, VerifyEmailResponse,
+        auth_service_server::AuthService, RefreshRequest, RefreshResponse, SigninRequest,
+        SigninResponse, SignupRequest, SignupResponse, VerifyEmailRequest, VerifyEmailResponse,
     },
+    configuration::CONFIG,
     models::{account_model::CreateAccount, user_model::CreateUser},
     repositories::{
         account_repository::{AccountRepository, AccountRepositoryImpl},
         user_repository::{UserRepository, UserRepositoryImpl},
+        validation_token::{ValidationTokenRepository, ValidationTokenRepositoryImpl},
     },
-    utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
+    utils::{
+        jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
+        message::VerificationMessage,
+    },
 };
 use tonic::{Request, Response, Status};
 use tracing::error;
@@ -33,7 +41,7 @@ impl AuthService for AuthServiceImpl {
     async fn signup(
         &self,
         request: Request<SignupRequest>,
-    ) -> Result<Response<AuthResponse>, Status> {
+    ) -> Result<Response<SignupResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -50,7 +58,6 @@ impl AuthService for AuthServiceImpl {
                 username: input.usermame.to_owned(),
                 email: input.email.to_owned(),
                 image: None,
-                email_verified: None,
             },
         )
         .await
@@ -112,55 +119,82 @@ impl AuthService for AuthServiceImpl {
             }
         };
 
+        let token = match ValidationTokenRepositoryImpl::create(&mut transaction, &user.id).await {
+            Ok(token) => token,
+            Err(err) => {
+                error!("Unable to set token {}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::not_found("User not found"));
+                }
+                if let Some(database_error) = err.as_database_error() {
+                    if let Some(constraint) = database_error.constraint() {
+                        if constraint == "validation_token_token_key" {
+                            return Err(Status::already_exists("Retry"));
+                        }
+                    }
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
         if let Err(err) = transaction.commit().await {
             error!("{:#?}", err);
             return Err(Status::internal("Something went wrong"));
         }
 
-        let access_token = match AccessToken::generate(AccessTokenPayload {
-            user_id: user.id.clone(),
-            email: user.email,
-            username: user.username,
-            image: user.image,
-            role: user.role,
-        }) {
-            Ok(access_token) => access_token,
-            Err(error) => {
-                error!("unable generate tokens:\n{}", error);
-                return Err(Status::internal("Unable to generate tokens"));
-            }
-        };
-
-        let (fingerprint, fingerprint_hash) = match generate_fingerprint() {
-            Ok((fingerprint, fingerprint_hash)) => (fingerprint, fingerprint_hash),
+        let channel = match self.state.connection.open_channel(None).await {
+            Ok(channel) => channel,
             Err(err) => {
-                error!("fingerprint error {}", err);
-                return Err(Status::internal("Unable to generate tokens"));
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
             }
         };
 
-        let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
-            user_id: user.id.clone(),
-            fingerprint: fingerprint_hash,
-        }) {
-            Ok(refresh_token) => refresh_token,
-            Err(error) => {
-                error!("unable generate tokens:\n{}", error);
-                return Err(Status::internal("Unable to generate tokens"));
-            }
+        let verification_link = match CONFIG.client.ssl {
+            true => format!(
+                "https://{}:{}/auth?token={}",
+                CONFIG.client.host, CONFIG.client.port, token.token
+            ),
+            false => format!(
+                "http://{}:{}/auth?token={}",
+                CONFIG.client.host, CONFIG.client.port, token.token
+            ),
         };
 
-        Ok(Response::new(AuthResponse {
-            access_token,
-            refresh_token,
-            fingerprint,
-        }))
+        let payload = json!(VerificationMessage {
+            email: user.email.to_owned(),
+            verification_link,
+        })
+        .to_string()
+        .into_bytes();
+
+        let publish_args = BasicPublishArguments::new("", "notification");
+
+        match channel
+            .basic_publish(
+                BasicProperties::default()
+                    .with_message_type("orta.notification.verification")
+                    .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
+                    .finish(),
+                payload,
+                publish_args,
+            )
+            .await
+        {
+            Ok(()) => Ok(Response::new(SignupResponse {
+                message: format!("Verififcation Link send to {}", user.email.to_owned()),
+            })),
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
     }
 
     async fn signin(
         &self,
         request: Request<SigninRequest>,
-    ) -> Result<Response<AuthResponse>, Status> {
+    ) -> Result<Response<SigninResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -181,6 +215,78 @@ impl AuthService for AuthServiceImpl {
                 return Err(Status::internal("Something went wrong"));
             }
         };
+
+        if user.email_verified.is_none() {
+            let token =
+                match ValidationTokenRepositoryImpl::create(&mut transaction, &user.id).await {
+                    Ok(token) => token,
+                    Err(err) => {
+                        error!("Unable to set token {}", err);
+                        if let sqlx::error::Error::RowNotFound = err {
+                            return Err(Status::not_found("User not found"));
+                        }
+                        if let Some(database_error) = err.as_database_error() {
+                            if let Some(constraint) = database_error.constraint() {
+                                if constraint == "validation_token_token_key" {
+                                    return Err(Status::already_exists("Retry"));
+                                }
+                            }
+                        }
+                        return Err(Status::internal("Something went wrong"));
+                    }
+                };
+
+            let channel = match self.state.connection.open_channel(None).await {
+                Ok(channel) => channel,
+                Err(err) => {
+                    error!("{:#?}", err);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
+
+            let verification_link = match CONFIG.client.ssl {
+                true => format!(
+                    "https://{}:{}/auth?token={}",
+                    CONFIG.client.host, CONFIG.client.port, token.token
+                ),
+                false => format!(
+                    "http://{}:{}/auth?token={}",
+                    CONFIG.client.host, CONFIG.client.port, token.token
+                ),
+            };
+
+            let payload = json!(VerificationMessage {
+                email: user.email.to_owned(),
+                verification_link,
+            })
+            .to_string()
+            .into_bytes();
+
+            let publish_args = BasicPublishArguments::new("", "notification");
+
+            match channel
+                .basic_publish(
+                    BasicProperties::default()
+                        .with_message_type("orta.notification.verification")
+                        .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
+                        .finish(),
+                    payload,
+                    publish_args,
+                )
+                .await
+            {
+                Ok(()) => {
+                    return Err(Status::not_found(format!(
+                        "Email not verified. Verififcation Link send to {}",
+                        user.email.to_owned()
+                    )));
+                }
+                Err(err) => {
+                    error!("{:#?}", err);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            }
+        }
 
         let account = match AccountRepositoryImpl::find_by_user(&mut transaction, &user.id).await {
             Ok(acccount) => acccount,
@@ -259,7 +365,7 @@ impl AuthService for AuthServiceImpl {
             }
         };
 
-        Ok(Response::new(AuthResponse {
+        Ok(Response::new(SigninResponse {
             access_token,
             refresh_token,
             fingerprint,
@@ -318,7 +424,6 @@ impl AuthService for AuthServiceImpl {
             error!("{:#?}", err);
             return Err(Status::internal("Something went wrong"));
         };
-
         let access_token = match AccessToken::generate(AccessTokenPayload {
             user_id: user.id,
             email: user.email,
@@ -340,6 +445,81 @@ impl AuthService for AuthServiceImpl {
         &self,
         request: Request<VerifyEmailRequest>,
     ) -> Result<Response<VerifyEmailResponse>, Status> {
-        unimplemented!()
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        let validation_token =
+            match ValidationTokenRepositoryImpl::find(&mut transaction, &input.token).await {
+                Ok(user_id) => user_id,
+                Err(err) => {
+                    error!("Unable to set token {}", err);
+                    if let sqlx::error::Error::RowNotFound = err {
+                        return Err(Status::not_found("User not found"));
+                    }
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
+
+        if validation_token.expires_at < Utc::now() {
+            return Err(Status::unauthenticated("Link expired"));
+        }
+
+        let user =
+            match UserRepositoryImpl::verify(&mut transaction, &validation_token.user_id).await {
+                Ok(user) => user,
+                Err(error) => {
+                    if let sqlx::error::Error::RowNotFound = error {
+                        return Err(Status::not_found("User not found"));
+                    }
+                    error!("Unable to get user: {}", error);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
+
+        let access_token = match AccessToken::generate(AccessTokenPayload {
+            user_id: user.id.clone(),
+            email: user.email,
+            username: user.username,
+            image: user.image,
+            role: user.role,
+        }) {
+            Ok(access_token) => access_token,
+            Err(error) => {
+                error!("unable generate tokens:\n{}", error);
+                return Err(Status::internal("Unable to generate tokens"));
+            }
+        };
+
+        let (fingerprint, fingerprint_hash) = match generate_fingerprint() {
+            Ok((fingerprint, fingerprint_hash)) => (fingerprint, fingerprint_hash),
+            Err(err) => {
+                error!("fingerprint error {}", err);
+                return Err(Status::internal("Unable to generate tokens"));
+            }
+        };
+
+        let refresh_token = match RefreshToken::generate(RefreshTokenPayload {
+            user_id: user.id.clone(),
+            fingerprint: fingerprint_hash,
+        }) {
+            Ok(refresh_token) => refresh_token,
+            Err(error) => {
+                error!("unable generate tokens:\n{}", error);
+                return Err(Status::internal("Unable to generate tokens"));
+            }
+        };
+
+        Ok(Response::new(VerifyEmailResponse {
+            access_token,
+            refresh_token,
+            fingerprint,
+        }))
     }
 }
