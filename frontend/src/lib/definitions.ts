@@ -34,6 +34,10 @@ export const CreateArticleSchema = z.object({
   title: z.string().trim(),
 });
 
+export const SaveArticleSchema = z.object({
+  content: z.string(),
+});
+
 export const UpdateArticleSchema = z.object({
   title: z.string().trim(),
 });

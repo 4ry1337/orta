@@ -19,8 +19,8 @@ use axum_prometheus::PrometheusMetricLayer;
 use self::{
     admin::health_checker,
     article::{
-        delete_article, delete_author, get_article, get_articles, patch_article, post_article,
-        put_author,
+        delete_article, delete_author, get_article, get_articles, get_history, patch_article,
+        post_article, put_author, save_article,
     },
     assets::{get_asset, post_asset},
     comment::{delete_comment, get_comments, patch_comment, post_comment},
@@ -109,6 +109,20 @@ pub fn router(state: AppState) -> Router<AppState> {
                                                 auth_middleware,
                                             ),
                                         )),
+                                )
+                                .route(
+                                    "/history",
+                                    get(get_history).layer(middleware::from_fn_with_state(
+                                        state.clone(),
+                                        auth_middleware,
+                                    )),
+                                )
+                                .route(
+                                    "/edit",
+                                    patch(save_article.layer(middleware::from_fn_with_state(
+                                        state.clone(),
+                                        auth_middleware,
+                                    ))),
                                 )
                                 .route(
                                     "/authors",

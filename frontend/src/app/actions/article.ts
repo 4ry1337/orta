@@ -1,13 +1,18 @@
 "use client";
 
 import { z } from "zod";
-import { CreateArticleSchema, UpdateArticleSchema } from "@/lib/definitions";
+import {
+  CreateArticleSchema,
+  SaveArticleSchema,
+  UpdateArticleSchema,
+} from "@/lib/definitions";
 import { toast } from "sonner";
 import {
   Article,
   FullArticle,
   CursorPagination,
   ResultPaging,
+  ArticleVersion,
 } from "@/lib/types";
 import { CursorPaginationToUrlParams } from "@/lib/utils";
 import { mutate } from "swr";
@@ -106,3 +111,59 @@ export async function update_article(
     return await res.json();
   });
 }
+
+export async function delete_article(article_id: string) {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+      },
+    },
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    toast(await res.text());
+  });
+}
+
+export async function get_history(
+  article_id: string,
+): Promise<ArticleVersion | null> {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}/history`,
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    return await res.json();
+  });
+}
+
+// export async function save_article(
+//   article_id: string,
+//   values: z.infer<typeof SaveArticleSchema>,
+// ): Promise<ArticleVersion | null> {
+//   return fetch(
+//     `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}/edit`,
+//     {
+//       method: "PATCH",
+//       headers: {
+//         Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+//         "Content-Type": "application/json",
+//       },
+//       credentials: "include",
+//       body: JSON.stringify(values),
+//     },
+//   ).then(async (res) => {
+//     if (!res.ok) {
+//       toast.error(await res.text());
+//       return null;
+//     }
+//     return await res.json();
+//   });
+// }

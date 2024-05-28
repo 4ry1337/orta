@@ -1,0 +1,21 @@
+// "esModuleInterop": true,
+// "resolveJsonModule": true,
+// "isolatedModules": true,
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "module": "esnext",
+    "target": "es2022",
+    "strict": true,
+    // "noEmit": true,
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "incremental": true,
+    // "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules"]
+}

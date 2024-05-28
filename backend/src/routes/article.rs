@@ -9,11 +9,11 @@ use axum_extra::extract::Query;
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
-    models::article_model::{Article, FullArticle},
+    models::article_model::{Article, ArticleVersion, FullArticle},
     resource_proto::{
         article_service_client::ArticleServiceClient, AddAuthorRequest, CreateArticleRequest,
-        DeleteArticleRequest, GetArticleRequest, GetArticlesRequest, RemoveAuthorRequest,
-        UpdateArticleRequest,
+        DeleteArticleRequest, GetArticleRequest, GetArticlesRequest, GetHistoryRequest,
+        RemoveAuthorRequest, SaveArticleRequest, UpdateArticleRequest,
     },
     utils::jwt::AccessTokenPayload,
 };
@@ -146,7 +146,6 @@ pub struct PatchArticleRequestBody {
 pub async fn patch_article(
     Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
-    State(_state): State<AppState>,
     Path(params): Path<PathParams>,
     Json(payload): Json<PatchArticleRequestBody>,
 ) -> Response {
@@ -274,6 +273,96 @@ pub async fn delete_author(
         .await
     {
         Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Err(err) => {
+            error!("{:?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveArticleRequestBody {
+    pub content: String,
+}
+
+pub async fn save_article(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    Path(params): Path<PathParams>,
+    Json(payload): Json<SaveArticleRequestBody>,
+) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+    info!(
+        "Save Articles Version Request {:?} {:?} {:?}",
+        user, article_id, payload
+    );
+    match ArticleServiceClient::new(channel)
+        .save(SaveArticleRequest {
+            user_id: user.user_id,
+            article_id,
+            device_id: None,
+            content: payload.content,
+        })
+        .await
+    {
+        Ok(res) => (
+            StatusCode::OK,
+            Json(json!(ArticleVersion::from(res.get_ref()))),
+        )
+            .into_response(),
+        Err(err) => {
+            error!("{:?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
+}
+
+pub async fn get_history(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    Path(params): Path<PathParams>,
+    Query(cursor): Query<CursorPagination>,
+) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+    info!(
+        "Get Article History Request {:?} {:?} {:?}",
+        user, article_id, cursor
+    );
+    match ArticleServiceClient::new(channel)
+        .get_history(GetHistoryRequest {
+            user_id: user.user_id,
+            article_id,
+            query: None,
+            cursor: cursor.cursor,
+            limit: cursor.limit,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<ArticleVersion> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res
+                        .article_versions
+                        .iter()
+                        .map(|article_version| ArticleVersion::from(article_version))
+                        .collect()
+                })),
+            )
+                .into_response()
+        }
         Err(err) => {
             error!("{:?}", err);
             let message = err.message().to_string();

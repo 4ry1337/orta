@@ -1,0 +1,30 @@
+{
+  "name": "collaborative",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "rimraf dist && npx tsc",
+    "prestart": "npm run build",
+    "start": "node dist/index.js",
+    "predev": "npm run build",
+    "dev": "concurrently \"npx tsc -w\" \"nodemon dist/index.js\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "rimraf": "^5.0.7",
+    "nodemon": "3.1.1",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^2.13.0",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.15"
+  }
+}

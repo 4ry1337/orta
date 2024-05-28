@@ -217,6 +217,7 @@ message GetHistoryRequest {
   string article_id = 2;
   optional string query = 3;
   optional string cursor = 4;
+  int64 limit = 5;
 }
 
 message GetHistoryResponse {

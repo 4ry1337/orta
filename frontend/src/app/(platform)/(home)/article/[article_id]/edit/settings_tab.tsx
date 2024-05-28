@@ -43,40 +43,42 @@ const ArticleSettingsTab = ({ article }: ArticleSettingsProps) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Article</h3>
-        <p className="text-sm text-muted-foreground">
-          Update your article settings. Set your preferred language and tags.
-        </p>
+    <div className="max-w-lg mx-auto">
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-medium">Article</h3>
+          <p className="text-sm text-muted-foreground">
+            Update your article settings. Set your preferred language and tags.
+          </p>
+        </div>
+        <Separator />
+        <Form {...UpdateArticleForm}>
+          <form
+            onSubmit={UpdateArticleForm.handleSubmit(onSubmit)}
+            className="space-y-8"
+          >
+            <FormField
+              control={UpdateArticleForm.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Article Title" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    This is the title that will be displayed on this article.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button disabled={pending} type="submit">
+              Update Article
+            </Button>
+          </form>
+        </Form>
       </div>
-      <Separator />
-      <Form {...UpdateArticleForm}>
-        <form
-          onSubmit={UpdateArticleForm.handleSubmit(onSubmit)}
-          className="space-y-8"
-        >
-          <FormField
-            control={UpdateArticleForm.control}
-            name="title"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Title</FormLabel>
-                <FormControl>
-                  <Input placeholder="Article Title" {...field} />
-                </FormControl>
-                <FormDescription>
-                  This is the title that will be displayed on this article.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button disabled={pending} type="submit">
-            Update Article
-          </Button>
-        </form>
-      </Form>
     </div>
   );
 };
