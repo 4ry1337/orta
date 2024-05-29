@@ -77,6 +77,7 @@ impl TryFrom<String> for Environment {
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct Settings {
     pub client: ApplicationSettings,
+    pub collaboration_server: ApplicationSettings,
     pub api_server: ApplicationSettings,
     pub resource_server: ApplicationSettings,
     pub auth_server: ApplicationSettings,

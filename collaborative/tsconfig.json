@@ -1,6 +1,3 @@
-// "esModuleInterop": true,
-// "resolveJsonModule": true,
-// "isolatedModules": true,
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {

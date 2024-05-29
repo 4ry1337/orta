@@ -30,7 +30,7 @@ const UserButton = ({ className, user }: UserButtonProps) => {
         <Button
           variant={"outline"}
           className={cn(
-            "h-14 rounded-full w-14 p-2 xl:w-auto xl:justify-start",
+            "scroll-m-20 text-2xl font-semibold tracking-tight h-14 rounded-full w-14 p-2 xl:w-auto xl:justify-start",
             className,
           )}
         >

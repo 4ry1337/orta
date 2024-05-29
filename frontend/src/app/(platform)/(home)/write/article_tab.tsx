@@ -4,7 +4,7 @@ import { get_articles } from "@/app/actions/article";
 import CreateArticleDialog from "@/components/article/create_article_dialog";
 import ArticleList from "@/components/article/list/list";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HTMLAttributes, useState } from "react";
+import { HTMLAttributes } from "react";
 import useSWR from "swr";
 
 interface ArticleTabProps extends HTMLAttributes<HTMLDivElement> {

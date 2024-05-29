@@ -8,6 +8,11 @@ api_server:
   host: "localhost"
   ssl: false
 
+collaboration_server:
+  port: 4545
+  host: "localhost"
+  ssl: false
+
 resource_server:
   port: 5001
   host: "localhost"

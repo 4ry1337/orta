@@ -18,7 +18,7 @@ use shared::{
     utils::jwt::AccessTokenPayload,
 };
 use tonic::transport::Channel;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{
     application::AppState,

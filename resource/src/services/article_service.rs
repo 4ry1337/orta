@@ -590,6 +590,7 @@ impl ArticleService for ArticleServiceImpl {
         {
             Ok(is_owner) => {
                 if !is_owner {
+                    error!("Forbidden");
                     return Err(Status::permission_denied("Forbidden"));
                 }
             }

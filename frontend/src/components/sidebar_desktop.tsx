@@ -4,11 +4,17 @@ import LogoIcon from "@/components/logo";
 import { ModeToggle } from "@/components/theme/toggle";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { BookmarkIcon, Pencil1Icon, PersonIcon } from "@radix-ui/react-icons";
+import {
+  BellIcon,
+  BookmarkIcon,
+  MagnifyingGlassIcon,
+  Pencil1Icon,
+  PersonIcon,
+} from "@radix-ui/react-icons";
 import UserButton from "./user/button";
 import { HTMLAttributes } from "react";
 import { useSession } from "@/context/session_context";
-import { Separator } from "./ui/separator";
+import { cn } from "@/lib/utils";
 
 interface IRoute {
   label: string;
@@ -17,16 +23,16 @@ interface IRoute {
 }
 
 const routes: IRoute[] = [
-  // {
-  //   label: "Search",
-  //   href: "/search",
-  //   icon: MagnifyingGlassIcon,
-  // },
-  // {
-  //   label: "Notifications",
-  //   href: "/notifications",
-  //   icon: BellIcon,
-  // },
+  {
+    label: "Search",
+    href: "/search",
+    icon: MagnifyingGlassIcon,
+  },
+  {
+    label: "Notifications",
+    href: "/notifications",
+    icon: BellIcon,
+  },
   {
     label: "Lists",
     href: "/lists",
@@ -41,9 +47,12 @@ const Sidebar = (props: SidebarProps) => {
   return (
     <header
       id="sidebar"
-      className="hidden relative h-screen shrink-0 md:block w-[4.5rem] xl:w-64"
+      className={cn(
+        "hidden relative h-screen shrink-0 md:block w-[4.5rem] xl:w-64",
+        props.className,
+      )}
     >
-      <div className="fixed bottom-0 top-0 w-full h-full border-r flex flex-col max-w-fit xl:max-w-64">
+      <div className="fixed bottom-0 top-0 w-full h-full border-l flex flex-col max-w-fit xl:max-w-64">
         <div className="flex w-full h-full flex-col py-4 px-2 justify-between">
           <section className="flex flex-col justify-center gap-4">
             <div className="inline-flex w-full flex-col items-center justify-center gap-2 xl:flex-row xl:justify-normal">
@@ -54,7 +63,9 @@ const Sidebar = (props: SidebarProps) => {
               >
                 <Link href={"/"}>
                   <LogoIcon className="h-7 w-7" />
-                  <h3 className="ml-2 hidden xl:block">Orta</h3>
+                  <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight ml-2 hidden xl:block">
+                    Orta
+                  </h3>
                 </Link>
               </Button>
               <ModeToggle
@@ -69,7 +80,9 @@ const Sidebar = (props: SidebarProps) => {
             >
               <Link href={"/write"} prefetch={false}>
                 <Pencil1Icon className="h-7 w-7" />
-                <h3 className="ml-2 hidden xl:block">Write</h3>
+                <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight ml-2 hidden xl:block">
+                  Write
+                </h3>
               </Link>
             </Button>
             <div className="flex flex-col gap-2">
@@ -83,7 +96,9 @@ const Sidebar = (props: SidebarProps) => {
                   >
                     <Link href={route.href}>
                       <route.icon className="h-7 w-7" />
-                      <h3 className="ml-2  hidden xl:block">{route.label}</h3>
+                      <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight ml-2  hidden xl:block">
+                        {route.label}
+                      </h3>
                     </Link>
                   </Button>
                 );
@@ -99,7 +114,9 @@ const Sidebar = (props: SidebarProps) => {
               >
                 <Link href={"/auth"}>
                   <PersonIcon className="h-7 w-7" />
-                  <h3 className="ml-2 hidden xl:block">Sign In</h3>
+                  <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight ml-2 hidden xl:block">
+                    Sign In
+                  </h3>
                 </Link>
               </Button>
             )}

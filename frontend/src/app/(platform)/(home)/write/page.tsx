@@ -13,12 +13,12 @@ const WritePage = () => {
   });
 
   if (status == "loading") {
-    return <Skeleton className="h-screen w-full" />;
+    return <Skeleton className="h-screen" />;
   }
 
   return (
     <Tabs defaultValue={"article"}>
-      <div className="pt-6 px-2">
+      <div className="pt-8 px-4">
         <TabsList>
           <TabsTrigger asChild value="article">
             <Link href={"#article"}>Article</Link>
@@ -28,10 +28,10 @@ const WritePage = () => {
           </TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent className="px-2" value="article">
+      <TabsContent className="px-4" value="article">
         <ArticleTab username={data.username} />
       </TabsContent>
-      <TabsContent className="px-2" value="series">
+      <TabsContent className="px-4" value="series">
         <SeriesTab user_id={data.user_id} />
       </TabsContent>
     </Tabs>

@@ -72,8 +72,21 @@ impl Application {
             true => format!("https://{}:{}", CONFIG.client.host, CONFIG.client.port),
             false => format!("http://{}:{}", CONFIG.client.host, CONFIG.client.port),
         };
+        let collaboration_url = match CONFIG.collaboration_server.ssl {
+            true => format!(
+                "https://{}:{}",
+                CONFIG.collaboration_server.host, CONFIG.collaboration_server.port
+            ),
+            false => format!(
+                "http://{}:{}",
+                CONFIG.collaboration_server.host, CONFIG.collaboration_server.port
+            ),
+        };
         let cors = CorsLayer::new()
-            .allow_origin(client_url.parse::<HeaderValue>().unwrap())
+            .allow_origin([
+                client_url.parse::<HeaderValue>().unwrap(),
+                collaboration_url.parse::<HeaderValue>().unwrap(),
+            ])
             .allow_methods([
                 Method::GET,
                 Method::POST,

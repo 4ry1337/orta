@@ -80,21 +80,28 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         sqlx::query_as!(
             FullArticle,
             r#"
+            WITH latest_articleversions AS (
+                SELECT av.article_id, av.content
+                FROM articleversions av
+                INNER JOIN (
+                    SELECT article_id, MAX(created_at) AS max_created_at
+                    FROM articleversions
+                    GROUP BY article_id
+                ) latest_av ON av.article_id = latest_av.article_id AND av.created_at = latest_av.max_created_at
+            )
             SELECT
                 a.*,
-                av.content as "content: Option<String>",
-                ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
-                ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
+                lav.content as "content: Option<String>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT u.*) FILTER (WHERE u.id IS NOT NULL), NULL) as "users: Vec<User>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>"
             FROM articles a
             LEFT JOIN authors au ON a.id = au.article_id
             LEFT JOIN users u ON au.author_id = u.id
-            LEFT JOIN articleversions av ON a.id = av.article_id
             LEFT JOIN articletags at ON a.id = at.article_id
             LEFT JOIN tags t ON at.tag_slug = t.slug
-            LEFT JOIN listarticle la ON a.id = la.article_id
-            LEFT JOIN seriesarticle sa ON a.id = sa.article_id
+            LEFT JOIN latest_articleversions lav ON a.id = lav.article_id
             WHERE (($2::text IS NULL AND $3::timestamptz IS NULL) OR (a.id, a.created_at) < ($2, $3))
-            GROUP BY a.id, av.content
+            GROUP BY a.id, lav.content
             HAVING array_agg(u.username) @> $4
             ORDER BY a.id DESC, a.created_at DESC
             LIMIT $1
@@ -108,6 +115,9 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         .await
     }
 
+    // LEFT JOIN listarticle     la ON a.id         = la.article_id
+    // LEFT JOIN seriesarticle   sa ON a.id         = sa.article_id
+
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: &str,
@@ -115,19 +125,28 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         sqlx::query_as!(
             FullArticle,
             r#"
+            WITH latest_articleversions AS (
+                SELECT av.article_id, av.content
+                FROM articleversions av
+                INNER JOIN (
+                    SELECT article_id, MAX(created_at) AS max_created_at
+                    FROM articleversions
+                    GROUP BY article_id
+                ) latest_av ON av.article_id = latest_av.article_id AND av.created_at = latest_av.max_created_at
+            )
             SELECT
                 a.*,
-                av.content as "content: Option<String>",
-                ARRAY_REMOVE(ARRAY_AGG(u.*), null) as "users: Vec<User>",
-                ARRAY_REMOVE(ARRAY_AGG(t.*), null) as "tags: Vec<Tag>"
+                lav.content as "content: Option<String>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT u.*) FILTER (WHERE u.id IS NOT NULL), NULL) as "users: Vec<User>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>"
             FROM articles a
-            LEFT JOIN articleversions av ON a.id = av.article_id
             LEFT JOIN authors au ON a.id = au.article_id
             LEFT JOIN users u ON au.author_id = u.id
             LEFT JOIN articletags at ON a.id = at.article_id
             LEFT JOIN tags t ON at.tag_slug = t.slug
+            LEFT JOIN latest_articleversions lav ON a.id = lav.article_id
             WHERE a.id = $1
-            GROUP BY a.id, av.content
+            GROUP BY a.id, lav.content
             "#n,
             article_id
         )

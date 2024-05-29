@@ -3,12 +3,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 const HomeLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className="container">
+    <div className="container flex">
       <TooltipProvider delayDuration={0}>
-        <div className="max-w-full flex border-x">
-          <Sidebar />
-          <main className="min-h-screen w-full p-4">{children}</main>
-        </div>
+        <Sidebar className="shrink-0" />
+        <main className="min-h-screen border-x w-full">{children}</main>
       </TooltipProvider>
     </div>
   );

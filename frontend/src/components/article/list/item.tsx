@@ -12,6 +12,7 @@ import { Share1Icon } from "@radix-ui/react-icons";
 import Link from "next/link";
 import { FullArticle } from "@/lib/types";
 import { HTMLAttributes } from "react";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 interface ArticleCardProps extends HTMLAttributes<HTMLDivElement> {
   article: FullArticle;
@@ -19,7 +20,7 @@ interface ArticleCardProps extends HTMLAttributes<HTMLDivElement> {
 
 const ArticleCard = ({ article }: ArticleCardProps) => {
   return (
-    <Card>
+    <Card className="">
       <Link href={`/article/${slugifier(article.title)}-${article.id}`}>
         <CardHeader>
           <CardTitle>{article.title}</CardTitle>
@@ -29,28 +30,31 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
           <small>{DisplayDate(article.created_at)}</small>
         </CardContent>
       </Link>
-      <CardFooter className="justify-between">
+      <CardFooter className="justify-between ">
         <div className="flex items-center justify-between">
-          {article.users &&
-            article.users.map((user) => {
-              return (
-                <div
-                  key={user.id}
-                  className="inline-flex items-center justify-center"
-                >
-                  <Avatar className="mr-2 w-7 h-7">
-                    <AvatarImage src={user.image} alt="@avatar" />
-                    <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <Link
-                    className="text-primary underline-offset-4 hover:underline"
-                    href={`/${user.username}`}
+          <ScrollArea>
+            {article.users &&
+              article.users.map((user) => {
+                return (
+                  <div
+                    key={user.id}
+                    className="inline-flex items-center justify-center"
                   >
-                    {user.username}
-                  </Link>
-                </div>
-              );
-            })}
+                    <Avatar className="mr-2 w-7 h-7">
+                      <AvatarImage src={user.image} alt="@avatar" />
+                      <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <Link
+                      className="text-primary underline-offset-4 hover:underline"
+                      href={`/${user.username}`}
+                    >
+                      {user.username}
+                    </Link>
+                  </div>
+                );
+              })}
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
         </div>
         <div className="inline-flex gap-2">
           <Button variant={"ghost"} size={"icon"}>

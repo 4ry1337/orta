@@ -39,10 +39,10 @@ export const SaveArticleSchema = z.object({
 });
 
 export const UpdateArticleSchema = z.object({
-  title: z.string().trim(),
+  title: z.string().trim().optional(),
 });
 
 // TODO: add images
 export const CreateSeriesSchema = z.object({
-  label: z.string().trim(),
+  label: z.string().trim().optional(),
 });
