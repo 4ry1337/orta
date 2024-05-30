@@ -162,8 +162,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             Article,
             r#"
             WITH article AS
-              (INSERT INTO articles (title)
-               VALUES ($2)
+              (INSERT INTO articles (title, description)
+               VALUES ($2, $3)
                RETURNING *),
                  author AS
               (INSERT INTO authors (author_id, article_id)
@@ -174,7 +174,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             FROM article a
             "#n,
             create_article.user_id,
-            create_article.title
+            create_article.title,
+            create_article.description
         )
         .fetch_one(&mut **transaction)
         .await
@@ -188,12 +189,14 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             Article,
             r#"
             UPDATE articles
-            SET title = COALESCE($2, articles.title)
+            SET title = COALESCE($2, articles.title),
+                description = COALESCE($3, articles.description)
             WHERE articles.id = $1
             RETURNING *
             "#n,
             update_article.id,
             update_article.title,
+            update_article.description
         )
         .fetch_one(&mut **transaction)
         .await

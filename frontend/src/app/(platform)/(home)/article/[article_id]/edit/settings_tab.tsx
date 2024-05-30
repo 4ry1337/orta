@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { UpdateArticleSchema } from "@/lib/definitions";
-import { Article } from "@/lib/types";
+import { FullArticle } from "@/lib/types";
 import { slugifier } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { redirect } from "next/navigation";
@@ -22,12 +22,13 @@ import { HTMLAttributes, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-interface ArticleSettingsProps extends HTMLAttributes<HTMLDivElement> {
-  article: Article;
+interface ArticleSettingsTabProps extends HTMLAttributes<HTMLDivElement> {
+  article: FullArticle;
 }
 
-const ArticleSettingsTab = ({ article }: ArticleSettingsProps) => {
+const ArticleSettingsTab = ({ article }: ArticleSettingsTabProps) => {
   const [pending, startTransition] = useTransition();
+
   const UpdateArticleForm = useForm<z.infer<typeof UpdateArticleSchema>>({
     resolver: zodResolver(UpdateArticleSchema),
     defaultValues: {

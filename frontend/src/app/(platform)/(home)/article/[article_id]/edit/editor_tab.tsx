@@ -2,28 +2,21 @@
 
 import { default_extensions } from "@/lib/default_extension";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { HocuspocusProvider } from "@hocuspocus/provider";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
 import CharacterCount from "@tiptap/extension-character-count";
 import Placeholder from "@tiptap/extension-placeholder";
 import MenuBar from "@/components/article/edit/menubar";
+import { HocuspocusProvider } from "@hocuspocus/provider";
+import { cn } from "@/lib/utils";
+import { HTMLAttributes } from "react";
 
-const EditorTab = ({
-  username,
-  article_id,
-}: {
-  article_id: string;
+interface EditorTabProps extends HTMLAttributes<HTMLDivElement> {
   username: string;
-}) => {
-  const provider = new HocuspocusProvider({
-    url: "ws://127.0.0.1:6565",
-    name: article_id,
-    parameters: {
-      token: sessionStorage.getItem("session"),
-    },
-  });
+  provider: HocuspocusProvider;
+}
 
+const EditorTab = ({ username, provider, className }: EditorTabProps) => {
   const editor = useEditor({
     extensions: [
       ...default_extensions,
@@ -56,7 +49,7 @@ const EditorTab = ({
   }
 
   return (
-    <div>
+    <div className={cn("", className)}>
       <div>
         <MenuBar editor={editor} />
       </div>

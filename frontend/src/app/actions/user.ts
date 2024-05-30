@@ -1,6 +1,6 @@
 "use client";
 
-import { CursorPagination, User } from "@/lib/types";
+import { CursorPagination, ResultPaging, User } from "@/lib/types";
 
 export async function get_user(username: string): Promise<User> {
   return fetch(
@@ -14,8 +14,8 @@ export async function get_user(username: string): Promise<User> {
 }
 
 export async function get_users(
-  pagination?: CursorPagination,
-): Promise<User[]> {
+  cursor?: CursorPagination,
+): Promise<ResultPaging<User>> {
   return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users`).then(
     async (res) => {
       if (!res.ok) {

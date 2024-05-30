@@ -48,10 +48,8 @@ export async function verify(token: string): Promise<string | null> {
 
     sessionStorage.setItem("session", session);
 
-    // const url = window.location.href;
-    // window.location.href = url;
-    // if (url.includes("#")) window.location.reload();
-    //
+    window.location.href = "/";
+
     return session;
   } catch (error) {
     console.error(error);

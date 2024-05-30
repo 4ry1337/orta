@@ -175,7 +175,7 @@ impl From<&article_model::Article> for Article {
         Article {
             id: value.id.clone(),
             title: value.title.clone(),
-            // content: value.content.clone(),
+            description: value.description.clone(),
             like_count: value.like_count,
             comment_count: value.comment_count,
             created_at: W(&value.created_at).into(),
@@ -190,7 +190,7 @@ impl From<&Article> for article_model::Article {
         article_model::Article {
             id: value.id.clone(),
             title: value.title.clone(),
-            // content: value.content.clone(),
+            description: value.description.clone(),
             like_count: value.like_count,
             comment_count: value.comment_count,
             created_at: W(value.created_at.as_ref()).into(),
@@ -206,6 +206,7 @@ impl From<&article_model::FullArticle> for FullArticle {
             id: value.id.clone(),
             title: value.title.clone(),
             like_count: value.like_count,
+            description: value.description.clone(),
             content: value.content.clone(),
             comment_count: value.comment_count,
             created_at: W(&value.created_at).into(),
@@ -229,6 +230,7 @@ impl From<&FullArticle> for article_model::FullArticle {
             id: value.id.clone(),
             title: value.title.clone(),
             like_count: value.like_count,
+            description: value.description.clone(),
             content: value.content.clone(),
             comment_count: value.comment_count,
             created_at: W(value.created_at.as_ref()).into(),

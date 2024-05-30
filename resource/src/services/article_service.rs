@@ -49,6 +49,7 @@ impl ArticleService for ArticleServiceImpl {
             &CreateArticle {
                 user_id: input.user_id.to_owned(),
                 title: input.title.to_owned(),
+                description: input.description.to_owned(),
             },
         )
         .await
@@ -226,6 +227,7 @@ impl ArticleService for ArticleServiceImpl {
             &UpdateArticle {
                 id: input.article_id.to_owned(),
                 title: input.title.clone(),
+                description: input.description.to_owned(),
             },
         )
         .await

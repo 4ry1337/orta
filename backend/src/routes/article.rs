@@ -18,7 +18,7 @@ use shared::{
     utils::jwt::AccessTokenPayload,
 };
 use tonic::transport::Channel;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::{
     application::AppState,
@@ -107,6 +107,7 @@ pub async fn get_article(
 #[derive(Debug, Deserialize)]
 pub struct PostArticleRequestBody {
     title: String,
+    description: Option<String>,
 }
 
 pub async fn post_article(
@@ -120,6 +121,7 @@ pub async fn post_article(
     match ArticleServiceClient::new(channel)
         .create_article(CreateArticleRequest {
             title: payload.title,
+            description: payload.description,
             user_id: user.user_id,
         })
         .await
@@ -141,6 +143,7 @@ pub async fn post_article(
 #[derive(Debug, Deserialize)]
 pub struct PatchArticleRequestBody {
     pub title: Option<String>,
+    pub description: Option<String>,
 }
 
 pub async fn patch_article(
@@ -160,6 +163,7 @@ pub async fn patch_article(
     match ArticleServiceClient::new(channel)
         .update_article(UpdateArticleRequest {
             title: payload.title,
+            description: payload.description,
             user_id: user.user_id,
             article_id,
         })

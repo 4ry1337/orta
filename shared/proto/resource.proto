@@ -116,6 +116,7 @@ message Article {
   google.protobuf.Timestamp created_at = 6;
   optional google.protobuf.Timestamp updated_at = 7;
   optional google.protobuf.Timestamp published_at = 8;
+  optional string description = 9;
 }
 
 message FullArticle {
@@ -129,6 +130,7 @@ message FullArticle {
   repeated User users = 9;
   repeated Tag tags = 10;
   optional string content = 11;
+  optional string description = 12;
 }
 
 message ArticleVersion {
@@ -159,12 +161,14 @@ message GetArticleRequest {
 message CreateArticleRequest {
   string user_id = 1;
   string title = 2;
+  optional string description = 3;
 }
 
 message UpdateArticleRequest {
   string user_id = 1;
   string article_id = 2;
   optional string title = 3;
+  optional string description = 4;
 }
 
 message DeleteArticleRequest {

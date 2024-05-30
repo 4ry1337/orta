@@ -32,14 +32,16 @@ export const SignInFormSchema = z.object({
 
 export const CreateArticleSchema = z.object({
   title: z.string().trim(),
-});
-
-export const SaveArticleSchema = z.object({
-  content: z.string(),
+  description: z.string().trim().optional(),
 });
 
 export const UpdateArticleSchema = z.object({
   title: z.string().trim().optional(),
+  description: z.string().trim().optional(),
+});
+
+export const SaveArticleSchema = z.object({
+  content: z.string(),
 });
 
 // TODO: add images

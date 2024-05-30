@@ -42,6 +42,7 @@ export type Article = {
   id: string;
   title: string;
   content?: string;
+  description?: string;
   like_count: number;
   comment_count: number;
   created_at: string;

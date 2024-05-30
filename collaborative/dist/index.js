@@ -20,16 +20,22 @@ import Underline from "@tiptap/extension-underline";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
+import { Doc } from "yjs";
 const server = new Hocuspocus({
     name: "orta-colab",
     port: 6565,
     onStoreDocument: async (data) => {
-        await axios.patch(`http://localhost:5000/api/articles/${data.documentName}/edit`, {
+        console.log(data.requestParameters.get("token"));
+        await axios
+            .patch(`http://localhost:5000/api/articles/${data.documentName}/edit`, {
             content: JSON.stringify(TiptapTransformer.fromYdoc(data.document, "default")),
         }, {
             headers: {
                 Authorization: `Bearer ${data.requestParameters.get("token")}`,
             },
+        })
+            .catch((err) => {
+            console.error(err.message);
         });
     },
     onLoadDocument: async (data) => {
@@ -40,27 +46,29 @@ const server = new Hocuspocus({
             console.error(err);
             return null;
         });
-        const ydoc = TiptapTransformer.toYdoc(JSON.parse(!!article ? article.content || "{}" : "{}"), "default", [
-            Document,
-            Paragraph,
-            Text,
-            CodeBlock,
-            Blockquote,
-            BulletList,
-            OrderedList,
-            ListItem,
-            Heading,
-            Bold,
-            Italic,
-            Code,
-            Strike,
-            Subscript,
-            Superscript,
-            Link,
-            Underline,
-            Highlight,
-            Youtube,
-        ]);
+        const ydoc = article?.content
+            ? TiptapTransformer.toYdoc(JSON.parse(article.content), "default", [
+                Document,
+                Paragraph,
+                Text,
+                CodeBlock,
+                Blockquote,
+                BulletList,
+                OrderedList,
+                ListItem,
+                Heading,
+                Bold,
+                Italic,
+                Code,
+                Strike,
+                Subscript,
+                Superscript,
+                Link,
+                Underline,
+                Highlight,
+                Youtube,
+            ])
+            : new Doc();
         return ydoc;
     },
 });

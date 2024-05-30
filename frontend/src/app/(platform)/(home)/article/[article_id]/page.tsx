@@ -1,7 +1,6 @@
 "use client";
 
 import { get_id } from "@/lib/utils";
-import PreviewTab from "./edit/preview_tab";
 import { Skeleton } from "@/components/ui/skeleton";
 import useSWR from "swr";
 import { get_article } from "@/app/actions/article";
@@ -47,10 +46,11 @@ const ArticlePage = ({ params }: { params: IParams }) => {
           </div>
         </div>
         <Separator />
-        <PreviewTab article={article} />
+        <Preview article={article} />
       </div>
     );
   }
+
   return <Skeleton className="w-full min-h-screen" />;
 };
 

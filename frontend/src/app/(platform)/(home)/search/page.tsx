@@ -1,27 +1,43 @@
 "use client";
 
-import { get_user } from "@/app/actions/user";
-import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import useSWR from "swr";
+import ArticleSearchTab from "./article_search_tab";
 
 const SearchPage = () => {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
 
-  const { data: users } = useSWR(get_user);
-
   return (
-    <div className="flex flex-row max-w-full">
-      <div className="w-full">{users}</div>
-      <aside className="relative hidden h-screen shrink-0 border-r sm:block lg:w-64">
-        <div className="fixed w-full px-2 py-4 h-full border-l flex flex-col justify-between max-w-fit xl:max-w-64">
-          <section className="flex flex-col justify-center gap-4">
-            <h3>Search Filters</h3>
-          </section>
-        </div>
-      </aside>
+    <div className="py-4 max-w-full">
+      <div className="px-4 py-2.5 w-full">
+        <Input placeholder="Search" />
+      </div>
+      <div className="px-4 w-full">
+        <Tabs defaultValue="articles">
+          <TabsList className="grid grid-cols-4 w-full">
+            <TabsTrigger value="articles">Articles</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="lists">Lists</TabsTrigger>
+            <TabsTrigger value="series">Series</TabsTrigger>
+          </TabsList>
+          <TabsContent value="articles">
+            <div>Articles</div>
+            <ArticleSearchTab />
+          </TabsContent>
+          <TabsContent value="users">
+            <div>Users</div>
+          </TabsContent>
+          <TabsContent value="lists">
+            <div>Lists</div>
+          </TabsContent>
+          <TabsContent value="series">
+            <div>Series</div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };

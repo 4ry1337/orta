@@ -6,10 +6,13 @@ import { HTMLAttributes } from "react";
 import ArticleCard from "./item";
 
 interface ArticleListProps extends HTMLAttributes<HTMLDivElement> {
-  articles: FullArticle[];
+  articles?: FullArticle[];
 }
 
 const ArticleList = ({ articles, className }: ArticleListProps) => {
+  if (!articles) {
+    return null;
+  }
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       {articles.map((article) => (

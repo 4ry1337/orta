@@ -38,9 +38,7 @@ export const SessionContext = createContext<SessionContextValue | undefined>(
 export interface UseSessionOptions<R extends boolean | undefined> {
   authenticated: R;
   logger?: boolean;
-  /** Defaults to `auth` */
   onUnauthenticated?: () => void;
-  /** Defaults to `home` */
   onAuthenticated?: () => void;
 }
 
@@ -174,7 +172,7 @@ const SessionProvider = (props: SessionProviderProps) => {
             return null;
           },
         };
-    }, [session, session_res.isLoading, loading]);
+    }, [session, loading]);
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

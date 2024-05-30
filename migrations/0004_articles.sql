@@ -1,7 +1,7 @@
--- Add migration script here
 CREATE TABLE Articles (
   id TEXT DEFAULT nanoid () PRIMARY KEY,
   title TEXT NOT NULL,
+  description TEXT,
   like_count INTEGER NOT NULL DEFAULT 0,
   comment_count INTEGER NOT NULL DEFAULT 0,
   published_at TIMESTAMPTZ,

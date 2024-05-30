@@ -1,4 +1,4 @@
-import { DisplayDate, cn, slugifier } from "@/lib/utils";
+import { DisplayDate, slugifier } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +26,7 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
           <CardTitle>{article.title}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div>{article.content?.substring(0, 20)}</div>
+          <div>{article.description}</div>
           <small>{DisplayDate(article.created_at)}</small>
         </CardContent>
       </Link>

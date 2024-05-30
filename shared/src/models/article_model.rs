@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Article {
     pub id: String,
     pub title: String,
+    pub description: Option<String>,
     pub like_count: i32,
     pub comment_count: i32,
     pub created_at: DateTime<Utc>,
@@ -17,6 +18,7 @@ pub struct Article {
 pub struct FullArticle {
     pub id: String,
     pub title: String,
+    pub description: Option<String>,
     pub like_count: i32,
     pub comment_count: i32,
     pub content: Option<String>,
@@ -47,12 +49,14 @@ pub struct Device {
 pub struct CreateArticle {
     pub user_id: String,
     pub title: String,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateArticle {
     pub id: String,
     pub title: Option<String>,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

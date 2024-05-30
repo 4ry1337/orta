@@ -3,8 +3,10 @@ members = [
   "notification",
   "backend",
   "shared",
-  "auth"
-  , "resource", "storage"]
+  "auth",
+  "resource",
+  "storage"
+  ]
 resolver = "2"
 
 [workspace.package]

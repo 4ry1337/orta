@@ -28,19 +28,24 @@ const server = new Hocuspocus({
   name: "orta-colab",
   port: 6565,
   onStoreDocument: async (data) => {
-    await axios.patch(
-      `http://localhost:5000/api/articles/${data.documentName}/edit`,
-      {
-        content: JSON.stringify(
-          TiptapTransformer.fromYdoc(data.document, "default"),
-        ),
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${data.requestParameters.get("token")}`,
+    console.log(data.requestParameters.get("token"));
+    await axios
+      .patch(
+        `http://localhost:5000/api/articles/${data.documentName}/edit`,
+        {
+          content: JSON.stringify(
+            TiptapTransformer.fromYdoc(data.document, "default"),
+          ),
         },
-      },
-    );
+        {
+          headers: {
+            Authorization: `Bearer ${data.requestParameters.get("token")}`,
+          },
+        },
+      )
+      .catch((err) => {
+        console.error(err.message);
+      });
   },
   onLoadDocument: async (data): Promise<Doc> => {
     const article: FullArticle | null = await axios
@@ -51,10 +56,8 @@ const server = new Hocuspocus({
         return null;
       });
 
-    const ydoc = TiptapTransformer.toYdoc(
-      JSON.parse(!!article ? article.content || "{}" : "{}"),
-      "default",
-      [
+    const ydoc = article?.content
+      ? TiptapTransformer.toYdoc(JSON.parse(article.content), "default", [
         Document,
         Paragraph,
         Text,
@@ -74,8 +77,8 @@ const server = new Hocuspocus({
         Underline,
         Highlight,
         Youtube,
-      ],
-    );
+      ])
+      : new Doc();
 
     return ydoc;
   },
