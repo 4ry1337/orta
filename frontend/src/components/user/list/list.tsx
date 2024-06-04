@@ -5,18 +5,19 @@ import UserCard from "./item";
 
 interface UserListProps extends HTMLAttributes<HTMLDivElement> {
   users?: User[];
+  badges?: boolean;
 }
 
-const UserList = ({ className, users }: UserListProps) => {
+const UserList = ({ users, badges, ...props }: UserListProps) => {
   if (!users) {
     return null;
   }
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <>
       {users.map((user) => (
-        <UserCard key={user.id} user={user} />
+        <UserCard {...props} key={user.id} user={user} />
       ))}
-    </div>
+    </>
   );
 };
 

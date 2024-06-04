@@ -1,6 +1,7 @@
-use crate::models::{tag_model::Tag, user_model::User};
+use crate::models::{list_model::List, series_model::Series, tag_model::Tag, user_model::FullUser};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::Postgres;
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
 pub struct Article {
@@ -22,10 +23,12 @@ pub struct FullArticle {
     pub like_count: i32,
     pub comment_count: i32,
     pub content: Option<String>,
+    pub series: Option<Series>,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
-    pub users: Option<Vec<User>>,
+    pub users: Option<Vec<FullUser>>,
+    pub lists: Option<Vec<List>>,
     pub tags: Option<Vec<Tag>>,
 }
 

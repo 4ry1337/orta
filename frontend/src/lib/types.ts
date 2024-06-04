@@ -1,6 +1,12 @@
+export type IRoute = {
+  label: string;
+  icon: any;
+  href: string;
+};
+
 export type CursorPagination = {
   limit: number;
-  cursor: string;
+  cursor?: string;
 };
 
 export type Metadata = {
@@ -70,6 +76,7 @@ export type Tag = {
 export type FullArticle = Article & {
   users?: User[];
   tags?: Tag[];
+  series?: Series;
 };
 
 export type List = {
@@ -88,7 +95,6 @@ export type Series = {
   id: string;
   user_id: string;
   label: string;
-  slug: string;
   image?: string;
   article_count: number;
   created_at: string;

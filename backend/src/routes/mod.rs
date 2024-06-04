@@ -32,7 +32,7 @@ use self::{
         delete_series, delete_series_article, get_series, get_serieses, patch_series, post_series,
         put_series_article,
     },
-    user::{get_user, get_users, patch_user},
+    user::{follow, get_followers, get_following, get_user, get_users, patch_user, unfollow},
 };
 
 pub mod admin;
@@ -75,13 +75,18 @@ pub fn router(state: AppState) -> Router<AppState> {
                     "/users",
                     Router::new()
                         .route("/", get(get_users))
-                        .route(
+                        .nest(
                             "/:username",
-                            get(get_user).patch(patch_user.layer(middleware::from_fn_with_state(
-                                state.clone(),
-                                auth_middleware,
-                            ))),
+                            Router::new()
+                                .route("/", get(get_user).patch(patch_user))
+                                .route("/follow", put(follow).delete(unfollow))
+                                .route("/followers", get(get_followers))
+                                .route("/following", get(get_following)),
                         )
+                        .layer(middleware::from_fn_with_state(
+                            state.clone(),
+                            auth_middleware,
+                        ))
                         .layer(middleware::from_fn(resource_service_middleware)),
                 )
                 .nest(
@@ -89,9 +94,9 @@ pub fn router(state: AppState) -> Router<AppState> {
                     Router::new()
                         .route(
                             "/",
-                            get(get_articles).post(post_article.layer(
+                            get(get_articles).post(post_article).layer(
                                 middleware::from_fn_with_state(state.clone(), auth_middleware),
-                            )),
+                            ),
                         )
                         .nest(
                             "/:article_id",

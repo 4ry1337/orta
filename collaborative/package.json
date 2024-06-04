@@ -40,6 +40,7 @@
     "@tiptap/extension-superscript": "^2.4.0",
     "@tiptap/extension-underline": "^2.4.0",
     "@tiptap/extension-youtube": "^2.4.0",
+    "@tiptap/html": "^2.4.0",
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
     "y-protocols": "^1.0.6",

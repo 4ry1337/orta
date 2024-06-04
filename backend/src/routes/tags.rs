@@ -21,6 +21,7 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct TagsQueryParams {
+    query: Option<String>,
     user_id: Option<String>,
     article_id: Option<String>,
     tag_status: Option<TagStatus>,
@@ -36,6 +37,7 @@ pub async fn get_tags(
 
     match TagServiceClient::new(channel)
         .get_tags(GetTagsRequest {
+            query: query.query,
             user_id: query.user_id,
             article_id: query.article_id,
             tag_status: query

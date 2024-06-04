@@ -7,9 +7,10 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
-    models::user_model::User,
+    models::user_model::{FullUser, User},
     resource_proto::{
-        user_service_client::UserServiceClient, GetUserRequest, GetUsersRequest, UpdateUserRequest,
+        user_service_client::UserServiceClient, FollowUserRequest, FollowersRequest,
+        FollowingRequest, GetUserRequest, GetUsersRequest, UnfollowUserRequest, UpdateUserRequest,
     },
     utils::jwt::AccessTokenPayload,
 };
@@ -24,16 +25,24 @@ use crate::{
     },
 };
 
+#[derive(Debug, Deserialize)]
+pub struct UsersQueryParams {
+    query: Option<String>,
+}
+
 pub async fn get_users(
+    user: Option<Extension<AccessTokenPayload>>,
     Extension(channel): Extension<Channel>,
+    Query(query): Query<UsersQueryParams>,
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
     match UserServiceClient::new(channel)
         .get_users(GetUsersRequest {
-            query: None,
+            query: query.query,
             limit: cursor.limit,
             cursor: cursor.cursor,
+            by_user: user.map(|u| u.user_id.clone()),
         })
         .await
     {
@@ -41,9 +50,9 @@ pub async fn get_users(
             let res = res.get_ref();
             (
                 StatusCode::OK,
-                Json(json!(ResultPaging::<User> {
+                Json(json!(ResultPaging::<FullUser> {
                     next_cursor: res.next_cursor.to_owned(),
-                    items: res.users.iter().map(|user| User::from(user)).collect()
+                    items: res.users.iter().map(|user| FullUser::from(user)).collect()
                 })),
             )
                 .into_response()
@@ -58,6 +67,7 @@ pub async fn get_users(
 }
 
 pub async fn get_user(
+    user: Option<Extension<AccessTokenPayload>>,
     Extension(channel): Extension<Channel>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
@@ -68,10 +78,13 @@ pub async fn get_user(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
     match UserServiceClient::new(channel)
-        .get_user(GetUserRequest { username })
+        .get_user(GetUserRequest {
+            username,
+            by_user: user.map(|u| u.user_id.clone()),
+        })
         .await
     {
-        Ok(res) => (StatusCode::OK, Json(json!(User::from(res.get_ref())))).into_response(),
+        Ok(res) => (StatusCode::OK, Json(json!(FullUser::from(res.get_ref())))).into_response(),
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();
@@ -132,6 +145,138 @@ pub async fn patch_user(
         .await
     {
         Ok(res) => (StatusCode::OK, Json(json!(User::from(res.get_ref())))).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    }
+}
+
+pub async fn follow(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+    match UserServiceClient::new(channel)
+        .follow_user(FollowUserRequest {
+            user_id: user.user_id,
+            target_id: user_id,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    }
+}
+
+pub async fn unfollow(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+    match UserServiceClient::new(channel)
+        .unfollow_user(UnfollowUserRequest {
+            user_id: user.user_id,
+            target_id: user_id,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    }
+}
+
+pub async fn get_followers(
+    Extension(channel): Extension<Channel>,
+    Query(cursor): Query<CursorPagination>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+    match UserServiceClient::new(channel)
+        .followers(FollowersRequest {
+            id: user_id,
+            limit: cursor.limit,
+            cursor: cursor.cursor,
+            by_user: None,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<FullUser> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res.users.iter().map(|user| FullUser::from(user)).collect()
+                })),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    }
+}
+
+pub async fn get_following(
+    Extension(channel): Extension<Channel>,
+    Query(cursor): Query<CursorPagination>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let user_id = match params.user_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+    match UserServiceClient::new(channel)
+        .following(FollowingRequest {
+            id: user_id,
+            limit: cursor.limit,
+            cursor: cursor.cursor,
+            by_user: None,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<FullUser> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res.users.iter().map(|user| FullUser::from(user)).collect()
+                })),
+            )
+                .into_response()
+        }
         Err(err) => {
             error!("{:#?}", err);
             let message = err.message().to_string();

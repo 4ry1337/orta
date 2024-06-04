@@ -24,7 +24,7 @@ pub async fn is_owner(
 ) -> Result<bool, sqlx::Error> {
     match content_type {
         ContentType::Article => {
-            let article = ArticleRepositoryImpl::find(transaction, target_id).await?;
+            let article = ArticleRepositoryImpl::find(transaction, target_id, None).await?;
             //TODO: write better or create new function in article_repository
             if article
                 .users

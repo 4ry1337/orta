@@ -46,5 +46,11 @@ export const SaveArticleSchema = z.object({
 
 // TODO: add images
 export const CreateSeriesSchema = z.object({
-  label: z.string().trim().optional(),
+  label: z.string().trim(),
+});
+//
+// TODO: add images
+export const CreateListSchema = z.object({
+  label: z.string().trim(),
+  visibility: z.string().trim().optional(),
 });

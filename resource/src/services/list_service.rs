@@ -65,7 +65,8 @@ impl ListService for ListServiceImpl {
 
         let lists = match ListRepositoryImpl::find_all(
             &mut transaction,
-            self.state.limit,
+            input.query.as_deref(),
+            input.limit,
             id,
             created_at,
             input.user_id.as_deref(),
@@ -80,8 +81,9 @@ impl ListService for ListServiceImpl {
         };
 
         let next_cursor = lists
-            .last()
-            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
 
         let lists = lists.iter().map(|list| List::from(list)).collect();
 
@@ -346,16 +348,17 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let article = match ArticleRepositoryImpl::find(&mut transaction, &input.article_id).await {
-            Ok(article) => article,
-            Err(err) => {
-                error!("{:?}", err);
-                if let sqlx::error::Error::RowNotFound = err {
-                    return Err(Status::unknown("Article not found"));
+        let article =
+            match ArticleRepositoryImpl::find(&mut transaction, &input.article_id, None).await {
+                Ok(article) => article,
+                Err(err) => {
+                    error!("{:?}", err);
+                    if let sqlx::error::Error::RowNotFound = err {
+                        return Err(Status::unknown("Article not found"));
+                    }
+                    return Err(Status::internal("Something went wrong"));
                 }
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
+            };
 
         let reponse =
             match ListRepositoryImpl::add_article(&mut transaction, &input.list_id, &article.id)
@@ -417,16 +420,17 @@ impl ListService for ListServiceImpl {
             }
         };
 
-        let article = match ArticleRepositoryImpl::find(&mut transaction, &input.article_id).await {
-            Ok(article) => article,
-            Err(err) => {
-                error!("{:?}", err);
-                if let sqlx::error::Error::RowNotFound = err {
-                    return Err(Status::unknown("Article not found"));
+        let article =
+            match ArticleRepositoryImpl::find(&mut transaction, &input.article_id, None).await {
+                Ok(article) => article,
+                Err(err) => {
+                    error!("{:?}", err);
+                    if let sqlx::error::Error::RowNotFound = err {
+                        return Err(Status::unknown("Article not found"));
+                    }
+                    return Err(Status::internal("Something went wrong"));
                 }
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
+            };
 
         let reponse =
             match ListRepositoryImpl::remove_article(&mut transaction, &input.list_id, &article.id)

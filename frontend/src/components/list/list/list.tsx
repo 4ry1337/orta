@@ -1,19 +1,21 @@
 import { List } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { HTMLAttributes } from "react";
 import ListCard from "./item";
 
 interface ListListProps extends HTMLAttributes<HTMLDivElement> {
   lists: List[];
+  editable?: boolean;
+  deletable?: boolean;
+  onDelete?: (id: string) => void;
 }
 
-const ListList = ({ className, lists }: ListListProps) => {
+const ListList = ({ lists, ...props }: ListListProps) => {
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <>
       {lists.map((list) => (
-        <ListCard key={list.id} list={list} />
+        <ListCard {...props} key={list.id} list={list} />
       ))}
-    </div>
+    </>
   );
 };
 

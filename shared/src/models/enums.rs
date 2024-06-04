@@ -33,7 +33,7 @@ impl FromStr for Role {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize, sqlx::Type)]
-#[sqlx(type_name = "TagStatus", rename_all = "UPPERCASE")]
+#[sqlx(type_name = "tagstatus", rename_all = "UPPERCASE")]
 pub enum TagStatus {
     Approved,
     Banned,
@@ -63,7 +63,7 @@ impl FromStr for TagStatus {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize, sqlx::Type)]
-#[sqlx(type_name = "Visibility", rename_all = "UPPERCASE")]
+#[sqlx(type_name = "visibility", rename_all = "UPPERCASE")]
 pub enum Visibility {
     Private,
     Public,

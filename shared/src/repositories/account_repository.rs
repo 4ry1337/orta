@@ -11,6 +11,7 @@ where
 {
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
+        query: Option<&str>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -38,6 +39,7 @@ pub struct AccountRepositoryImpl;
 impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
+        _query: Option<&str>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -47,13 +49,13 @@ impl AccountRepository<Postgres, Error> for AccountRepositoryImpl {
             r#"
             SELECT *
             FROM accounts
-            WHERE (($2::text IS NULL AND $3::timestamptz IS NULL) OR (id, created_at) < ($2, $3))
-            ORDER BY id DESC, created_at DESC
+            WHERE (($2::timestamptz IS NULL AND $3::text IS NULL) OR (created_at, id) < ($2, $3))
+            ORDER BY created_at DESC, id DESC
             LIMIT $1
             "#,
             limit,
+            created_at,
             id,
-            created_at
         )
         .fetch_all(&mut **transaction)
         .await

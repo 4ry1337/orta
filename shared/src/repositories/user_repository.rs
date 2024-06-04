@@ -4,7 +4,7 @@ use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::models::{
     enums::Role,
-    user_model::{CreateUser, UpdateUser, User},
+    user_model::{CreateUser, FullUser, UpdateUser, User},
 };
 
 #[async_trait]
@@ -14,10 +14,12 @@ where
 {
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
+        query: Option<&str>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
-    ) -> Result<Vec<User>, E>;
+        by_user: Option<&str>,
+    ) -> Result<Vec<FullUser>, E>;
     async fn find_by_email(
         transaction: &mut Transaction<'_, DB>,
         user_email: &str,
@@ -25,7 +27,8 @@ where
     async fn find_by_username(
         transaction: &mut Transaction<'_, DB>,
         username: &str,
-    ) -> Result<User, E>;
+        by_user: Option<&str>,
+    ) -> Result<FullUser, E>;
     async fn find_by_account(
         transaction: &mut Transaction<'_, DB>,
         account_provider: &str,
@@ -61,14 +64,16 @@ where
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
-    ) -> Result<Vec<User>, E>;
+        by_user: Option<&str>,
+    ) -> Result<Vec<FullUser>, E>;
     async fn followers(
         transaction: &mut Transaction<'_, DB>,
         user_id: &str,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
-    ) -> Result<Vec<User>, E>;
+        by_user: Option<&str>,
+    ) -> Result<Vec<FullUser>, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -78,35 +83,43 @@ pub struct UserRepositoryImpl;
 impl UserRepository<Postgres, Error> for UserRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
+        _query: Option<&str>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
-    ) -> Result<Vec<User>, Error> {
+        by_user: Option<&str>,
+    ) -> Result<Vec<FullUser>, Error> {
         sqlx::query_as!(
-            User,
+            FullUser,
             r#"
             SELECT
-                id,
-                username,
-                email,
-                email_verified,
-                image,
-                role AS "role: Role",
-                bio,
-                urls,
-                follower_count,
-                following_count,
-                created_at,
-                approved_at,
-                deleted_at
-            FROM users
-            WHERE (($2::text IS NULL AND $3::timestamptz IS NULL) OR (id, created_at) < ($2, $3))
-            ORDER BY id DESC, created_at DESC
+                u.id,
+                u.username,
+                u.email,
+                u.email_verified,
+                u.image,
+                u.bio,
+                u.urls,
+                u.follower_count,
+                u.following_count,
+                u.created_at,
+                u.approved_at,
+                u.deleted_at,
+                CASE
+                    WHEN $4 IS NULL THEN FALSE
+                    WHEN f.follower_id IS NOT NULL THEN TRUE
+                    ELSE FALSE
+                END AS followed
+            FROM users u
+            LEFT JOIN follow f ON u.id = f.following_id AND f.follower_id = $4
+            WHERE (($2::timestamptz IS NULL AND $3::text IS NULL) OR (u.created_at, u.id) < ($2, $3))
+            ORDER BY u.created_at DESC, u.id DESC 
             LIMIT $1
             "#,
             limit,
-            id,
             created_at,
+            id,
+            by_user
         )
         .fetch_all(&mut **transaction)
         .await
@@ -135,7 +148,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 deleted_at
             FROM users
             WHERE id = $1"#,
-            user_id
+            user_id,
         )
         .fetch_one(&mut **transaction)
         .await
@@ -174,28 +187,35 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
     async fn find_by_username(
         transaction: &mut Transaction<'_, Postgres>,
         username: &str,
-    ) -> Result<User, Error> {
+        by_user: Option<&str>,
+    ) -> Result<FullUser, Error> {
         sqlx::query_as!(
-            User,
+            FullUser,
             r#"
             SELECT
-                id,
-                username,
-                email,
-                email_verified,
-                image,
-                role AS "role: Role",
-                bio,
-                urls,
-                follower_count,
-                following_count,
-                created_at,
-                approved_at,
-                deleted_at
-            FROM users
-            WHERE username = $1
+                u.id,
+                u.username,
+                u.email,
+                u.email_verified,
+                u.image,
+                u.bio,
+                u.urls,
+                u.follower_count,
+                u.following_count,
+                u.created_at,
+                u.approved_at,
+                u.deleted_at,
+                CASE
+                    WHEN $2 IS NULL THEN FALSE
+                    WHEN f.follower_id IS NOT NULL THEN TRUE
+                    ELSE FALSE
+                END AS followed
+            FROM users u
+            LEFT JOIN follow f ON u.id = f.following_id AND f.follower_id = $2
+            WHERE u.username = $1
             "#,
-            username
+            username,
+            by_user
         )
         .fetch_one(&mut **transaction)
         .await
@@ -534,34 +554,46 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
-    ) -> Result<Vec<User>, Error> {
+        by_user: Option<&str>,
+    ) -> Result<Vec<FullUser>, Error> {
         sqlx::query_as!(
-            User,
+            FullUser,
             r#"
-            SELECT
-                u.id,
-                u.username,
-                u.email,
-                u.email_verified,
-                u.image,
-                u.role AS "role: Role",
-                u.bio,
-                u.urls,
-                u.follower_count,
-                u.following_count,
-                u.created_at,
-                u.approved_at,
-                u.deleted_at
-            FROM follow f
-            JOIN users u ON f.following_id = u.id
-            WHERE f.follower_id = $1 AND (($3::text IS NULL AND $4::timestamptz IS NULL) OR (f.following_id, f.created_at) < ($3, $4))
-            ORDER BY f.following_id DESC, f.created_at DESC
-            LIMIT $2
+            WITH following AS (
+                SELECT
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.email_verified,
+                    u.image,
+                    u.bio,
+                    u.urls,
+                    u.follower_count,
+                    u.following_count,
+                    u.created_at,
+                    u.approved_at,
+                    u.deleted_at
+                FROM follow f
+                JOIN users u ON f.following_id = u.id
+                WHERE f.follower_id = $1 AND (($3::timestamptz IS NULL AND $4::text IS NULL) OR (f.created_at, f.following_id) < ($3, $4))
+                ORDER BY  f.created_at DESC, f.following_id DESC
+                LIMIT $2
+            )
+            SELECT 
+                fn.*,
+                CASE
+                    WHEN $5 IS NULL THEN FALSE
+                    WHEN fo.follower_id IS NOT NULL THEN TRUE
+                    ELSE FALSE
+                END AS followed
+            FROM following fn
+            LEFT JOIN follow fo ON fn.id = fo.following_id AND fo.follower_id = $5
             "#,
             user_id,
             limit,
+            created_at,
             id,
-            created_at
+            by_user
         )
         .fetch_all(&mut **transaction)
         .await
@@ -573,34 +605,48 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
-    ) -> Result<Vec<User>, Error> {
+        by_user: Option<&str>,
+    ) -> Result<Vec<FullUser>, Error> {
         sqlx::query_as!(
-            User,
+            FullUser,
             r#"
-            SELECT
-                u.id,
-                u.username,
-                u.email,
-                u.email_verified,
-                u.image,
-                u.role AS "role: Role",
-                u.bio,
-                u.urls,
-                u.follower_count,
-                u.following_count,
-                u.created_at,
-                u.approved_at,
-                u.deleted_at
-            FROM follow f
-            JOIN users u ON f.following_id = u.id
-            WHERE f.following_id = $1 AND (($3::text IS NULL AND $4::timestamptz IS NULL) OR (f.follower_id, f.created_at) < ($3, $4))
-            ORDER BY f.follower_id DESC, f.created_at DESC
-            LIMIT $2
+            WITH followers AS (
+                SELECT
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.email_verified,
+                    u.image,
+                    u.bio,
+                    u.urls,
+                    u.follower_count,
+                    u.following_count,
+                    u.created_at,
+                    u.approved_at,
+                    u.deleted_at
+                FROM follow f
+                LEFT JOIN users u ON f.following_id = u.id
+                WHERE f.following_id = $1
+                    AND (($3::timestamptz IS NULL AND $4::text IS NULL)
+                        OR (f.created_at, f.follower_id) < ($3, $4))
+                ORDER BY f.created_at DESC, f.follower_id DESC 
+                LIMIT $2
+            )
+            SELECT 
+                fs.*,
+                CASE
+                    WHEN $5 IS NULL THEN FALSE
+                    WHEN fo.follower_id IS NOT NULL THEN TRUE
+                    ELSE FALSE
+                END AS followed
+            FROM followers fs
+            LEFT JOIN follow fo ON fs.id = fo.following_id AND fo.follower_id = $5
             "#,
             user_id,
             limit,
+            created_at,
             id,
-            created_at
+            by_user
         )
         .fetch_all(&mut **transaction)
         .await

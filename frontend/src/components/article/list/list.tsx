@@ -1,24 +1,26 @@
 "use client";
 
 import { FullArticle } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { HTMLAttributes } from "react";
 import ArticleCard from "./item";
 
 interface ArticleListProps extends HTMLAttributes<HTMLDivElement> {
   articles?: FullArticle[];
+  editable?: boolean;
+  deletable?: boolean;
+  onDelete?: (id: string) => void;
 }
 
-const ArticleList = ({ articles, className }: ArticleListProps) => {
+const ArticleList = ({ articles, ...props }: ArticleListProps) => {
   if (!articles) {
     return null;
   }
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <>
       {articles.map((article) => (
-        <ArticleCard key={article.id} article={article} />
+        <ArticleCard {...props} key={article.id} article={article} />
       ))}
-    </div>
+    </>
   );
 };
 

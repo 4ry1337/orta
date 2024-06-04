@@ -17,7 +17,7 @@ use shared::{
     },
     utils::jwt::AccessTokenPayload,
 };
-use tonic::transport::Channel;
+use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{error, info};
 
 use crate::{
@@ -30,12 +30,16 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct ArticlesQueryParams {
+    query: Option<String>,
     usernames: Option<Vec<String>>,
-    list_id: Option<String>,
-    series_id: Option<String>,
+    lists: Option<Vec<String>>,
+    serieses: Option<Vec<String>>,
+    not_lists: Option<Vec<String>>,
+    not_serieses: Option<Vec<String>>,
 }
 
 pub async fn get_articles(
+    user: Option<Extension<AccessTokenPayload>>,
     Extension(channel): Extension<Channel>,
     Query(query): Query<ArticlesQueryParams>,
     Query(cursor): Query<CursorPagination>,
@@ -43,12 +47,18 @@ pub async fn get_articles(
 ) -> Response {
     info!("Get Articles Request {:?} {:?}", query, cursor);
     match ArticleServiceClient::new(channel)
+        .accept_compressed(CompressionEncoding::Gzip)
+        .max_decoding_message_size(50 * 1024 * 1024)
         .get_articles(GetArticlesRequest {
+            query: query.query,
             usernames: query.usernames.unwrap_or_default(),
-            list_id: query.list_id,
-            series_id: query.series_id,
+            list_id: query.lists.unwrap_or_default(),
+            series_id: query.serieses.unwrap_or_default(),
+            not_list_id: query.not_lists.unwrap_or_default(),
+            not_series_id: query.not_serieses.unwrap_or_default(),
             cursor: cursor.cursor,
             limit: cursor.limit,
+            by_user: user.map(|u| u.user_id.clone()),
         })
         .await
     {
@@ -77,6 +87,7 @@ pub async fn get_articles(
 }
 
 pub async fn get_article(
+    user: Option<Extension<AccessTokenPayload>>,
     Extension(channel): Extension<Channel>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
@@ -87,7 +98,10 @@ pub async fn get_article(
     };
     info!("Get Article Request {}", article_id);
     match ArticleServiceClient::new(channel)
-        .get_article(GetArticleRequest { article_id })
+        .get_article(GetArticleRequest {
+            article_id,
+            by_user: user.map(|u| u.user_id.clone()),
+        })
         .await
     {
         Ok(res) => (

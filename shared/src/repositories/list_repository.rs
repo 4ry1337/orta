@@ -14,6 +14,7 @@ where
 {
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
+        query: Option<&str>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -48,6 +49,7 @@ pub struct ListRepositoryImpl;
 impl ListRepository<Postgres, Error> for ListRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
+        _query: Option<&str>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -66,13 +68,13 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 created_at,
                 updated_at
             FROM lists
-            WHERE user_id = COALESCE($4, user_id) AND (($2::text IS NULL AND $3::timestamptz IS NULL) OR (id, created_at) < ($2, $3))
-            ORDER BY id DESC, created_at DESC
+            WHERE user_id = COALESCE($4, user_id) AND (($2::timestamptz IS NULL AND $3::text IS NULL) OR (created_at, id) < ($2, $3))
+            ORDER BY created_at DESC, id DESC 
             LIMIT $1
             "#,
             limit,
-            id,
             created_at,
+            id,
             user_id
         )
         .fetch_all(&mut **transaction)

@@ -14,6 +14,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import UserList from "@/components/user/list/list";
+import Preview from "@/components/article/preview";
 
 interface IParams {
   article_id: string;
@@ -21,6 +22,7 @@ interface IParams {
 
 const ArticlePage = ({ params }: { params: IParams }) => {
   const { data: article } = useSWR(get_id(params.article_id), get_article);
+
   if (article) {
     return (
       <div>
@@ -46,7 +48,15 @@ const ArticlePage = ({ params }: { params: IParams }) => {
           </div>
         </div>
         <Separator />
-        <Preview article={article} />
+        <div className="p-4">
+          {article.content ? (
+            <Preview content={article.content} />
+          ) : (
+            <div className="h-96 content-center">
+              <h1 className="text-center">No content</h1>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

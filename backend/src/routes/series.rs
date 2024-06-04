@@ -29,7 +29,7 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct SeriesQueryParams {
-    label: Option<String>,
+    query: Option<String>,
     user_id: Option<String>,
 }
 
@@ -44,9 +44,9 @@ pub async fn get_serieses(
     match SeriesServiceClient::new(channel)
         .get_serieses(GetSeriesesRequest {
             user_id: query.user_id,
-            query: query.label,
-            limit: cursor.limit,
+            query: query.query,
             cursor: cursor.cursor,
+            limit: cursor.limit,
         })
         .await
     {

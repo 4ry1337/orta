@@ -58,7 +58,8 @@ impl SeriesService for SeriesServiceImpl {
         };
         let serieses = match SeriesRepositoryImpl::find_all(
             &mut transaction,
-            self.state.limit,
+            input.query.as_deref(),
+            input.limit,
             id,
             created_at,
             input.user_id.as_deref(),
@@ -73,8 +74,9 @@ impl SeriesService for SeriesServiceImpl {
         };
 
         let next_cursor = serieses
-            .last()
-            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
 
         let serieses = serieses.iter().map(|series| Series::from(series)).collect();
 

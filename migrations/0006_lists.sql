@@ -15,8 +15,8 @@ SELECT
   trigger_updated_at ('Lists');
 
 CREATE TABLE ListArticle (
-  list_id TEXT NOT NULL REFERENCES Lists (id) ON UPDATE CASCADE ON DELETE CASCADE,
-  article_id TEXT NOT NULL REFERENCES Articles (id) ON UPDATE CASCADE ON DELETE CASCADE,
+  list_id TEXT REFERENCES Lists (id) ON UPDATE CASCADE ON DELETE CASCADE,
+  article_id TEXT REFERENCES Articles (id) ON UPDATE CASCADE ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   PRIMARY KEY (list_id, article_id)
 );

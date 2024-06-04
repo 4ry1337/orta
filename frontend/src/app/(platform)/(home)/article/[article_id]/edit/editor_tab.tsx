@@ -17,6 +17,7 @@ interface EditorTabProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const EditorTab = ({ username, provider, className }: EditorTabProps) => {
+  const color = "#" + Math.floor(Math.random() * 16777215).toString(16);
   const editor = useEditor({
     extensions: [
       ...default_extensions,
@@ -31,7 +32,7 @@ const EditorTab = ({ username, provider, className }: EditorTabProps) => {
         provider,
         user: {
           name: username,
-          color: "#" + Math.floor(Math.random() * 16777215).toString(16),
+          color: color,
         },
       }),
     ],
@@ -49,10 +50,8 @@ const EditorTab = ({ username, provider, className }: EditorTabProps) => {
   }
 
   return (
-    <div className={cn("", className)}>
-      <div>
-        <MenuBar editor={editor} />
-      </div>
+    <div className={cn("relative", className)}>
+      <MenuBar editor={editor} />
       <div className="prose prose-neutral mx-auto prose-sm sm:prose-base md:prose-lg lg:prose-xl dark:prose-invert ">
         <EditorContent editor={editor} />
       </div>

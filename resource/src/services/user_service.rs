@@ -7,8 +7,8 @@ use shared::{
     resource_proto::{
         user_service_server::UserService, DeleteUserRequest, DeleteUserResponse, FollowUserRequest,
         FollowUserResponse, FollowersRequest, FollowersResponse, FollowingRequest,
-        FollowingResponse, GetUserRequest, GetUsersRequest, GetUsersResponse, UnfollowUserRequest,
-        UnfollowUserResponse, UpdateUserRequest, User,
+        FollowingResponse, FullUser, GetUserRequest, GetUsersRequest, GetUsersResponse,
+        UnfollowUserRequest, UnfollowUserResponse, UpdateUserRequest, User,
     },
 };
 use tonic::{Request, Response, Status};
@@ -52,21 +52,29 @@ impl UserService for UserServiceImpl {
             }
         };
 
-        let users =
-            match UserRepositoryImpl::find_all(&mut transaction, input.limit, id, created_at).await
-            {
-                Ok(users) => users,
-                Err(err) => {
-                    error!("{:?}", err);
-                    return Err(Status::internal("Something went wrong"));
-                }
-            };
+        let users = match UserRepositoryImpl::find_all(
+            &mut transaction,
+            input.query.as_deref(),
+            input.limit,
+            id,
+            created_at,
+            input.by_user.as_deref(),
+        )
+        .await
+        {
+            Ok(users) => users,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
 
         let next_cursor = users
-            .get(input.limit as usize)
-            .map(|user| format!("{}_{}", user.id, user.created_at.to_rfc3339()));
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
 
-        let users = users.iter().map(|user| User::from(user)).collect();
+        let users = users.iter().map(|user| FullUser::from(user)).collect();
 
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(GetUsersResponse { users, next_cursor })),
@@ -77,7 +85,10 @@ impl UserService for UserServiceImpl {
         }
     }
 
-    async fn get_user(&self, request: Request<GetUserRequest>) -> Result<Response<User>, Status> {
+    async fn get_user(
+        &self,
+        request: Request<GetUserRequest>,
+    ) -> Result<Response<FullUser>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -90,20 +101,25 @@ impl UserService for UserServiceImpl {
 
         info!("Get User Request {:?}", input);
 
-        let user =
-            match UserRepositoryImpl::find_by_username(&mut transaction, &input.username).await {
-                Ok(user) => user,
-                Err(err) => {
-                    error!("{:?}", err);
-                    if let sqlx::error::Error::RowNotFound = err {
-                        return Err(Status::not_found("User not found"));
-                    }
-                    return Err(Status::internal("Something went wrong"));
+        let user = match UserRepositoryImpl::find_by_username(
+            &mut transaction,
+            &input.username,
+            input.by_user.as_deref(),
+        )
+        .await
+        {
+            Ok(user) => user,
+            Err(err) => {
+                error!("{:?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::not_found("User not found"));
                 }
-            };
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(User::from(&user))),
+            Ok(_) => Ok(Response::new(FullUser::from(&user))),
             Err(err) => {
                 error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -333,9 +349,10 @@ impl UserService for UserServiceImpl {
         let users = match UserRepositoryImpl::followers(
             &mut transaction,
             &input.id,
-            self.state.limit,
+            input.limit,
             id,
             created_at,
+            input.by_user.as_deref(),
         )
         .await
         {
@@ -347,10 +364,11 @@ impl UserService for UserServiceImpl {
         };
 
         let next_cursor = users
-            .last()
-            .map(|user| format!("{}_{}", user.id, user.created_at.to_string()));
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
 
-        let users = users.iter().map(|user| User::from(user)).collect();
+        let users = users.iter().map(|user| FullUser::from(user)).collect();
 
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(FollowersResponse { users, next_cursor })),
@@ -393,9 +411,10 @@ impl UserService for UserServiceImpl {
         let users = match UserRepositoryImpl::following(
             &mut transaction,
             &input.id,
-            self.state.limit,
+            input.limit,
             id,
             created_at,
+            input.by_user.as_deref(),
         )
         .await
         {
@@ -407,10 +426,11 @@ impl UserService for UserServiceImpl {
         };
 
         let next_cursor = users
-            .last()
-            .map(|user| format!("{}_{}", user.id, user.created_at.to_string()));
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
 
-        let users = users.iter().map(|user| User::from(user)).collect();
+        let users = users.iter().map(|user| FullUser::from(user)).collect();
 
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(FollowingResponse { users, next_cursor })),

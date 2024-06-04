@@ -43,19 +43,6 @@ const UserButton = ({ className, user }: UserButtonProps) => {
       </PopoverTrigger>
       <PopoverContent align="start">
         <div className="flex flex-col gap-3">
-          <Button variant={"secondary"} className="justify-start" asChild>
-            <Link href={"/activity"} prefetch={false} className="justify-start">
-              <ActivityLogIcon className="mr-2" />
-              <div>Activity Log</div>
-            </Link>
-          </Button>
-          <Button variant={"secondary"} className="justify-start" asChild>
-            <Link href={"/settings"} prefetch={false}>
-              <GearIcon className="mr-2" />
-              Settigns
-            </Link>
-          </Button>
-          <Separator />
           <Button
             onClick={() => onSubmit()}
             variant={"destructive"}
@@ -70,4 +57,17 @@ const UserButton = ({ className, user }: UserButtonProps) => {
   );
 };
 
+// <Button variant={"secondary"} className="justify-start" asChild>
+//   <Link href={"/activity"} prefetch={false} className="justify-start">
+//     <ActivityLogIcon className="mr-2" />
+//     <div>Activity Log</div>
+//   </Link>
+// </Button>
+// <Button variant={"secondary"} className="justify-start" asChild>
+//   <Link href={"/settings"} prefetch={false}>
+//     <GearIcon className="mr-2" />
+//     Settigns
+//   </Link>
+// </Button>
+// <Separator />
 export default UserButton;

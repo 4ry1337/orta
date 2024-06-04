@@ -1,12 +1,11 @@
-use chrono::{DateTime, Utc};
-
 use crate::models::{
     article_model, comment_model, enums, list_model, series_model, tag_model, user_model,
 };
 use crate::resource_proto::{
-    Article, ArticleVersion, Comment, CommentableType, FullArticle, List, Role, Series, Tag,
-    TagStatus, User, Visibility,
+    Article, ArticleVersion, Comment, CommentableType, FullArticle, FullUser, List, Role, Series,
+    Tag, TagStatus, User, Visibility,
 };
+use chrono::{DateTime, Utc};
 
 struct W<T>(T);
 
@@ -170,6 +169,46 @@ impl From<&User> for user_model::User {
     }
 }
 
+impl From<&user_model::FullUser> for FullUser {
+    fn from(value: &user_model::FullUser) -> Self {
+        FullUser {
+            id: value.id.clone(),
+            email: value.email.clone(),
+            email_verified: W(value.email_verified.as_ref()).into(),
+            username: value.username.clone(),
+            image: value.image.clone(),
+            bio: value.bio.clone(),
+            urls: value.urls.clone(),
+            following_count: value.following_count,
+            follower_count: value.follower_count,
+            created_at: W(&value.created_at).into(),
+            approved_at: W(value.approved_at.as_ref()).into(),
+            deleted_at: W(value.deleted_at.as_ref()).into(),
+            followed: value.followed,
+        }
+    }
+}
+
+impl From<&FullUser> for user_model::FullUser {
+    fn from(value: &FullUser) -> Self {
+        user_model::FullUser {
+            id: value.id.clone(),
+            email: value.email.clone(),
+            email_verified: W(value.email_verified.as_ref()).into(),
+            username: value.username.clone(),
+            image: value.image.clone(),
+            bio: value.bio.clone(),
+            urls: value.urls.clone(),
+            following_count: value.following_count,
+            follower_count: value.follower_count,
+            created_at: W(value.created_at.as_ref()).into(),
+            approved_at: W(value.approved_at.as_ref()).into(),
+            deleted_at: W(value.deleted_at.as_ref()).into(),
+            followed: value.followed,
+        }
+    }
+}
+
 impl From<&article_model::Article> for Article {
     fn from(value: &article_model::Article) -> Self {
         Article {
@@ -200,6 +239,34 @@ impl From<&Article> for article_model::Article {
     }
 }
 
+impl From<&series_model::Series> for Series {
+    fn from(value: &series_model::Series) -> Self {
+        Series {
+            id: value.id.clone(),
+            user_id: value.user_id.clone(),
+            label: value.label.clone(),
+            image: value.image.clone(),
+            article_count: value.article_count,
+            created_at: W(&value.created_at).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
+impl From<&Series> for series_model::Series {
+    fn from(value: &Series) -> Self {
+        series_model::Series {
+            id: value.id.clone(),
+            user_id: value.user_id.clone(),
+            label: value.label.clone(),
+            image: value.image.clone(),
+            article_count: value.article_count,
+            created_at: W(value.created_at.as_ref()).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
 impl From<&article_model::FullArticle> for FullArticle {
     fn from(value: &article_model::FullArticle) -> Self {
         FullArticle {
@@ -213,13 +280,18 @@ impl From<&article_model::FullArticle> for FullArticle {
             updated_at: W(value.updated_at.as_ref()).into(),
             published_at: W(value.published_at.as_ref()).into(),
             users: match &value.users {
-                Some(authors) => authors.iter().map(|user| User::from(user)).collect(),
+                Some(authors) => authors.iter().map(|user| FullUser::from(user)).collect(),
                 None => vec![],
             },
             tags: match &value.tags {
                 Some(tags) => tags.iter().map(|tag| Tag::from(tag)).collect(),
                 None => vec![],
             },
+            lists: match &value.lists {
+                Some(lists) => lists.iter().map(|list| List::from(list)).collect(),
+                None => vec![],
+            },
+            series: value.series.as_ref().map(|series| series.into()),
         }
     }
 }
@@ -240,7 +312,7 @@ impl From<&FullArticle> for article_model::FullArticle {
                 value
                     .users
                     .iter()
-                    .map(|user| user_model::User::from(user))
+                    .map(|user| user_model::FullUser::from(user))
                     .collect(),
             ),
             tags: Some(
@@ -250,6 +322,15 @@ impl From<&FullArticle> for article_model::FullArticle {
                     .map(|tag| tag_model::Tag::from(tag))
                     .collect(),
             ),
+            lists: Some(
+                value
+                    .lists
+                    .iter()
+                    .map(|list| list_model::List::from(list))
+                    .collect(),
+            ),
+
+            series: value.series.as_ref().map(|series| series.into()),
         }
     }
 }
@@ -277,34 +358,6 @@ impl From<&List> for list_model::List {
             label: value.label.clone(),
             image: value.image.clone(),
             visibility: enums::Visibility::from(value.visibility()),
-            article_count: value.article_count,
-            created_at: W(value.created_at.as_ref()).into(),
-            updated_at: W(value.updated_at.as_ref()).into(),
-        }
-    }
-}
-
-impl From<&series_model::Series> for Series {
-    fn from(value: &series_model::Series) -> Self {
-        Series {
-            id: value.id.clone(),
-            user_id: value.user_id.clone(),
-            label: value.label.clone(),
-            image: value.image.clone(),
-            article_count: value.article_count,
-            created_at: W(&value.created_at).into(),
-            updated_at: W(value.updated_at.as_ref()).into(),
-        }
-    }
-}
-
-impl From<&Series> for series_model::Series {
-    fn from(value: &Series) -> Self {
-        series_model::Series {
-            id: value.id.clone(),
-            user_id: value.user_id.clone(),
-            label: value.label.clone(),
-            image: value.image.clone(),
             article_count: value.article_count,
             created_at: W(value.created_at.as_ref()).into(),
             updated_at: W(value.updated_at.as_ref()).into(),

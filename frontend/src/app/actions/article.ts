@@ -13,33 +13,58 @@ import {
 import { CursorPaginationToUrlParams } from "@/lib/utils";
 
 export async function get_articles(option?: {
+  query?: string;
   usernames?: string[];
-  list_id?: string;
-  series_id?: string;
-  pagination?: CursorPagination;
+  lists?: string[];
+  serieses?: string[];
+  not_lists?: string[];
+  not_serieses?: string[];
+  cursor?: CursorPagination;
 }): Promise<ResultPaging<FullArticle>> {
   const url = new URLSearchParams();
 
   if (option) {
+    if (option.query) {
+      url.append("query", option.query);
+    }
+
     if (option.usernames) {
       option.usernames.map((username) => {
         url.append("usernames", username);
       });
     }
-    if (option.list_id) {
-      url.append("list_id", option.list_id);
+
+    if (option.lists) {
+      option.lists.map((list) => {
+        url.append("lists", list);
+      });
     }
 
-    if (option.series_id) {
-      url.append("series_id", option.series_id);
+    if (option.serieses) {
+      option.serieses.map((series) => {
+        url.append("serieses", series);
+      });
     }
 
-    CursorPaginationToUrlParams(url, option.pagination);
+    if (option.not_lists) {
+      option.not_lists.map((list) => {
+        url.append("not_lists", list);
+      });
+    }
+
+    if (option.not_serieses) {
+      option.not_serieses.map((series) => {
+        url.append("not_serieses", series);
+      });
+    }
+    CursorPaginationToUrlParams(url, option.cursor);
   }
 
-  return fetch(
-    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles?${url}`,
-  ).then(async (res) => {
+  return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles?${url}`, {
+    headers: {
+      Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+    },
+  }).then(async (res) => {
     if (!res.ok) {
       throw new Error(`${res.status} - ${await res.text()}`);
     }
@@ -72,6 +97,11 @@ export async function get_article(
 ): Promise<FullArticle | null> {
   return fetch(
     `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}`,
+    {
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+      },
+    },
   ).then(async (res) => {
     if (!res.ok) {
       toast.error(await res.text());

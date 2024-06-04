@@ -2,25 +2,6 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import Link from "next/link";
 import React from "react";
 
-const marketing = [
-  {
-    href: "/tos",
-    label: "Terms of Service",
-  },
-  {
-    href: "/about",
-    label: "About",
-  },
-  {
-    href: "/privacy",
-    label: "Privacy Policy",
-  },
-  {
-    href: "/cookie",
-    label: "Cookie Policy",
-  },
-];
-
 const top_authors = [
   {
     username: "4ry1337",
@@ -58,19 +39,6 @@ const MainLayout = ({
               );
             })}
           </div>
-        </div>
-        <div className="inline-flex flex-wrap gap-4">
-          {marketing.map((marketing_page) => {
-            return (
-              <Link
-                key={marketing_page.href}
-                href={marketing_page.href}
-                className="text-sm leading-none font-medium"
-              >
-                {marketing_page.label}
-              </Link>
-            );
-          })}
         </div>
       </aside>
     </div>

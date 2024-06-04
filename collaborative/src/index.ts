@@ -22,29 +22,56 @@ import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
 import { FullArticle } from "./types";
+import { generateHTML, generateJSON } from "@tiptap/html";
 import { Doc } from "yjs";
 
 const server = new Hocuspocus({
   name: "orta-colab",
   port: 6565,
+  onAuthenticate: async (data) => {
+    return {
+      token: data.token,
+    };
+  },
   onStoreDocument: async (data) => {
-    console.log(data.requestParameters.get("token"));
     await axios
       .patch(
         `http://localhost:5000/api/articles/${data.documentName}/edit`,
         {
-          content: JSON.stringify(
+          content: generateHTML(
             TiptapTransformer.fromYdoc(data.document, "default"),
+            [
+              Document,
+              Paragraph,
+              Text,
+              CodeBlock,
+              Blockquote,
+              BulletList,
+              OrderedList,
+              ListItem,
+              Heading,
+              Bold,
+              Italic,
+              Code,
+              Strike,
+              Subscript,
+              Superscript,
+              Link,
+              Underline,
+              Highlight,
+              Youtube,
+            ],
           ),
         },
         {
           headers: {
-            Authorization: `Bearer ${data.requestParameters.get("token")}`,
+            Authorization: `Bearer ${data.context.token}`,
           },
         },
       )
       .catch((err) => {
-        console.error(err.message);
+        console.log(err.message);
+        return null;
       });
   },
   onLoadDocument: async (data): Promise<Doc> => {
@@ -57,27 +84,30 @@ const server = new Hocuspocus({
       });
 
     const ydoc = article?.content
-      ? TiptapTransformer.toYdoc(JSON.parse(article.content), "default", [
-        Document,
-        Paragraph,
-        Text,
-        CodeBlock,
-        Blockquote,
-        BulletList,
-        OrderedList,
-        ListItem,
-        Heading,
-        Bold,
-        Italic,
-        Code,
-        Strike,
-        Subscript,
-        Superscript,
-        Link,
-        Underline,
-        Highlight,
-        Youtube,
-      ])
+      ? TiptapTransformer.toYdoc(
+        generateJSON(article.content, [
+          Document,
+          Paragraph,
+          Text,
+          CodeBlock,
+          Blockquote,
+          BulletList,
+          OrderedList,
+          ListItem,
+          Heading,
+          Bold,
+          Italic,
+          Code,
+          Strike,
+          Subscript,
+          Superscript,
+          Link,
+          Underline,
+          Highlight,
+          Youtube,
+        ]),
+        "default",
+      )
       : new Doc();
 
     return ydoc;

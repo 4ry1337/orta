@@ -107,9 +107,10 @@ impl CommentService for CommentServiceImpl {
 
         let comments = match CommentRepositoryImpl::find_all(
             &mut transaction,
+            input.query.as_deref(),
             &input.target_id,
             input.r#type().into(),
-            self.state.limit,
+            input.limit,
             id,
             created_at,
         )
@@ -123,8 +124,9 @@ impl CommentService for CommentServiceImpl {
         };
 
         let next_cursor = comments
-            .last()
-            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
 
         let comments = comments
             .iter()

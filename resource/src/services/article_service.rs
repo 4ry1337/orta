@@ -21,6 +21,7 @@ use crate::{
         split_cursor::parse_cursor,
     },
 };
+
 #[derive(Clone)]
 pub struct ArticleServiceImpl {
     pub state: Arc<AppState>,
@@ -111,12 +112,16 @@ impl ArticleService for ArticleServiceImpl {
 
         let articles = match ArticleRepositoryImpl::find_all(
             &mut transaction,
+            input.query.as_deref(),
             input.usernames.to_owned(),
-            input.list_id.as_deref(),
-            input.series_id.as_deref(),
-            self.state.limit,
+            input.list_id.to_owned(),
+            input.series_id.to_owned(),
+            input.not_list_id.to_owned(),
+            input.not_series_id.to_owned(),
+            input.limit,
             id,
             created_at,
+            input.by_user.as_deref(),
         )
         .await
         {
@@ -128,8 +133,9 @@ impl ArticleService for ArticleServiceImpl {
         };
 
         let next_cursor = articles
-            .last()
-            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
 
         let articles = articles
             .iter()
@@ -164,7 +170,13 @@ impl ArticleService for ArticleServiceImpl {
 
         info!("Get Article Request {:?}", input);
 
-        let article = match ArticleRepositoryImpl::find(&mut transaction, &input.article_id).await {
+        let article = match ArticleRepositoryImpl::find(
+            &mut transaction,
+            &input.article_id,
+            input.by_user.as_deref(),
+        )
+        .await
+        {
             Ok(article) => article,
             Err(err) => {
                 error!("{:?}", err);
@@ -532,7 +544,7 @@ impl ArticleService for ArticleServiceImpl {
         let article_versions = match ArticleRepositoryImpl::history(
             &mut transaction,
             &input.article_id,
-            self.state.limit,
+            input.limit,
             id,
             created_at,
         )
@@ -546,8 +558,9 @@ impl ArticleService for ArticleServiceImpl {
         };
 
         let next_cursor = article_versions
-            .last()
-            .map(|item| format!("{}_{}", item.id, item.created_at.to_string()));
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
 
         let article_versions = article_versions
             .iter()

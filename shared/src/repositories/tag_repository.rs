@@ -14,6 +14,7 @@ where
 {
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
+        query: Option<&str>,
         limit: i64,
         user_id: Option<&str>,
         article_id: Option<&str>,
@@ -49,6 +50,7 @@ pub struct TagRepositoryImpl;
 impl TagRepository<Postgres, Error> for TagRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
+        _query: Option<&str>,
         limit: i64,
         user_id: Option<&str>,
         article_id: Option<&str>,
@@ -59,20 +61,26 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
             Tag,
             r#"
             SELECT
-                label,
-                slug,
-                article_count,
-                tag_status AS "tag_status: TagStatus",
-                created_at,
-                updated_at
-            FROM tags
-            WHERE tag_status = coalesce($2, tag_status) AND (($3::text IS NULL) OR (slug > $3))
+                t.label,
+                t.slug,
+                t.article_count,
+                t.tag_status AS "tag_status: TagStatus",
+                t.created_at,
+                t.updated_at
+            FROM tags t
+            LEFT JOIN interests i ON t.slug = i.tag_slug
+            LEFT JOIN articletags at ON t.slug = at.tag_slug
+            WHERE tag_status = coalesce($2, tag_status)
+                AND (($3::text IS NULL) OR (slug > $3))
+                AND (($4::TEXT IS NULL OR i.tag_slug = $4) OR ($5::TEXT IS NULL OR i.tag_slug = $5))
             ORDER BY slug ASC
             LIMIT $1
             "#n,
             limit,
             tag_status as Option<TagStatus>,
-            slug
+            slug,
+            user_id,
+            article_id
         )
         .fetch_all(&mut **transaction)
         .await

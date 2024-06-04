@@ -30,6 +30,7 @@ pub struct CommentsQueryParams {
     id: String,
     r#type: CommentableType,
     user_id: Option<String>,
+    query: Option<String>,
 }
 
 pub async fn get_comments(
@@ -42,6 +43,7 @@ pub async fn get_comments(
 
     match CommentServiceClient::new(channel)
         .get_comments(GetCommentsRequest {
+            query: query.query,
             user_id: query.user_id,
             target_id: query.id,
             r#type: resource_proto::CommentableType::from(query.r#type) as i32,

@@ -34,7 +34,8 @@ impl TagService for TagServiceImpl {
 
         let tags = match TagRepositoryImpl::find_all(
             &mut transaction,
-            self.state.limit,
+            input.query.as_deref(),
+            input.limit,
             input.user_id.as_deref(),
             input.article_id.as_deref(),
             input.tag_status.map(|_| input.tag_status().into()),
@@ -48,7 +49,10 @@ impl TagService for TagServiceImpl {
                 return Err(Status::internal("Something went wrong"));
             }
         };
-        let next_cursor = tags.last().map(|tag| format!("{}", tag.slug));
+        let next_cursor = tags
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|tag| format!("{}", tag.slug));
 
         let tags = tags.iter().map(|tag| Tag::from(tag)).collect();
 

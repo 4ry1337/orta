@@ -20,6 +20,22 @@ message User {
   optional google.protobuf.Timestamp deleted_at = 13;
 }
 
+message FullUser {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  optional google.protobuf.Timestamp email_verified = 4;
+  optional string image = 5;
+  string bio = 7;
+  repeated string urls = 8;
+  int32 follower_count = 9;
+  int32 following_count = 10;
+  google.protobuf.Timestamp created_at = 11;
+  optional google.protobuf.Timestamp approved_at = 12;
+  optional google.protobuf.Timestamp deleted_at = 13;
+  optional bool followed = 14;
+}
+
 enum Role {
   USER = 0;
   ADMIN = 1;
@@ -30,15 +46,17 @@ message GetUsersRequest {
   optional string query = 1;
   int64 limit = 2;
   optional string cursor = 3;
+  optional string by_user = 4;
 }
 
 message GetUsersResponse {
-  repeated User users = 2;
+  repeated FullUser users = 2;
   optional string nextCursor = 3;
 }
 
 message GetUserRequest {
   string username = 1;
+  optional string by_user = 2;
 }
 
 message UpdateUserRequest {
@@ -80,26 +98,29 @@ message FollowersRequest {
   string id = 1;
   int64 limit = 2;
   optional string cursor = 3;
+  optional string by_user = 4;
 }
 
 message FollowingRequest {
   string id = 1;
+  int64 limit = 2;
   optional string cursor = 3;
+  optional string by_user = 4;
 }
 
 message FollowersResponse {
-  repeated User users = 2;
-  optional string nextCursor = 3;
+  repeated FullUser users = 1;
+  optional string nextCursor = 2;
 }
 
 message FollowingResponse {
-  repeated User users = 2;
-  optional string nextCursor = 3;
+  repeated FullUser users = 1;
+  optional string nextCursor = 2;
 }
 
 service UserService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
-  rpc GetUser(GetUserRequest) returns (User);
+  rpc GetUser(GetUserRequest) returns (FullUser);
   rpc UpdateUser(UpdateUserRequest) returns (User);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
   rpc Followers(FollowersRequest) returns (FollowersResponse);
@@ -127,10 +148,12 @@ message FullArticle {
   google.protobuf.Timestamp created_at = 6;
   optional google.protobuf.Timestamp updated_at = 7;
   optional google.protobuf.Timestamp published_at = 8;
-  repeated User users = 9;
+  repeated FullUser users = 9;
   repeated Tag tags = 10;
   optional string content = 11;
   optional string description = 12;
+  optional Series series = 13;
+  repeated List lists = 14;
 }
 
 message ArticleVersion {
@@ -143,10 +166,14 @@ message ArticleVersion {
 
 message GetArticlesRequest {
   repeated string usernames = 1;
-  optional string list_id = 2;
-  optional string series_id = 3;
+  repeated string list_id = 2;
+  repeated string series_id = 3;
   optional string cursor = 4;
   int64 limit = 5;
+  optional string query = 6;
+  repeated string not_list_id = 7;
+  repeated string not_series_id = 8;
+  optional string by_user = 9; 
 }
 
 message GetArticlesResponse {
@@ -156,6 +183,7 @@ message GetArticlesResponse {
 
 message GetArticleRequest {
   string article_id = 1;
+  optional string by_user = 2; 
 }
 
 message CreateArticleRequest {
@@ -436,6 +464,7 @@ message GetCommentsRequest {
   optional string user_id = 3;
   optional string cursor = 4;
   int64 limit = 5;
+  optional string query = 6;
 }
 
 message GetCommentsResponse {
@@ -487,6 +516,7 @@ message GetTagsRequest {
   optional string article_id = 3;
   optional string cursor = 4;
   int64 limit = 5;
+  optional string query = 6;
 }
 
 message GetTagsResponse {

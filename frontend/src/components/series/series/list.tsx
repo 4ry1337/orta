@@ -1,19 +1,24 @@
 import { Series } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { HTMLAttributes } from "react";
 import SeriesCard from "./item";
+import { HTMLAttributes } from "react";
 
 interface SeriesListProps extends HTMLAttributes<HTMLDivElement> {
-  serieses: Series[];
+  serieses?: Series[];
+  editable?: boolean;
+  deletable?: boolean;
+  onDelete?: (id: string) => void;
 }
 
-const SeriesList = ({ className, serieses }: SeriesListProps) => {
+const SeriesList = ({ serieses, ...props }: SeriesListProps) => {
+  if (!serieses) {
+    return null;
+  }
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <>
       {serieses.map((series) => (
-        <SeriesCard key={series.id} series={series} />
+        <SeriesCard {...props} key={series.id} series={series} />
       ))}
-    </div>
+    </>
   );
 };
 

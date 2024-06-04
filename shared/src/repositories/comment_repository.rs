@@ -14,6 +14,7 @@ where
 {
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
+        query: Option<&str>,
         target_id: &str,
         r#type: CommentableType,
         limit: i64,
@@ -42,6 +43,7 @@ pub struct CommentRepositoryImpl;
 impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
+        _query: Option<&str>,
         target_id: &str,
         r#type: CommentableType,
         limit: i64,
@@ -60,15 +62,15 @@ impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
                 created_at,
                 updated_at
             FROM comments
-            WHERE (target_id = $1 AND type = $2) AND (($4::text IS NULL AND $5::timestamptz IS NULL) OR (id, created_at) < ($4, $5))
-            ORDER BY id DESC, created_at DESC
+            WHERE (target_id = $1 AND type = $2) AND (($4::timestamptz IS NULL AND $5::text IS NULL) OR (created_at, id) < ($4, $5))
+            ORDER BY created_at DESC, id DESC
             LIMIT $3
             "#n,
             target_id,
             r#type as CommentableType,
             limit,
+            created_at,
             id,
-            created_at
         )
         .fetch_all(&mut **transaction)
         .await

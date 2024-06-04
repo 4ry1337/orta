@@ -28,7 +28,7 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct ListsQueryParams {
-    label: Option<String>,
+    query: Option<String>,
     user_id: Option<String>,
 }
 
@@ -43,7 +43,7 @@ pub async fn get_lists(
     match ListServiceClient::new(channel)
         .get_lists(GetListsRequest {
             user_id: query.user_id,
-            query: query.label,
+            query: query.query,
             cursor: cursor.cursor,
             limit: cursor.limit,
         })
