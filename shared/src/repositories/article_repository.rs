@@ -139,7 +139,7 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             LEFT JOIN tags t ON at.tag_slug = t.slug
             LEFT JOIN latest_articleversions lav ON a.id = lav.article_id
             LEFT JOIN listarticle la ON a.id = la.article_id
-            LEFT JOIN lists l ON la.list_id = l.id
+            LEFT JOIN lists l ON la.list_id = l.id AND l.user_id = $5
             LEFT JOIN seriesarticle sa ON a.id = sa.article_id
             LEFT JOIN series s ON sa.series_id = s.id
             WHERE (($2::text IS NULL AND $3::timestamptz IS NULL) OR (a.created_at, a.id) < ($3, $2))
@@ -149,6 +149,10 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                 AND ($5::text IS NULL OR l.user_id = $5)
             GROUP BY a.id, lav.content, s.id
             HAVING array_agg(f.username) @> $6
+                AND ($7::text[] = '{}' OR array_agg(sa.series_id) @> $7)
+                AND ($8::text[] = '{}' OR NOT array_agg(sa.series_id) @> $8)
+                AND ($9::text[] = '{}' OR array_agg(la.list_id) @> $9)
+                AND ($10::text[] = '{}' OR NOT array_agg(la.list_id) @> $10)
             ORDER BY a.created_at DESC, a.id DESC
             LIMIT $1
             "#n,
@@ -157,20 +161,15 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             created_at,
             query,
             by_user,
-            &usernames
+            &usernames,
+            &series_id,
+            &list_id,
+            &not_series_id,
+            &not_list_id,
         )
         .fetch_all(&mut **transaction)
         .await
     }
-
-    // &series_id,
-    // &list_id,
-    // &not_series_id,
-    // &not_list_id,
-    // AND ($5::text[] = '{}' OR array_agg(sa.series_id) @> $5)
-    // AND ($6::text[] = '{}' OR NOT array_agg(sa.series_id) @> $7)
-    // AND ($7::text[] = '{}' OR array_agg(la.list_id) @> $6)
-    // AND ($8::text[] = '{}' OR NOT array_agg(la.list_id) @> $8)
 
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
@@ -229,9 +228,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             LEFT JOIN seriesarticle sa ON a.id = sa.article_id
             LEFT JOIN series s ON sa.series_id = s.id
             LEFT JOIN listarticle la ON a.id = la.article_id
-            LEFT JOIN lists l ON la.list_id = l.id
+            LEFT JOIN lists l ON la.list_id = l.id AND l.user_id = $2
             WHERE a.id = $1
-                AND ($2::text IS NULL OR l.user_id = $2)
             GROUP BY a.id, lav.content
             "#n,
             article_id,
