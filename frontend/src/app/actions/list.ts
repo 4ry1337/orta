@@ -25,14 +25,30 @@ export async function get_lists(option?: {
     CursorPaginationToUrlParams(url, option.cursor);
   }
 
-  return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/lists?${url}`).then(
-    async (res) => {
-      if (!res.ok) {
-        throw new Error(`${res.status} - ${await res.text()}`);
-      }
-      return await res.json();
+  return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/lists?${url}`, {
+    headers: {
+      Authorization: `Bearer ${sessionStorage.getItem("session")}`,
     },
-  );
+  }).then(async (res) => {
+    if (!res.ok) {
+      throw new Error(`${res.status} - ${await res.text()}`);
+    }
+    return await res.json();
+  });
+}
+
+export async function get_list(list_id: string): Promise<List | null> {
+  return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/lists/${list_id}`, {
+    headers: {
+      Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+    },
+  }).then(async (res) => {
+    if (!res.ok) {
+      toast.error(`${res.status} - ${await res.text()}`);
+      return null;
+    }
+    return await res.json();
+  });
 }
 
 export async function create_list(
@@ -44,7 +60,6 @@ export async function create_list(
       Authorization: `Bearer ${sessionStorage.getItem("session")}`,
       "Content-Type": "application/json",
     },
-    credentials: "include",
     body: JSON.stringify(values),
   }).then(async (res) => {
     if (!res.ok) {
@@ -77,6 +92,7 @@ export async function add_article(list_id: string, article_id: string) {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         article_id: article_id,
@@ -91,13 +107,14 @@ export async function add_article(list_id: string, article_id: string) {
   });
 }
 
-export async function delete_article(list_id: string, article_id: string) {
+export async function remove_article(list_id: string, article_id: string) {
   return fetch(
     `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/lists/${list_id}/articles`,
     {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         article_id: article_id,

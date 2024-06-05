@@ -1,14 +1,15 @@
 "use client";
 
 import { UpdateUserFormSchema } from "@/lib/definitions";
-import { User } from "@/lib/types";
+import { FullUser, User } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { HTMLAttributes, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -30,9 +31,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { PlusIcon } from "@radix-ui/react-icons";
+import { cn } from "@/lib/utils";
 
 interface ProfileFormProps extends HTMLAttributes<HTMLDivElement> {
-  user: User;
+  user: FullUser;
 }
 
 const ProfileForm = ({ user }: ProfileFormProps) => {
@@ -47,8 +49,14 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
     defaultValues: {
       username: user.username,
       bio: user.bio,
+      urls: user.urls,
     },
     mode: "onChange",
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    name: "urls",
+    control: UpdateUserForm.control,
   });
 
   const onSubmit = async (values: z.infer<typeof UpdateUserFormSchema>) => {
@@ -57,21 +65,6 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
       await update();
     });
   };
-
-  // const UploadAssetForm = useForm<z.infer<typeof UploadAssetFormSchema>>({
-  //   resolver: zodResolver(UploadAssetFormSchema),
-  // });
-  //
-  // const onUploadSubmit = async (
-  //   values: z.infer<typeof UploadAssetFormSchema>,
-  // ) => {
-  //   startTransition(async () => {
-  //     const res = await upload_asset(values);
-  //     if (!!res) {
-  //       UpdateUserForm.setValue("image", res);
-  //     }
-  //   });
-  // };
 
   return (
     <Form {...UpdateUserForm}>
@@ -146,6 +139,38 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
             </FormItem>
           )}
         />
+        <div>
+          {fields.map((field, index) => (
+            <FormField
+              control={UpdateUserForm.control}
+              key={field.id}
+              name={`urls.${index}`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={cn(index !== 0 && "sr-only")}>
+                    URLs
+                  </FormLabel>
+                  <FormDescription className={cn(index !== 0 && "sr-only")}>
+                    Add links to your website, blog, or social media profiles.
+                  </FormDescription>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => append("")}
+          >
+            Add URL
+          </Button>
+        </div>
         <Button disabled={pending} type="submit">
           Update profile
         </Button>
@@ -153,38 +178,5 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
     </Form>
   );
 };
-
-// <div>
-//   {fields.map((field, index) => (
-//     <FormField
-//       control={UpdateUserForm.control}
-//       key={field.id}
-//       name={`urls.${index}`}
-//       render={({ field }) => (
-//         <FormItem>
-//           <FormLabel className={cn(index !== 0 && "sr-only")}>
-//             URLs
-//           </FormLabel>
-//           <FormDescription className={cn(index !== 0 && "sr-only")}>
-//             Add links to your website, blog, or social media profiles.
-//           </FormDescription>
-//           <FormControl>
-//             <Input {...field} />
-//           </FormControl>
-//           <FormMessage />
-//         </FormItem>
-//       )}
-//     />
-//   ))}
-//   <Button
-//     type="button"
-//     variant="outline"
-//     size="sm"
-//     className="mt-2"
-//     onClick={() => append({ value: "" })}
-//   >
-//     Add URL
-//   </Button>
-// </div>
 
 export default ProfileForm;

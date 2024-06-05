@@ -42,6 +42,30 @@ where
         transaction: &mut Transaction<'_, DB>,
         update_article: &UpdateArticle,
     ) -> Result<Article, E>;
+    async fn like(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: &str,
+        user_id: &str,
+    ) -> Result<(String, String), E>;
+    async fn unlike(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: &str,
+        user_id: &str,
+    ) -> Result<(String, String), E>;
+    async fn add_comment(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: &str,
+    ) -> Result<Article, E>;
+    async fn remove_comment(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: &str,
+    ) -> Result<Article, E>;
+    async fn publish(transaction: &mut Transaction<'_, DB>, article_id: &str)
+        -> Result<Article, E>;
+    async fn unpublish(
+        transaction: &mut Transaction<'_, DB>,
+        article_id: &str,
+    ) -> Result<Article, E>;
     async fn delete(transaction: &mut Transaction<'_, DB>, article_id: &str) -> Result<Article, E>;
     async fn add_author(
         transaction: &mut Transaction<'_, DB>,
@@ -126,14 +150,20 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                 a.*,
                 lav.content AS "content: Option<String>",
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT f.*) FILTER (WHERE f.id IS NOT NULL), NULL) as "users: Vec<FullUser>",
-                ARRAY_REMOVE(ARRAY_AGG(t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>",
                 COALESCE(JSON_AGG(s) FILTER (WHERE s.id IS NOT NULL), null) as "series: Series",
                 CASE
                     WHEN $5::text is NULL THEN '{}'
                     ELSE ARRAY_REMOVE(ARRAY_AGG(l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
-                END AS "lists: Vec<List>"
+                END AS "lists: Vec<List>",
+                CASE
+                    WHEN $5 IS NULL THEN FALSE
+                    WHEN li.user_id IS NOT NULL THEN TRUE
+                    ELSE FALSE
+                END AS liked
             FROM articles a
             LEFT JOIN authors au ON a.id = au.article_id
+            LEFT JOIN likes li ON a.id = li.article_id AND li.user_id = $5
             LEFT JOIN followers f ON f.id = au.author_id
             LEFT JOIN articletags at ON a.id = at.article_id
             LEFT JOIN tags t ON at.tag_slug = t.slug
@@ -146,8 +176,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                 AND (($4::text is NULL)
                     OR (to_tsvector(a.title || ' ' || COALESCE(a.description, '') || ' ' || COALESCE(lav.content, ''))
                         @@ websearch_to_tsquery($4)))
-                AND ($5::text IS NULL OR l.user_id = $5)
-            GROUP BY a.id, lav.content, s.id
+                AND ($5::text IS NOT NULL OR l.user_id = $5)
+            GROUP BY a.id, lav.content, s.id, li.user_id
             HAVING array_agg(f.username) @> $6
                 AND ($7::text[] = '{}' OR array_agg(sa.series_id) @> $7)
                 AND ($8::text[] = '{}' OR NOT array_agg(sa.series_id) @> $8)
@@ -163,8 +193,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             by_user,
             &usernames,
             &series_id,
-            &list_id,
             &not_series_id,
+            &list_id,
             &not_list_id,
         )
         .fetch_all(&mut **transaction)
@@ -218,8 +248,14 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                     WHEN $2::text is NULL then ARRAY[]::lists[]
                     ELSE ARRAY_REMOVE(ARRAY_AGG(DISTINCT l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
                 END AS "lists: Vec<List>",
-                COALESCE(JSON_AGG(s) FILTER (WHERE s.id IS NOT NULL), null) as "series: Series"
+                COALESCE(JSON_AGG(s) FILTER (WHERE s.id IS NOT NULL), null) as "series: Series",
+                CASE
+                    WHEN $2::text IS NULL THEN FALSE
+                    WHEN li.user_id IS NOT NULL THEN TRUE
+                    ELSE FALSE
+                END AS liked
             FROM articles a
+            LEFT JOIN likes li ON a.id = li.article_id AND li.user_id = $2
             LEFT JOIN authors au ON a.id = au.article_id
             LEFT JOIN followers f ON au.author_id = f.id
             LEFT JOIN articletags at ON a.id = at.article_id
@@ -230,7 +266,7 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             LEFT JOIN listarticle la ON a.id = la.article_id
             LEFT JOIN lists l ON la.list_id = l.id AND l.user_id = $2
             WHERE a.id = $1
-            GROUP BY a.id, lav.content
+            GROUP BY a.id, lav.content, li.user_id
             "#n,
             article_id,
             by_user
@@ -246,15 +282,18 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         sqlx::query_as!(
             Article,
             r#"
-            WITH article AS
-              (INSERT INTO articles (title, description)
-               VALUES ($2, $3)
-               RETURNING *),
-                 author AS
-              (INSERT INTO authors (author_id, article_id)
-               VALUES ($1,
-                         (SELECT id AS article_id
-                          FROM article)) RETURNING *)
+            WITH article AS (
+                INSERT INTO articles (title, description)
+                VALUES ($2, $3)
+                RETURNING *
+            ), author AS (
+                INSERT INTO authors (author_id, article_id)
+                VALUES ($1, (
+                    SELECT id AS article_id
+                    FROM article
+                ))
+                RETURNING *
+            )
             SELECT *
             FROM article a
             "#n,
@@ -274,7 +313,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             Article,
             r#"
             UPDATE articles
-            SET title = COALESCE($2, articles.title),
+            SET
+                title = COALESCE($2, articles.title),
                 description = COALESCE($3, articles.description)
             WHERE articles.id = $1
             RETURNING *
@@ -331,7 +371,8 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         let _ = sqlx::query!(
             r#"
             DELETE FROM authors
-            WHERE author_id = $1 AND article_id = $2
+            WHERE author_id = $1
+                AND article_id = $2
             "#n,
             delete_author.user_id,
             delete_author.article_id
@@ -372,7 +413,9 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             r#"
             SELECT *
             FROM articleversions
-            WHERE article_id = $4 AND (($2::text IS NULL AND $3::timestamptz IS NULL) OR (id, created_at) < ($2, $3))
+            WHERE article_id = $4
+                AND (($2::text IS NULL AND $3::timestamptz IS NULL)
+                    OR (id, created_at) < ($2, $3))
             ORDER BY id DESC, created_at DESC
             LIMIT $1
             "#n,
@@ -401,6 +444,128 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             article_id,
             content,
             device_id,
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn like(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+        user_id: &str,
+    ) -> Result<(String, String), Error> {
+        let _ = sqlx::query_as!(
+            Article,
+            r#"
+            WITH article AS (
+                UPDATE articles
+                SET like_count = like_count + 1
+                WHERE id = $2
+                RETURNING id
+            )
+            INSERT INTO likes (user_id, article_id)
+            VALUES ($1, (SELECT id FROM article))
+            "#n,
+            user_id,
+            article_id,
+        )
+        .fetch_one(&mut **transaction)
+        .await;
+        Ok((user_id.to_string(), article_id.to_string()))
+    }
+
+    async fn unlike(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+        user_id: &str,
+    ) -> Result<(String, String), Error> {
+        let _ = sqlx::query!(
+            r#"
+            WITH article AS (
+                UPDATE articles
+                SET like_count = like_count - 1
+                WHERE id = $2
+                RETURNING id
+            )
+            DELETE FROM likes
+            WHERE user_id = $1 AND article_id = (SELECT id FROM article)
+            "#,
+            user_id,
+            article_id,
+        )
+        .execute(&mut **transaction)
+        .await;
+
+        Ok((user_id.to_string(), article_id.to_string()))
+    }
+
+    async fn add_comment(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+    ) -> Result<Article, Error> {
+        sqlx::query_as!(
+            Article,
+            r#"
+            UPDATE articles
+            SET comment_count = comment_count + 1
+            WHERE id = $1
+            RETURNING *
+            "#n,
+            article_id,
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn remove_comment(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+    ) -> Result<Article, Error> {
+        sqlx::query_as!(
+            Article,
+            r#"
+            UPDATE articles
+            SET comment_count = comment_count - 1
+            WHERE id = $1
+            RETURNING *
+            "#n,
+            article_id,
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn publish(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+    ) -> Result<Article, Error> {
+        sqlx::query_as!(
+            Article,
+            r#"
+            UPDATE articles
+            SET published_at = now()
+            WHERE id = $1
+            RETURNING *
+            "#n,
+            article_id,
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn unpublish(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+    ) -> Result<Article, Error> {
+        sqlx::query_as!(
+            Article,
+            r#"
+            UPDATE articles
+            SET published_at = null
+            WHERE id = $1
+            RETURNING *
+            "#n,
+            article_id,
         )
         .fetch_one(&mut **transaction)
         .await

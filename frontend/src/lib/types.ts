@@ -89,9 +89,11 @@ export type Tag = {
 };
 
 export type FullArticle = Article & {
-  users?: FullUser[];
-  tags?: Tag[];
+  users: FullUser[];
+  tags: Tag[];
+  lists: List[];
   series?: Series;
+  liked: boolean;
 };
 
 export type List = {
@@ -114,4 +116,10 @@ export type Series = {
   article_count: number;
   created_at: string;
   updated_at?: string;
+};
+
+export type Comment = {
+  id: string;
+  target_id: string;
+  user: FullUser;
 };

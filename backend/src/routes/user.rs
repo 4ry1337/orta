@@ -1,9 +1,10 @@
 use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
+    extract::{Path, Query, Request, State},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Extension, Json,
 };
+use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
@@ -12,7 +13,7 @@ use shared::{
         user_service_client::UserServiceClient, FollowUserRequest, FollowersRequest,
         FollowingRequest, GetUserRequest, GetUsersRequest, UnfollowUserRequest, UpdateUserRequest,
     },
-    utils::jwt::AccessTokenPayload,
+    utils::jwt::{AccessToken, AccessTokenPayload, JWT},
 };
 use tonic::transport::Channel;
 use tracing::{error, info};
@@ -31,19 +32,27 @@ pub struct UsersQueryParams {
 }
 
 pub async fn get_users(
-    user: Option<Extension<AccessTokenPayload>>,
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     Query(query): Query<UsersQueryParams>,
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
     info!("Get Users Request {:?} {:?}", query, cursor);
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
     match UserServiceClient::new(channel)
         .get_users(GetUsersRequest {
             query: query.query,
             limit: cursor.limit,
             cursor: cursor.cursor,
-            by_user: user.map(|u| u.user_id.clone()),
+            by_user,
         })
         .await
     {
@@ -68,21 +77,26 @@ pub async fn get_users(
 }
 
 pub async fn get_user(
-    user: Option<Extension<AccessTokenPayload>>,
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
     info!("Get User Request {:?}", params);
     let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
     match UserServiceClient::new(channel)
-        .get_user(GetUserRequest {
-            username,
-            by_user: user.map(|u| u.user_id.clone()),
-        })
+        .get_user(GetUserRequest { username, by_user })
         .await
     {
         Ok(res) => (StatusCode::OK, Json(json!(FullUser::from(res.get_ref())))).into_response(),
@@ -213,12 +227,32 @@ pub async fn unfollow(
 }
 
 pub async fn get_followers(
-    user: Option<Extension<AccessTokenPayload>>,
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
+
+    // {
+    //     Some(token) => match AccessToken::validate(token.token()) {
+    //         Ok(token_payload) => token_payload,
+    //         Err(error) => {
+    //             error!("Unable to validate token: {:#?}", error);
+    //             return (StatusCode::UNAUTHORIZED, "Verification failed").into_response();
+    //         }
+    //     },
+    //     None => return (StatusCode::BAD_REQUEST, "No token").into_response(),
+    // };
+
     let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
@@ -229,7 +263,7 @@ pub async fn get_followers(
             username,
             limit: cursor.limit,
             cursor: cursor.cursor,
-            by_user: user.map(|u| u.user_id.clone()),
+            by_user,
         })
         .await
     {
@@ -254,12 +288,20 @@ pub async fn get_followers(
 }
 
 pub async fn get_following(
-    user: Option<Extension<AccessTokenPayload>>,
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
     let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
@@ -270,7 +312,7 @@ pub async fn get_following(
             username,
             limit: cursor.limit,
             cursor: cursor.cursor,
-            by_user: user.map(|u| u.user_id.clone()),
+            by_user,
         })
         .await
     {

@@ -1,6 +1,6 @@
 "use client";
 
-import { get_user } from "@/app/actions/user";
+import { follow, get_user, unfollow } from "@/app/actions/user";
 import Aside from "@/components/aside";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ interface IParams {
 const User = ({ params }: { params: IParams }) => {
   const { data } = useSession();
 
-  const { data: user } = useSWR(params.username, get_user);
+  const { data: user, mutate } = useSWR(params.username, get_user);
 
   if (!user) return <Skeleton className="w-full h-full" />;
 
@@ -49,14 +49,47 @@ const User = ({ params }: { params: IParams }) => {
                 </Link>
                 {user.approved_at ? <VerifiedIcon /> : null}
               </div>
-              <h4 className="text-muted-foreground">
-                {user.follower_count} Folllowers
-              </h4>
+              <div>
+                <Link href={`/${user.username}/followers`}>
+                  <small className="mr-2">
+                    {user.follower_count} Folllowers
+                  </small>
+                </Link>
+                <Link href={`/${user.username}/following`}>
+                  <small>{user.following_count} Folllowing</small>
+                </Link>
+              </div>
             </div>
           </div>
           <div className="flex flex-row gap-4">
             {data?.user_id != user.id ? (
-              <Button>Follow</Button>
+              user.followed ? (
+                <Button
+                  onClick={() => {
+                    unfollow(user.username);
+                    mutate({
+                      ...user,
+                      followed: false,
+                      follower_count: user.follower_count - 1,
+                    });
+                  }}
+                >
+                  Unfollow
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    follow(user.username);
+                    mutate({
+                      ...user,
+                      followed: true,
+                      follower_count: user.follower_count + 1,
+                    });
+                  }}
+                >
+                  Follow
+                </Button>
+              )
             ) : (
               <Button asChild>
                 <Link href={"/settings"}>Edit Profile</Link>
@@ -117,10 +150,28 @@ const User = ({ params }: { params: IParams }) => {
               <small>{user.following_count} Folllowing</small>
             </Link>
           </div>
-          <p>{user.bio ?? ""}</p>
+          <p className="">{user.bio ?? ""}</p>
           <div className="flex flex-row gap-4">
             {data?.user_id != user.id ? (
-              <Button>Follow</Button>
+              user.followed ? (
+                <Button
+                  onClick={() => {
+                    unfollow(user.username);
+                    mutate();
+                  }}
+                >
+                  Unfollow
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    follow(user.username);
+                    mutate();
+                  }}
+                >
+                  Follow
+                </Button>
+              )
             ) : (
               <Button asChild>
                 <Link href={"/settings"}>Edit Profile</Link>
@@ -136,5 +187,13 @@ const User = ({ params }: { params: IParams }) => {
     </div>
   );
 };
+
+// <div className="flex flex-col items-start">
+//   {user.urls.map((url) => (
+//     <Button asChild key={url} variant={"link"}>
+//       <Link href={url}>{url}</Link>
+//     </Button>
+//   ))}
+// </div>
 
 export default User;

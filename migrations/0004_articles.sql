@@ -13,8 +13,8 @@ SELECT
   trigger_updated_at ('Articles');
 
 CREATE TABLE Authors (
-  author_id TEXT REFERENCES Users (id) ON DELETE SET NULL ON UPDATE CASCADE,
-  article_id TEXT REFERENCES Articles (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  author_id text references users (id) on delete set null on update cascade,
+  article_id text references articles (id) on delete cascade on update cascade,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   PRIMARY KEY (author_id, article_id)
 );
@@ -33,3 +33,10 @@ CREATE TABLE ArticleVersions (
   content TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now ()
 );
+
+CREATE TABLE Likes (
+  user_id text references users (id) on delete set null on update cascade,
+  article_id text references articles (id) on delete cascade on update cascade,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
+  PRIMARY KEY (user_id, article_id)
+)

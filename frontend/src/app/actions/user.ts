@@ -6,7 +6,7 @@ import { CursorPaginationToUrlParams } from "@/lib/utils";
 import { toast } from "sonner";
 import { z } from "zod";
 
-export async function get_user(username: string): Promise<User> {
+export async function get_user(username: string): Promise<FullUser> {
   return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/${username}`, {
     headers: {
       Authorization: `Bearer ${sessionStorage.getItem("session")}`,
@@ -40,6 +40,9 @@ export async function follow(username: string) {
       `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/${username}/follow`,
       {
         method: "PUT",
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        },
       },
     );
     if (!res.ok) {
@@ -57,6 +60,9 @@ export async function unfollow(username: string) {
       `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/${username}/follow`,
       {
         method: "delete",
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        },
       },
     );
     if (!res.ok) {

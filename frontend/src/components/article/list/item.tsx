@@ -120,7 +120,7 @@ const ArticleCard = ({
               </Link>
             </Button>
           )}
-          {status == "authenticated" && <ListPopover article_id={article.id} />}
+          {status == "authenticated" && <ListPopover article={article} />}
           <Button variant={"ghost"} size={"icon"}>
             <Share1Icon />
           </Button>

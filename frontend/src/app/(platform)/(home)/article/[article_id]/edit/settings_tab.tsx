@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { UpdateArticleSchema } from "@/lib/definitions";
 import { FullArticle } from "@/lib/types";
 import { slugifier } from "@/lib/utils";
@@ -33,6 +34,7 @@ const ArticleSettingsTab = ({ article }: ArticleSettingsTabProps) => {
     resolver: zodResolver(UpdateArticleSchema),
     defaultValues: {
       title: article.title,
+      description: article.description,
     },
   });
 
@@ -70,6 +72,23 @@ const ArticleSettingsTab = ({ article }: ArticleSettingsTabProps) => {
                   <FormDescription>
                     This is the title that will be displayed on this article.
                   </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={UpdateArticleForm.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Bio</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Article description. (Optional)"
+                      className="resize-none"
+                      {...field}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

@@ -166,3 +166,39 @@ export async function get_history(
     return await res.json();
   });
 }
+
+export async function like_article(article_id: string) {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}/like`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+      },
+    },
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    toast(await res.text());
+  });
+}
+
+export async function unlike_article(article_id: string) {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}/like`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+      },
+    },
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    toast(await res.text());
+  });
+}

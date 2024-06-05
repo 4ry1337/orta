@@ -63,7 +63,9 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
             r#"
             SELECT *
             FROM series
-            WHERE user_id = COALESCE($4, user_id) AND (($2::timestamptz IS NULL AND $3::text IS NULL) OR (created_at, id) < ($2, $3))
+            WHERE user_id = COALESCE($4, user_id)
+                AND (($2::timestamptz IS NULL AND $3::text IS NULL)
+                    OR (created_at, id) < ($2, $3))
             ORDER BY created_at DESC, id DESC 
             LIMIT $1
             "#,
@@ -155,7 +157,6 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
         .await
     }
 
-    //TODO: test following
     async fn add_article(
         transaction: &mut Transaction<'_, Postgres>,
         series_id: &str,
@@ -163,8 +164,15 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
     ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
+            WITH s AS (
+                UPDATE series
+                SET
+                    article_count = article_count + 1
+                WHERE id = $1
+                RETURNING *
+            )
             INSERT INTO seriesarticle (series_id, article_id, "order")
-            VALUES ($1, $2, (
+            VALUES ((SELECT id FROM s), $2, (
                 SELECT max("order")
                 FROM seriesarticle
                 WHERE series_id = $1
@@ -206,8 +214,15 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
     ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
+            WITH s AS (
+                UPDATE series
+                SET
+                    article_count = article_count - 1
+                WHERE id = $1
+                RETURNING *
+            )
             DELETE FROM seriesarticle
-            WHERE series_id = $1 AND article_id = $2
+            WHERE series_id = (SELECT id FROM s) AND article_id = $2
             "#n,
             series_id,
             article_id

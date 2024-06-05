@@ -1,11 +1,14 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Response,
     Extension, Json,
 };
 use axum_core::response::IntoResponse;
-use axum_extra::extract::Query;
+use axum_extra::{
+    extract::Query,
+    headers::{authorization::Bearer, Authorization, HeaderMapExt},
+};
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
@@ -13,9 +16,10 @@ use shared::{
     resource_proto::{
         article_service_client::ArticleServiceClient, AddAuthorRequest, CreateArticleRequest,
         DeleteArticleRequest, GetArticleRequest, GetArticlesRequest, GetHistoryRequest,
-        RemoveAuthorRequest, SaveArticleRequest, UpdateArticleRequest,
+        LikeArticleRequest, PublishArticleRequest, RemoveAuthorRequest, SaveArticleRequest,
+        UnlikeArticleRequest, UnpublishArticleRequest, UpdateArticleRequest,
     },
-    utils::jwt::AccessTokenPayload,
+    utils::jwt::{AccessToken, AccessTokenPayload, JWT},
 };
 use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{error, info};
@@ -39,13 +43,21 @@ pub struct ArticlesQueryParams {
 }
 
 pub async fn get_articles(
-    user: Option<Extension<AccessTokenPayload>>,
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     Query(query): Query<ArticlesQueryParams>,
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
     info!("Get Articles Request {:?} {:?}", query, cursor);
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
     match ArticleServiceClient::new(channel)
         .accept_compressed(CompressionEncoding::Gzip)
         .max_decoding_message_size(50 * 1024 * 1024)
@@ -58,7 +70,7 @@ pub async fn get_articles(
             not_series_id: query.not_serieses.unwrap_or_default(),
             cursor: cursor.cursor,
             limit: cursor.limit,
-            by_user: user.map(|u| u.user_id.clone()),
+            by_user,
         })
         .await
     {
@@ -87,7 +99,7 @@ pub async fn get_articles(
 }
 
 pub async fn get_article(
-    user: Option<Extension<AccessTokenPayload>>,
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
@@ -97,10 +109,18 @@ pub async fn get_article(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
     info!("Get Article Request {}", article_id);
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
     match ArticleServiceClient::new(channel)
         .get_article(GetArticleRequest {
             article_id,
-            by_user: user.map(|u| u.user_id.clone()),
+            by_user,
         })
         .await
     {
@@ -381,6 +401,135 @@ pub async fn get_history(
             )
                 .into_response()
         }
+        Err(err) => {
+            error!("{:?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
+}
+
+pub async fn like_article(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    info!("Like Articles Request {:?} {:?}", user.user_id, article_id);
+
+    match ArticleServiceClient::new(channel)
+        .like_article(LikeArticleRequest {
+            user_id: user.user_id,
+            article_id,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Err(err) => {
+            error!("{:?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
+}
+
+pub async fn unlike_article(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    info!(
+        "Unlike Articles Request {:?} {:?}",
+        user.user_id, article_id
+    );
+
+    match ArticleServiceClient::new(channel)
+        .unlike_article(UnlikeArticleRequest {
+            user_id: user.user_id,
+            article_id,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Err(err) => {
+            error!("{:?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
+}
+
+pub async fn publish(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    info!(
+        "Publish Articles Request {:?} {:?}",
+        user.user_id, article_id
+    );
+
+    match ArticleServiceClient::new(channel)
+        .publish_article(PublishArticleRequest {
+            user_id: user.user_id,
+            article_id,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Err(err) => {
+            error!("{:?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
+}
+
+pub async fn unpublish(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    State(_state): State<AppState>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    let article_id = match params.article_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    info!(
+        "Unpublish Articles Request {:?} {:?}",
+        user.user_id, article_id
+    );
+
+    match ArticleServiceClient::new(channel)
+        .unpublish_article(UnpublishArticleRequest {
+            user_id: user.user_id,
+            article_id,
+        })
+        .await
+    {
+        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
         Err(err) => {
             error!("{:?}", err);
             let message = err.message().to_string();

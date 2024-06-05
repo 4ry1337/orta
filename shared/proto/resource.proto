@@ -154,6 +154,7 @@ message FullArticle {
   optional string description = 12;
   optional Series series = 13;
   repeated List lists = 14;
+  optional bool liked = 15;
 }
 
 message ArticleVersion {
@@ -257,6 +258,42 @@ message GetHistoryResponse {
   optional string nextCursor = 3;
 }
 
+message LikeArticleRequest {
+  string user_id = 1;
+  string article_id = 2;
+}
+
+message LikeArticleResponse {
+  string message = 1;
+}
+
+message UnlikeArticleRequest {
+  string user_id = 1;
+  string article_id = 2;
+}
+
+message UnlikeArticleResponse {
+  string message = 1;
+}
+
+message PublishArticleRequest {
+  string user_id = 1;
+  string article_id = 2;
+}
+
+message PublishArticleResponse {
+  string message = 1;
+}
+
+message UnpublishArticleRequest {
+  string user_id = 1;
+  string article_id = 2;
+}
+
+message UnpublishArticleResponse {
+  string message = 1;
+}
+
 service ArticleService {
   rpc CreateArticle(CreateArticleRequest) returns (Article);
   rpc GetArticles(GetArticlesRequest) returns (GetArticlesResponse);
@@ -268,6 +305,10 @@ service ArticleService {
   rpc UpdateTags(UpdateTagsRequest) returns (UpdateTagsResponse);
   rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
   rpc Save(SaveArticleRequest) returns (ArticleVersion);
+  rpc LikeArticle(LikeArticleRequest) returns (LikeArticleResponse);
+  rpc UnlikeArticle(UnlikeArticleRequest) returns (UnlikeArticleResponse);
+  rpc PublishArticle(PublishArticleRequest) returns (PublishArticleResponse);
+  rpc UnpublishArticle(UnpublishArticleRequest) returns (UnpublishArticleResponse);
 }
 
 message List {
@@ -299,6 +340,7 @@ message GetListsRequest {
   optional string user_id = 2;
   optional string cursor = 3;
   int64 limit = 4;
+  optional string by_user = 5; 
 }
 
 message GetListsResponse {
@@ -308,6 +350,7 @@ message GetListsResponse {
 
 message GetListRequest {
   string list_id = 1;
+  optional string by_user = 2; 
 }
 
 message UpdateListRequest {

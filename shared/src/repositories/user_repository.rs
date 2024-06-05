@@ -592,8 +592,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                     ELSE FALSE
                 END AS followed
             FROM following fn
-            LEFT JOIN follow fo ON fn.id = fo.following_id
-            WHERE fo.follower_id = $5
+            LEFT JOIN follow fo ON fn.id = fo.following_id AND fo.follower_id = $5
             "#,
             username,
             limit,
@@ -645,8 +644,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                     ELSE FALSE
                 END AS followed
             FROM followers fs
-            LEFT JOIN follow fo ON fs.id = fo.following_id
-            WHERE fo.follower_id = $5
+            LEFT JOIN follow fo ON fs.id = fo.following_id AND fo.follower_id = $5
             "#,
             username,
             limit,

@@ -54,7 +54,7 @@ const FollowingPage = ({ params }: { params: IParams }) => {
       <div className="p-4">
         {users.length == 0 ? (
           <div className="h-96 content-center">
-            <h1 className="text-center">No content</h1>
+            <h1 className="text-center">No follows</h1>
           </div>
         ) : (
           <UserList users={users} />

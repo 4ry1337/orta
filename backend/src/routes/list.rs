@@ -11,7 +11,7 @@ use shared::{
     models::{enums::Visibility, list_model::List},
     resource_proto::{
         self, list_service_client::ListServiceClient, AddArticleListRequest, CreateListRequest,
-        DeleteListRequest, GetListRequest, GetListsRequest,
+        DeleteListRequest, GetListRequest, GetListsRequest, RemoveArticleListRequest,
     },
     utils::jwt::AccessTokenPayload,
 };
@@ -33,6 +33,7 @@ pub struct ListsQueryParams {
 }
 
 pub async fn get_lists(
+    user: Option<Extension<AccessTokenPayload>>,
     Extension(channel): Extension<Channel>,
     Query(query): Query<ListsQueryParams>,
     Query(cursor): Query<CursorPagination>,
@@ -46,6 +47,7 @@ pub async fn get_lists(
             query: query.query,
             cursor: cursor.cursor,
             limit: cursor.limit,
+            by_user: user.map(|u| u.user_id.clone()),
         })
         .await
     {
@@ -70,6 +72,7 @@ pub async fn get_lists(
 }
 
 pub async fn get_list(
+    user: Option<Extension<AccessTokenPayload>>,
     Extension(channel): Extension<Channel>,
     State(_state): State<AppState>,
     Path(path): Path<PathParams>,
@@ -82,7 +85,10 @@ pub async fn get_list(
     info!("Get List Request {:?}", list_id);
 
     match ListServiceClient::new(channel)
-        .get_list(GetListRequest { list_id })
+        .get_list(GetListRequest {
+            list_id,
+            by_user: user.map(|u| u.user_id.clone()),
+        })
         .await
     {
         Ok(res) => (StatusCode::OK, Json(json!(List::from(res.get_ref())))).into_response(),
@@ -258,7 +264,7 @@ pub async fn delete_list_article(
     );
 
     match ListServiceClient::new(channel)
-        .add_article(AddArticleListRequest {
+        .remove_article(RemoveArticleListRequest {
             user_id: user.user_id,
             list_id,
             article_id: payload.article_id,

@@ -1,7 +1,6 @@
 use crate::models::{list_model::List, series_model::Series, tag_model::Tag, user_model::FullUser};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::Postgres;
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
 pub struct Article {
@@ -30,6 +29,7 @@ pub struct FullArticle {
     pub users: Option<Vec<FullUser>>,
     pub lists: Option<Vec<List>>,
     pub tags: Option<Vec<Tag>>,
+    pub liked: Option<bool>,
 }
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]

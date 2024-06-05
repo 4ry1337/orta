@@ -19,8 +19,8 @@ use axum_prometheus::PrometheusMetricLayer;
 use self::{
     admin::health_checker,
     article::{
-        delete_article, delete_author, get_article, get_articles, get_history, patch_article,
-        post_article, put_author, save_article,
+        delete_article, delete_author, get_article, get_articles, get_history, like_article,
+        patch_article, post_article, publish, put_author, save_article, unlike_article, unpublish,
     },
     assets::{get_asset, post_asset},
     comment::{delete_comment, get_comments, patch_comment, post_comment},
@@ -78,15 +78,27 @@ pub fn router(state: AppState) -> Router<AppState> {
                         .nest(
                             "/:username",
                             Router::new()
-                                .route("/", get(get_user).patch(patch_user))
-                                .route("/follow", put(follow).delete(unfollow))
+                                .route(
+                                    "/",
+                                    get(get_user).patch(patch_user.layer(
+                                        middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        ),
+                                    )),
+                                )
+                                .route(
+                                    "/follow",
+                                    put(follow).delete(unfollow).layer(
+                                        middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        ),
+                                    ),
+                                )
                                 .route("/followers", get(get_followers))
                                 .route("/following", get(get_following)),
                         )
-                        .layer(middleware::from_fn_with_state(
-                            state.clone(),
-                            auth_middleware,
-                        ))
                         .layer(middleware::from_fn(resource_service_middleware)),
                 )
                 .nest(
@@ -94,9 +106,9 @@ pub fn router(state: AppState) -> Router<AppState> {
                     Router::new()
                         .route(
                             "/",
-                            get(get_articles).post(post_article).layer(
+                            get(get_articles).post(post_article.layer(
                                 middleware::from_fn_with_state(state.clone(), auth_middleware),
-                            ),
+                            )),
                         )
                         .nest(
                             "/:article_id",
@@ -116,6 +128,15 @@ pub fn router(state: AppState) -> Router<AppState> {
                                         )),
                                 )
                                 .route(
+                                    "/like",
+                                    put(like_article).delete(unlike_article).layer(
+                                        middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        ),
+                                    ),
+                                )
+                                .route(
                                     "/history",
                                     get(get_history).layer(middleware::from_fn_with_state(
                                         state.clone(),
@@ -123,11 +144,25 @@ pub fn router(state: AppState) -> Router<AppState> {
                                     )),
                                 )
                                 .route(
-                                    "/edit",
-                                    patch(save_article.layer(middleware::from_fn_with_state(
+                                    "/publish",
+                                    patch(publish).layer(middleware::from_fn_with_state(
                                         state.clone(),
                                         auth_middleware,
-                                    ))),
+                                    )),
+                                )
+                                .route(
+                                    "/unpublish",
+                                    patch(unpublish).layer(middleware::from_fn_with_state(
+                                        state.clone(),
+                                        auth_middleware,
+                                    )),
+                                )
+                                .route(
+                                    "/edit",
+                                    patch(save_article).layer(middleware::from_fn_with_state(
+                                        state.clone(),
+                                        auth_middleware,
+                                    )),
                                 )
                                 .route(
                                     "/authors",

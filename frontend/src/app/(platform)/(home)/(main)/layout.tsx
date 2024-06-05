@@ -1,46 +1,19 @@
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import Link from "next/link";
-import React from "react";
+"use client";
 
-const top_authors = [
-  {
-    username: "4ry1337",
-    image: undefined,
-    initials: "RY",
-    name: "Rakhat Yskak",
-  },
-];
+import Aside from "@/components/aside";
+import { Separator } from "@/components/ui/separator";
+import UserTab from "@/components/user/user_tab";
 
-const MainLayout = ({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) => {
+const MainLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="flex">
-      <div className="grow">{children}</div>
-      <aside className="shrink-0 px-4 py-2 w-64 flex-col gap-4 hidden lg:flex">
-        <div className="">
-          <h2 className="mb-4">Popular Writers</h2>
-          <div className="flex flex-col gap-2">
-            {top_authors.map((top_author) => {
-              return (
-                <Link
-                  href={`/${top_author.username}`}
-                  key={top_author.username}
-                  className="inline-flex flex-row items-center"
-                >
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={top_author.image} alt="@avatar" />
-                    <AvatarFallback>{top_author.initials}</AvatarFallback>
-                  </Avatar>
-                  <div className="mx-4 grow">{top_author.name}</div>
-                </Link>
-              );
-            })}
-          </div>
+      <div className="w-full">{children}</div>
+      <Aside>
+        <div className="flex p-4">
+          <h3>User</h3>
         </div>
-      </aside>
+        <UserTab />
+      </Aside>
     </div>
   );
 };

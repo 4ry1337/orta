@@ -70,6 +70,7 @@ impl ListService for ListServiceImpl {
             id,
             created_at,
             input.user_id.as_deref(),
+            input.by_user.as_deref(),
         )
         .await
         {
@@ -109,7 +110,13 @@ impl ListService for ListServiceImpl {
 
         info!("Get List Request {:?}", input);
 
-        let list = match ListRepositoryImpl::find(&mut transaction, &input.list_id).await {
+        let list = match ListRepositoryImpl::find(
+            &mut transaction,
+            &input.list_id,
+            input.by_user.as_deref(),
+        )
+        .await
+        {
             Ok(list) => list,
             Err(err) => {
                 error!("{:?}", err);

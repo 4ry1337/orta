@@ -4,13 +4,14 @@ import UserCard from "./item";
 
 interface UserListProps extends HTMLAttributes<HTMLDivElement> {
   users?: FullUser[];
-  badges?: boolean;
+  badge?: boolean;
 }
 
-const UserList = ({ users, badges, ...props }: UserListProps) => {
+const UserList = ({ users, ...props }: UserListProps) => {
   if (!users) {
     return null;
   }
+
   return (
     <>
       {users.map((user) => (

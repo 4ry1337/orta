@@ -41,12 +41,12 @@ const UserButton = ({ className, user }: UserButtonProps) => {
           <span className="ml-2 hidden xl:block">{user.username}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start">
+      <PopoverContent align="start" className="w-60 rounded-full">
         <div className="flex flex-col gap-3">
           <Button
             onClick={() => onSubmit()}
+            className="rounded-full"
             variant={"destructive"}
-            className="justify-start"
           >
             <ExitIcon className="mr-2" />
             Sign Out

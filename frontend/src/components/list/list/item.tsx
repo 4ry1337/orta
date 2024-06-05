@@ -41,7 +41,7 @@ const ListCard = ({
   const { status } = useSession();
   return (
     <Card {...props}>
-      <Link href={`/list/${slugifier(list.label)}-${list.id}`}>
+      <Link href={`/lists/${slugifier(list.label)}-${list.id}`}>
         <CardHeader>
           <CardTitle>{list.label}</CardTitle>
         </CardHeader>
@@ -86,9 +86,6 @@ const ListCard = ({
               </DialogContent>
             </Dialog>
           )}
-          {editable && status == "authenticated" && (
-            <Button variant={"ghost"}>Edit</Button>
-          )}
           <Button variant={"ghost"} size={"icon"}>
             <Share1Icon />
           </Button>
@@ -98,4 +95,11 @@ const ListCard = ({
   );
 };
 
+// {editable && status == "authenticated" && (
+//   <Button variant={"ghost"} asChild>
+//     <Link href={`/lists/${slugifier(list.label)}-${list.id}/edit`}>
+//       Edit
+//     </Link>
+//   </Button>
+// )}
 export default ListCard;

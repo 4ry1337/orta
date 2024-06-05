@@ -7,8 +7,10 @@ use shared::{
         article_service_server::ArticleService, AddAuthorRequest, AddAuthorResponse, Article,
         ArticleVersion, CreateArticleRequest, DeleteArticleRequest, DeleteArticleResponse,
         FullArticle, GetArticleRequest, GetArticlesRequest, GetArticlesResponse, GetHistoryRequest,
-        GetHistoryResponse, RemoveAuthorRequest, RemoveAuthorResponse, SaveArticleRequest,
-        UpdateArticleRequest, UpdateTagsRequest, UpdateTagsResponse,
+        GetHistoryResponse, LikeArticleRequest, LikeArticleResponse, PublishArticleRequest,
+        PublishArticleResponse, RemoveAuthorRequest, RemoveAuthorResponse, SaveArticleRequest,
+        UnlikeArticleRequest, UnlikeArticleResponse, UnpublishArticleRequest,
+        UnpublishArticleResponse, UpdateArticleRequest, UpdateTagsRequest, UpdateTagsResponse,
     },
 };
 use tonic::{Request, Response, Status};
@@ -637,6 +639,199 @@ impl ArticleService for ArticleServiceImpl {
 
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(ArticleVersion::from(&article_version))),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn like_article(
+        &self,
+        request: Request<LikeArticleRequest>,
+    ) -> Result<Response<LikeArticleResponse>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Like Article Request {:?}", input);
+
+        let like =
+            match ArticleRepositoryImpl::like(&mut transaction, &input.article_id, &input.user_id)
+                .await
+            {
+                Ok(like) => like,
+                Err(err) => {
+                    error!("{:?}", err);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(LikeArticleResponse {
+                message: format!("{} liked article {}", like.0, like.1),
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn unlike_article(
+        &self,
+        request: Request<UnlikeArticleRequest>,
+    ) -> Result<Response<UnlikeArticleResponse>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Like Article Request {:?}", input);
+
+        let like = match ArticleRepositoryImpl::unlike(
+            &mut transaction,
+            &input.article_id,
+            &input.user_id,
+        )
+        .await
+        {
+            Ok(like) => like,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(UnlikeArticleResponse {
+                message: format!("{} unliked article {}", like.0, like.1),
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn publish_article(
+        &self,
+        request: Request<PublishArticleRequest>,
+    ) -> Result<Response<PublishArticleResponse>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Like Article Request {:?}", input);
+
+        match is_owner(
+            &mut transaction,
+            ContentType::Article,
+            &input.user_id,
+            &input.article_id,
+        )
+        .await
+        {
+            Ok(is_owner) => {
+                if !is_owner {
+                    return Err(Status::permission_denied("Forbidden"));
+                }
+            }
+            Err(err) => {
+                error!("{:?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::unknown("Article not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+        let article =
+            match ArticleRepositoryImpl::publish(&mut transaction, &input.article_id).await {
+                Ok(article) => article,
+                Err(err) => {
+                    error!("{:?}", err);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(PublishArticleResponse {
+                message: format!("Published article: {}", article.id),
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn unpublish_article(
+        &self,
+        request: Request<UnpublishArticleRequest>,
+    ) -> Result<Response<UnpublishArticleResponse>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Like Article Request {:?}", input);
+        match is_owner(
+            &mut transaction,
+            ContentType::Article,
+            &input.user_id,
+            &input.article_id,
+        )
+        .await
+        {
+            Ok(is_owner) => {
+                if !is_owner {
+                    return Err(Status::permission_denied("Forbidden"));
+                }
+            }
+            Err(err) => {
+                error!("{:?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::unknown("Article not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let article =
+            match ArticleRepositoryImpl::unpublish(&mut transaction, &input.article_id).await {
+                Ok(article) => article,
+                Err(err) => {
+                    error!("{:?}", err);
+                    return Err(Status::internal("Something went wrong"));
+                }
+            };
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(UnpublishArticleResponse {
+                message: format!("Unpublished article: {}", article.id),
+            })),
             Err(err) => {
                 error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));

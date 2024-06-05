@@ -1,7 +1,11 @@
 import React, { useState, useTransition } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Button } from "../ui/button";
-import { BookmarkIcon, PlusIcon } from "@radix-ui/react-icons";
+import {
+  BookmarkFilledIcon,
+  BookmarkIcon,
+  PlusIcon,
+} from "@radix-ui/react-icons";
 import {
   Dialog,
   DialogClose,
@@ -28,21 +32,26 @@ import {
   SelectValue,
 } from "../ui/select";
 import { useSession } from "@/context/session_context";
-import { List } from "@/lib/types";
+import { FullArticle, List } from "@/lib/types";
 import useInfiniteScroll from "react-infinite-scroll-hook";
-import { create_list, get_lists } from "@/app/actions/list";
-import ListList from "./list/list";
+import {
+  add_article,
+  create_list,
+  get_lists,
+  remove_article,
+} from "@/app/actions/list";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { CreateListSchema } from "@/lib/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import SelectListList from "./select_list/list";
+import { Checkbox } from "../ui/checkbox";
 
-const ListPopover = ({ article_id }: { article_id: string }) => {
+const ListPopover = ({ article }: { article: FullArticle }) => {
   const { status, data } = useSession({
     authenticated: true,
   });
 
+  const [bookmark, setBookmark] = useState(article.lists);
   const [pending, startTransition] = useTransition();
   const [lists, setLists] = useState<List[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -91,7 +100,7 @@ const ListPopover = ({ article_id }: { article_id: string }) => {
     <Popover>
       <PopoverTrigger asChild>
         <Button variant={"ghost"} size={"icon"}>
-          <BookmarkIcon />
+          {bookmark?.length == 0 ? <BookmarkIcon /> : <BookmarkFilledIcon />}
         </Button>
       </PopoverTrigger>
       <PopoverContent>
@@ -100,8 +109,30 @@ const ListPopover = ({ article_id }: { article_id: string }) => {
             <h4 className="font-medium leading-none">Save</h4>
             <p className="text-sm text-muted-foreground">Choose the list</p>
           </div>
-          <div className="h-36">
-            <SelectListList article_id={article_id} lists={lists} />
+          <div className="h-36 flex flex-col gap-3">
+            {lists.map((list) => (
+              <div key={list.id} className="flex items-center gap-1">
+                <Checkbox
+                  id={list.id}
+                  checked={bookmark.map((list) => list.id).includes(list.id)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      add_article(list.id, article.id);
+                      setBookmark([...bookmark, list]);
+                    } else {
+                      remove_article(list.id, article.id);
+                      setBookmark(bookmark.filter((l) => l.id != list.id));
+                    }
+                  }}
+                />
+                <label
+                  htmlFor={list.id}
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  {list.label}
+                </label>
+              </div>
+            ))}
             {(isLoading || hasNextPage) && (
               <div className="w-full h-5" ref={ref} />
             )}
@@ -119,7 +150,7 @@ const ListPopover = ({ article_id }: { article_id: string }) => {
                 </DialogHeader>
                 <Form {...CreateListForm}>
                   <form
-                    id="create_article"
+                    id="create_list"
                     className="grid grid-2 py-4"
                     onSubmit={CreateListForm.handleSubmit(onSubmit)}
                   >
@@ -169,9 +200,11 @@ const ListPopover = ({ article_id }: { article_id: string }) => {
                       Cancel
                     </Button>
                   </DialogClose>
-                  <Button form="create_article" type="submit">
-                    Create List
-                  </Button>
+                  <DialogClose asChild>
+                    <Button form="create_list" type="submit">
+                      Create List
+                    </Button>
+                  </DialogClose>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

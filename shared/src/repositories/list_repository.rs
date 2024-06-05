@@ -19,8 +19,13 @@ where
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
         user_id: Option<&str>,
+        by_user: Option<&str>,
     ) -> Result<Vec<List>, E>;
-    async fn find(transaction: &mut Transaction<'_, DB>, list_id: &str) -> Result<List, E>;
+    async fn find(
+        transaction: &mut Transaction<'_, DB>,
+        list_id: &str,
+        by_user: Option<&str>,
+    ) -> Result<List, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_list: &CreateList,
@@ -54,6 +59,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
         user_id: Option<&str>,
+        by_user: Option<&str>,
     ) -> Result<Vec<List>, Error> {
         sqlx::query_as!(
             List,
@@ -68,14 +74,20 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 created_at,
                 updated_at
             FROM lists
-            WHERE user_id = COALESCE($4, user_id) AND (($2::timestamptz IS NULL AND $3::text IS NULL) OR (created_at, id) < ($2, $3))
+            WHERE user_id = COALESCE($4, user_id)
+                AND (($2::timestamptz IS NULL AND $3::text IS NULL)
+                    OR (created_at, id) < ($2, $3))
+                AND (($5::text IS NOT NULL AND
+                    (user_id = $5 OR visibility in ('PUBLIC', 'BYLINK', 'PRIVATE')))
+                OR ($5 IS NULL AND visibility = 'PUBLIC'))
             ORDER BY created_at DESC, id DESC 
             LIMIT $1
             "#,
             limit,
             created_at,
             id,
-            user_id
+            user_id,
+            by_user
         )
         .fetch_all(&mut **transaction)
         .await
@@ -84,6 +96,7 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
         list_id: &str,
+        by_user: Option<&str>,
     ) -> Result<List, Error> {
         sqlx::query_as!(
             List,
@@ -99,9 +112,13 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
                 updated_at
             FROM lists
             WHERE id = $1
+                AND (($2::text IS NOT NULL AND
+                    (user_id = $2 OR visibility in ('PUBLIC', 'BYLINK', 'PRIVATE')))
+                OR ($2 IS NULL AND visibility in ('PUBLIC', 'BYLINK')))
             ORDER BY created_at DESC
             "#n,
             list_id,
+            by_user
         )
         .fetch_one(&mut **transaction)
         .await
@@ -203,8 +220,15 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
     ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
+            WITH list AS (
+                UPDATE lists
+                SET
+                    article_count = article_count + 1
+                WHERE id = $2
+                RETURNING *
+            )
             INSERT INTO listarticle (article_id, list_id)
-            VALUES ($1, $2)
+            VALUES ($1, (SELECT id FROM list))
             "#n,
             article_id,
             list_id
@@ -221,8 +245,15 @@ impl ListRepository<Postgres, Error> for ListRepositoryImpl {
     ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
+            WITH list AS (
+                UPDATE lists
+                SET
+                    article_count = article_count - 1
+                WHERE id = $1
+                RETURNING *
+            )
             DELETE FROM listarticle
-            WHERE list_id = $1 AND article_id = $2
+            WHERE list_id = (SELECT id FROM list) AND article_id = $2
             "#n,
             list_id,
             article_id
