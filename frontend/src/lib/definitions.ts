@@ -4,6 +4,9 @@ export const SignUpFormSchema = z.object({
   username: z
     .string()
     .min(2, { message: "Username must be at least 2 characters long." })
+    .max(30, {
+      message: "Username must not be longer than 30 characters.",
+    })
     .trim(),
   email: z.string().email({ message: "Please enter a valid email." }).trim(),
   password: z
@@ -53,4 +56,25 @@ export const CreateSeriesSchema = z.object({
 export const CreateListSchema = z.object({
   label: z.string().trim(),
   visibility: z.string().trim().optional(),
+});
+
+export const UpdateUserFormSchema = z.object({
+  username: z
+    .string()
+    .min(2, {
+      message: "Username must be at least 2 characters.",
+    })
+    .max(30, {
+      message: "Username must not be longer than 30 characters.",
+    })
+    .trim(),
+  bio: z.string().max(160).optional(),
+  image: z.string().url().optional(),
+  urls: z
+    .array(z.string().url({ message: "Please enter a valid URL." }))
+    .optional(),
+});
+
+export const UploadAssetFormSchema = z.object({
+  asset: z.instanceof(File),
 });

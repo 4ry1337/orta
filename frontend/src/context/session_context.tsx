@@ -133,7 +133,7 @@ const SessionProvider = (props: SessionProviderProps) => {
 
   const [loading, setLoading] = useState(true);
 
-  useSWR("token", refresh, {
+  const { mutate } = useSWR("token", refresh, {
     onSuccess(data) {
       setToken(data);
       if (data === null) {
@@ -176,12 +176,8 @@ const SessionProvider = (props: SessionProviderProps) => {
           status: "authenticated",
           async update() {
             setLoading(true);
-            const newSession = await get_session();
-            setLoading(false);
-            if (newSession) {
-              setSession(newSession);
-            }
-            return newSession;
+            await mutate();
+            return session;
           },
         }
         : {
@@ -191,7 +187,7 @@ const SessionProvider = (props: SessionProviderProps) => {
             return null;
           },
         };
-    }, [session, loading]);
+    }, [session, loading, mutate]);
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

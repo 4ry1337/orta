@@ -51,16 +51,16 @@ where
     async fn follow(
         transaction: &mut Transaction<'_, DB>,
         follower_id: &str,
-        following_id: &str,
+        following: &str,
     ) -> Result<(String, String), E>;
     async fn unfollow(
         transaction: &mut Transaction<'_, DB>,
         follower_id: &str,
-        following_id: &str,
+        following: &str,
     ) -> Result<(String, String), E>;
     async fn following(
         transaction: &mut Transaction<'_, DB>,
-        user_id: &str,
+        username: &str,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -68,7 +68,7 @@ where
     ) -> Result<Vec<FullUser>, E>;
     async fn followers(
         transaction: &mut Transaction<'_, DB>,
-        user_id: &str,
+        username: &str,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -296,7 +296,9 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             UPDATE users
             SET
                 username = coalesce($2, users.username),
-                image = coalesce($3, users.image)
+                image = coalesce($3, users.image),
+                bio = coalesce($4, users.bio),
+                urls = coalesce($5, users.urls)
             WHERE 
                 id = $1
             RETURNING 
@@ -316,7 +318,9 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             "#,
             update_user.id,
             update_user.username,
-            update_user.image
+            update_user.image,
+            update_user.bio,
+            &update_user.urls
         )
         .fetch_one(&mut **transaction)
         .await
@@ -487,7 +491,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
     async fn follow(
         transaction: &mut Transaction<'_, Postgres>,
         follower_id: &str,
-        following_id: &str,
+        following: &str,
     ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
@@ -500,7 +504,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             updated_following AS (
                 UPDATE users
                 SET follower_count = follower_count + 1
-                WHERE id = $2
+                WHERE username = $2
                 RETURNING id
             )
             INSERT INTO follow (follower_id, following_id)
@@ -508,18 +512,18 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             FROM updated_follower, updated_following;
             "#,
             follower_id,
-            following_id
+            following
         )
         .execute(&mut **transaction)
         .await;
 
-        Ok((follower_id.to_string(), following_id.to_string()))
+        Ok((follower_id.to_string(), following.to_string()))
     }
 
     async fn unfollow(
         transaction: &mut Transaction<'_, Postgres>,
         follower_id: &str,
-        following_id: &str,
+        following: &str,
     ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
@@ -532,7 +536,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             updated_following AS (
                 UPDATE users
                 SET follower_count = follower_count - 1
-                WHERE id = $2
+                WHERE username = $2
                 RETURNING id
             )
             DELETE FROM follow
@@ -540,17 +544,17 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
               AND following_id = (SELECT id FROM updated_following);
             "#,
             follower_id,
-            following_id
+            following
         )
         .execute(&mut **transaction)
         .await;
 
-        Ok((follower_id.to_string(), following_id.to_string()))
+        Ok((follower_id.to_string(), following.to_string()))
     }
 
     async fn following(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: &str,
+        username: &str,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -560,36 +564,38 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             FullUser,
             r#"
             WITH following AS (
-                SELECT
-                    u.id,
-                    u.username,
-                    u.email,
-                    u.email_verified,
-                    u.image,
-                    u.bio,
-                    u.urls,
-                    u.follower_count,
-                    u.following_count,
-                    u.created_at,
-                    u.approved_at,
-                    u.deleted_at
+                SELECT u.*
                 FROM follow f
-                JOIN users u ON f.following_id = u.id
-                WHERE f.follower_id = $1 AND (($3::timestamptz IS NULL AND $4::text IS NULL) OR (f.created_at, f.following_id) < ($3, $4))
-                ORDER BY  f.created_at DESC, f.following_id DESC
+                LEFT JOIN users u ON f.following_id = u.id 
+                WHERE f.follower_id = (SELECT id FROM users WHERE username = $1)
+                    AND (($3::timestamptz IS NULL AND $4::text IS NULL)
+                        OR (f.created_at, f.following_id) < ($3, $4))
+                ORDER BY f.created_at DESC, f.following_id DESC 
                 LIMIT $2
             )
             SELECT 
-                fn.*,
+                fn.id,
+                fn.username,
+                fn.email,
+                fn.email_verified,
+                fn.image,
+                fn.bio,
+                fn.urls,
+                fn.follower_count,
+                fn.following_count,
+                fn.created_at,
+                fn.approved_at,
+                fn.deleted_at,
                 CASE
-                    WHEN $5 IS NULL THEN FALSE
+                    WHEN $5::text IS NULL THEN FALSE
                     WHEN fo.follower_id IS NOT NULL THEN TRUE
                     ELSE FALSE
                 END AS followed
             FROM following fn
-            LEFT JOIN follow fo ON fn.id = fo.following_id AND fo.follower_id = $5
+            LEFT JOIN follow fo ON fn.id = fo.following_id
+            WHERE fo.follower_id = $5
             "#,
-            user_id,
+            username,
             limit,
             created_at,
             id,
@@ -601,7 +607,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
 
     async fn followers(
         transaction: &mut Transaction<'_, Postgres>,
-        user_id: &str,
+        username: &str,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -611,38 +617,38 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             FullUser,
             r#"
             WITH followers AS (
-                SELECT
-                    u.id,
-                    u.username,
-                    u.email,
-                    u.email_verified,
-                    u.image,
-                    u.bio,
-                    u.urls,
-                    u.follower_count,
-                    u.following_count,
-                    u.created_at,
-                    u.approved_at,
-                    u.deleted_at
+                SELECT u.*
                 FROM follow f
-                LEFT JOIN users u ON f.following_id = u.id
-                WHERE f.following_id = $1
+                LEFT JOIN users u ON f.follower_id = u.id 
+                WHERE f.following_id = (SELECT id FROM users WHERE username = $1)
                     AND (($3::timestamptz IS NULL AND $4::text IS NULL)
                         OR (f.created_at, f.follower_id) < ($3, $4))
                 ORDER BY f.created_at DESC, f.follower_id DESC 
                 LIMIT $2
             )
             SELECT 
-                fs.*,
+                fs.id,
+                fs.username,
+                fs.email,
+                fs.email_verified,
+                fs.image,
+                fs.bio,
+                fs.urls,
+                fs.follower_count,
+                fs.following_count,
+                fs.created_at,
+                fs.approved_at,
+                fs.deleted_at,
                 CASE
-                    WHEN $5 IS NULL THEN FALSE
+                    WHEN $5::text IS NULL THEN FALSE
                     WHEN fo.follower_id IS NOT NULL THEN TRUE
                     ELSE FALSE
                 END AS followed
             FROM followers fs
-            LEFT JOIN follow fo ON fs.id = fo.following_id AND fo.follower_id = $5
+            LEFT JOIN follow fo ON fs.id = fo.following_id
+            WHERE fo.follower_id = $5
             "#,
-            user_id,
+            username,
             limit,
             created_at,
             id,

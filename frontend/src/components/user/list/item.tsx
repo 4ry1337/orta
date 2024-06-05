@@ -1,10 +1,10 @@
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { User } from "@/lib/types";
+import { FullUser } from "@/lib/types";
 import Link from "next/link";
 import { HTMLAttributes } from "react";
 
 interface UserCardProps extends HTMLAttributes<HTMLDivElement> {
-  user: User;
+  user: FullUser;
 }
 
 const UserCard = ({ user }: UserCardProps) => {

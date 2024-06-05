@@ -18,8 +18,6 @@ pub async fn get_asset(
     Extension(channel): Extension<Channel>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    debug!(?params);
-
     let asset_name = match params.asset_name {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),

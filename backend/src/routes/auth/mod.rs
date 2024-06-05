@@ -107,7 +107,7 @@ pub async fn refresh(
 }
 
 pub async fn get_session(Extension(user): Extension<AccessTokenPayload>) -> Response {
-    info!("Get session request");
+    info!("Get Session Request");
     (StatusCode::OK, Json(json!(user))).into_response()
 }
 

@@ -133,7 +133,9 @@ pub struct CreateUser {
 pub struct UpdateUser {
     pub id: String,
     pub username: Option<String>,
+    pub bio: Option<String>,
     pub image: Option<String>,
+    pub urls: Vec<String>,
 }
 
 #[derive(Clone, sqlx::FromRow, Serialize, Deserialize, Debug)]

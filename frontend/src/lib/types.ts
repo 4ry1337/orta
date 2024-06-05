@@ -44,6 +44,21 @@ export type User = {
   deleted_at: string;
 };
 
+export type FullUser = {
+  id: string;
+  username: string;
+  email: string;
+  email_verified?: string;
+  image?: string;
+  bio: string;
+  urls: string[];
+  follower_count: number;
+  following_count: number;
+  approved_at: string;
+  deleted_at: string;
+  followed: boolean;
+};
+
 export type Article = {
   id: string;
   title: string;
@@ -74,7 +89,7 @@ export type Tag = {
 };
 
 export type FullArticle = Article & {
-  users?: User[];
+  users?: FullUser[];
   tags?: Tag[];
   series?: Series;
 };

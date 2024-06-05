@@ -62,9 +62,9 @@ message GetUserRequest {
 message UpdateUserRequest {
   string id = 1;
   optional string username = 2;
-  optional bytes image = 3;
+  optional string image = 3;
   optional string bio = 4;
-  repeated string url = 5;
+  repeated string urls = 5;
 }
 
 message DeleteUserRequest {
@@ -78,7 +78,7 @@ message DeleteUserResponse {
 
 message FollowUserRequest {
   string user_id = 1;
-  string target_id = 2;
+  string target = 2;
 }
 
 message FollowUserResponse {
@@ -87,7 +87,7 @@ message FollowUserResponse {
 
 message UnfollowUserRequest {
   string user_id = 1;
-  string target_id = 2;
+  string target = 2;
 }
 
 message UnfollowUserResponse {
@@ -95,14 +95,14 @@ message UnfollowUserResponse {
 }
 
 message FollowersRequest {
-  string id = 1;
+  string username = 1;
   int64 limit = 2;
   optional string cursor = 3;
   optional string by_user = 4;
 }
 
 message FollowingRequest {
-  string id = 1;
+  string username = 1;
   int64 limit = 2;
   optional string cursor = 3;
   optional string by_user = 4;

@@ -1,10 +1,9 @@
-import { User } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { FullUser } from "@/lib/types";
 import { HTMLAttributes } from "react";
 import UserCard from "./item";
 
 interface UserListProps extends HTMLAttributes<HTMLDivElement> {
-  users?: User[];
+  users?: FullUser[];
   badges?: boolean;
 }
 

@@ -158,7 +158,9 @@ impl UserService for UserServiceImpl {
             &UpdateUser {
                 id: user.id.to_owned(),
                 username: input.username.to_owned(),
-                image: user.image.to_owned(),
+                bio: input.bio.to_owned(),
+                image: input.image.to_owned(),
+                urls: input.urls.to_owned(),
             },
         )
         .await
@@ -251,19 +253,18 @@ impl UserService for UserServiceImpl {
 
         info!("Follow User Request {:?}", input);
 
-        let user =
-            match UserRepositoryImpl::follow(&mut transaction, &input.user_id, &input.target_id)
-                .await
-            {
-                Ok(user) => user,
-                Err(err) => {
-                    error!("{:?}", err);
-                    if let sqlx::error::Error::RowNotFound = err {
-                        return Err(Status::not_found("User not found"));
-                    }
-                    return Err(Status::internal("Something went wrong"));
+        let user = match UserRepositoryImpl::follow(&mut transaction, &input.user_id, &input.target)
+            .await
+        {
+            Ok(user) => user,
+            Err(err) => {
+                error!("{:?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::not_found("User not found"));
                 }
-            };
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
 
         match transaction.commit().await {
             Ok(_) => Ok(Response::new(FollowUserResponse {
@@ -293,7 +294,7 @@ impl UserService for UserServiceImpl {
         info!("Follow User Request {:?}", input);
 
         let user =
-            match UserRepositoryImpl::unfollow(&mut transaction, &input.user_id, &input.target_id)
+            match UserRepositoryImpl::unfollow(&mut transaction, &input.user_id, &input.target)
                 .await
             {
                 Ok(user) => user,
@@ -348,7 +349,7 @@ impl UserService for UserServiceImpl {
 
         let users = match UserRepositoryImpl::followers(
             &mut transaction,
-            &input.id,
+            &input.username,
             input.limit,
             id,
             created_at,
@@ -393,7 +394,7 @@ impl UserService for UserServiceImpl {
 
         let input = request.get_ref();
 
-        info!("Get User Follows Request {:?}", input);
+        info!("Get User Following Request {:?}", input);
 
         let mut id = None;
         let mut created_at = None;
@@ -410,7 +411,7 @@ impl UserService for UserServiceImpl {
 
         let users = match UserRepositoryImpl::following(
             &mut transaction,
-            &input.id,
+            &input.username,
             input.limit,
             id,
             created_at,

@@ -29,11 +29,11 @@ const HomeLayout = ({ children }: { children: React.ReactNode }) => {
           href: `/${data.username}`,
           icon: PersonIcon,
         },
-        {
-          label: "Notifications",
-          href: "/notifications",
-          icon: BellIcon,
-        },
+        // {
+        //   label: "Notifications",
+        //   href: "/notifications",
+        //   icon: BellIcon,
+        // },
         {
           label: "Lists",
           href: "/lists",

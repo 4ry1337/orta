@@ -37,6 +37,7 @@ pub async fn get_users(
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
+    info!("Get Users Request {:?} {:?}", query, cursor);
     match UserServiceClient::new(channel)
         .get_users(GetUsersRequest {
             query: query.query,
@@ -72,7 +73,7 @@ pub async fn get_user(
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    info!("Get User Request");
+    info!("Get User Request {:?}", params);
     let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
@@ -123,9 +124,9 @@ pub async fn get_user(
 #[derive(Debug, Deserialize)]
 pub struct PatchUserRequestBody {
     pub username: Option<String>,
-    pub image: Option<Vec<u8>>,
+    pub image: Option<String>,
     pub bio: Option<String>,
-    pub url: Vec<String>,
+    pub urls: Option<Vec<String>>,
 }
 
 pub async fn patch_user(
@@ -134,13 +135,14 @@ pub async fn patch_user(
     State(_state): State<AppState>,
     Json(payload): Json<PatchUserRequestBody>,
 ) -> Response {
+    info!("Update Users Request {:?} {:?}", user.user_id, payload);
     match UserServiceClient::new(channel)
         .update_user(UpdateUserRequest {
             id: user.user_id,
             username: payload.username,
             image: payload.image,
             bio: payload.bio,
-            url: payload.url,
+            urls: payload.urls.unwrap_or_default(),
         })
         .await
     {
@@ -160,14 +162,15 @@ pub async fn follow(
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let user_id = match params.user_id {
+    let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
+    info!("Follow User Request {:?} {:?}", user.user_id, username);
     match UserServiceClient::new(channel)
         .follow_user(FollowUserRequest {
             user_id: user.user_id,
-            target_id: user_id,
+            target: username,
         })
         .await
     {
@@ -187,14 +190,15 @@ pub async fn unfollow(
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let user_id = match params.user_id {
+    let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
+    info!("Unfollow User Request {:?} {:?}", user.user_id, username);
     match UserServiceClient::new(channel)
         .unfollow_user(UnfollowUserRequest {
             user_id: user.user_id,
-            target_id: user_id,
+            target: username,
         })
         .await
     {
@@ -209,21 +213,23 @@ pub async fn unfollow(
 }
 
 pub async fn get_followers(
+    user: Option<Extension<AccessTokenPayload>>,
     Extension(channel): Extension<Channel>,
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let user_id = match params.user_id {
+    let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
+    info!("Get Followers Request {:?} {:?}", username, cursor);
     match UserServiceClient::new(channel)
         .followers(FollowersRequest {
-            id: user_id,
+            username,
             limit: cursor.limit,
             cursor: cursor.cursor,
-            by_user: None,
+            by_user: user.map(|u| u.user_id.clone()),
         })
         .await
     {
@@ -248,21 +254,23 @@ pub async fn get_followers(
 }
 
 pub async fn get_following(
+    user: Option<Extension<AccessTokenPayload>>,
     Extension(channel): Extension<Channel>,
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
 ) -> Response {
-    let user_id = match params.user_id {
+    let username = match params.username {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
+    info!("Get Following Request {:?} {:?}", username, cursor);
     match UserServiceClient::new(channel)
         .following(FollowingRequest {
-            id: user_id,
+            username,
             limit: cursor.limit,
             cursor: cursor.cursor,
-            by_user: None,
+            by_user: user.map(|u| u.user_id.clone()),
         })
         .await
     {

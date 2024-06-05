@@ -109,9 +109,15 @@ const User = ({ params }: { params: IParams }) => {
               </div>
             </div>
           </div>
-          <small className="mr-2">{user.follower_count} Folllowers</small>
-          <small>{user.following_count} Folllowing</small>
-          <p>{user.bio}</p>
+          <div>
+            <Link href={`/${user.username}/followers`}>
+              <small className="mr-2">{user.follower_count} Folllowers</small>
+            </Link>
+            <Link href={`/${user.username}/following`}>
+              <small>{user.following_count} Folllowing</small>
+            </Link>
+          </div>
+          <p>{user.bio ?? ""}</p>
           <div className="flex flex-row gap-4">
             {data?.user_id != user.id ? (
               <Button>Follow</Button>
