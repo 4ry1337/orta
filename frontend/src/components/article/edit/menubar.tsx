@@ -15,6 +15,7 @@ import { Toggle } from "@/components/ui/toggle";
 import FormatSelect from "@/components/article/edit/format_select";
 import YoutubeButton from "@/components/article/edit/youtube_button";
 import { Editor } from "@tiptap/react";
+import ImageButton from "./image_button";
 
 const MenuBar = ({ editor }: { editor: Editor }) => {
   return (
@@ -113,6 +114,7 @@ const MenuBar = ({ editor }: { editor: Editor }) => {
           </div>
           <div className="inline-flex flex-row gap-1">
             <YoutubeButton editor={editor} />
+            <ImageButton editor={editor} />
           </div>
         </div>
         <ScrollBar orientation="horizontal" />

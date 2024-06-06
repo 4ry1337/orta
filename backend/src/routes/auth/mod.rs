@@ -25,12 +25,12 @@ use crate::{
 pub mod credential;
 // pub mod github;
 // pub mod google;
-//
-// #[derive(Debug, serde::Deserialize)]
-// pub struct AuthRequest {
-//     code: String,
-//     state: String,
-// }
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AuthRequest {
+    code: String,
+    state: String,
+}
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()

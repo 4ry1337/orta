@@ -115,15 +115,14 @@ impl ArticleService for ArticleServiceImpl {
         let articles = match ArticleRepositoryImpl::find_all(
             &mut transaction,
             input.query.as_deref(),
-            input.usernames.to_owned(),
-            input.list_id.to_owned(),
-            input.series_id.to_owned(),
-            input.not_list_id.to_owned(),
-            input.not_series_id.to_owned(),
             input.limit,
             id,
             created_at,
             input.by_user.as_deref(),
+            input.published,
+            input.username.as_deref(),
+            input.series_id.as_deref(),
+            input.list_id.as_deref(),
         )
         .await
         {

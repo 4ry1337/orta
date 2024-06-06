@@ -8,11 +8,12 @@ const ExploreLayout = ({ children }: { children: React.ReactNode }) => {
       <div className="w-full">
         <div>{children}</div>
       </div>
-      <Aside>
-        <div>Search Filters</div>
-      </Aside>
     </div>
   );
 };
+
+// <Aside>
+//   <div>Search Filters</div>
+// </Aside>
 
 export default ExploreLayout;

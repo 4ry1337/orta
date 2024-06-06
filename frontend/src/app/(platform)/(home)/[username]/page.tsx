@@ -39,7 +39,11 @@ const User = ({ params }: { params: IParams }) => {
         <div className="lg:hidden p-4 flex items-center flex-row gap-8 justify-between">
           <div className="flex flex-row gap-4">
             <Avatar className="w-20 h-20">
-              <AvatarImage src={user.image} alt="@avatar" />
+              <AvatarImage
+                src={"http://localhost:5000/api/assets/" + user.image}
+                className="object-cover"
+                alt="@avatar"
+              />
               <AvatarFallback>{user.username.at(0)}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
@@ -114,8 +118,8 @@ const User = ({ params }: { params: IParams }) => {
                 <Link href={"#lists"}>Lists</Link>
               </TabsTrigger>
             </TabsList>
-            <TabsContent className="mt-4" value="article">
-              <ArticleTab usernames={[user.username]} />
+            <TabsContent className="mt-4 space-y-4" value="article">
+              <ArticleTab published={true} username={user.username} />
             </TabsContent>
             <TabsContent className="mt-4" value="series">
               <SeriesTab user_id={user.id} />
@@ -130,7 +134,11 @@ const User = ({ params }: { params: IParams }) => {
         <div className="space-y-4">
           <div className="flex flex-row items-center gap-4">
             <Avatar className="w-20 h-20">
-              <AvatarImage src={user.image} alt="@avatar" />
+              <AvatarImage
+                src={"http://localhost:5000/api/assets/" + user.image}
+                className="object-cover"
+                alt="@avatar"
+              />
               <AvatarFallback>{user.username.at(0)}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">

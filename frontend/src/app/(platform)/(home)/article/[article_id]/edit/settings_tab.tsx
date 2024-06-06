@@ -1,7 +1,19 @@
 "use client";
 
-import { update_article } from "@/app/actions/article";
+import { add_author, publish, update_article } from "@/app/actions/article";
+import { get_users } from "@/app/actions/user";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -14,13 +26,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { useSession } from "@/context/session_context";
 import { UpdateArticleSchema } from "@/lib/definitions";
-import { FullArticle } from "@/lib/types";
+import { FullArticle, FullUser } from "@/lib/types";
 import { slugifier } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
+import debounce from "lodash.debounce";
+import { Search, XIcon } from "lucide-react";
 import { redirect } from "next/navigation";
-import { HTMLAttributes, useTransition } from "react";
+import {
+  HTMLAttributes,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { useForm } from "react-hook-form";
+import useInfiniteScroll from "react-infinite-scroll-hook";
 import { z } from "zod";
 
 interface ArticleSettingsTabProps extends HTMLAttributes<HTMLDivElement> {
@@ -28,6 +50,8 @@ interface ArticleSettingsTabProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const ArticleSettingsTab = ({ article }: ArticleSettingsTabProps) => {
+  const { data: session } = useSession();
+
   const [pending, startTransition] = useTransition();
 
   const UpdateArticleForm = useForm<z.infer<typeof UpdateArticleSchema>>({
@@ -44,6 +68,60 @@ const ArticleSettingsTab = ({ article }: ArticleSettingsTabProps) => {
       if (res) redirect(`/article/${slugifier(res.title)}-${res.id}/edit`);
     });
   };
+
+  const [query, setQuery] = useState("");
+
+  const [users, setUsers] = useState<FullUser[]>([]);
+
+  const [limit, setLimit] = useState(5);
+
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
+
+  const [hasMore, setHasMore] = useState(true);
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [ref] = useInfiniteScroll({
+    loading: isLoading,
+    hasNextPage: hasMore,
+    onLoadMore: () => {
+      setIsLoading(true);
+      get_users({
+        query: query,
+        cursor: {
+          cursor,
+          limit,
+        },
+      }).then((data) => {
+        setUsers([
+          ...users,
+          ...data.items.filter((u) => u.id != session?.user_id),
+        ]);
+        if (data.next_cursor !== null) {
+          setCursor(data.next_cursor);
+        } else {
+          setHasMore(false);
+        }
+      });
+      setIsLoading(false);
+    },
+  });
+
+  const handleSearch = (value: string) => {
+    setQuery(value);
+    setUsers([]);
+    setHasMore(true);
+  };
+
+  const debouncedResults = useMemo(() => {
+    return debounce(handleSearch, 300);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      debouncedResults.cancel();
+    };
+  });
 
   return (
     <div className="max-w-lg mx-auto">
@@ -81,11 +159,11 @@ const ArticleSettingsTab = ({ article }: ArticleSettingsTabProps) => {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Bio</FormLabel>
+                  <FormLabel>Description</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Article description. (Optional)"
-                      className="resize-none"
+                      className="resize-none h-40"
                       {...field}
                     />
                   </FormControl>
@@ -93,146 +171,96 @@ const ArticleSettingsTab = ({ article }: ArticleSettingsTabProps) => {
                 </FormItem>
               )}
             />
-            <Button disabled={pending} type="submit">
-              Update Article
-            </Button>
+            <div className="flex flex-row justify-between">
+              <Button disabled={pending} type="submit">
+                Update Article
+              </Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant={"ghost"}>Publish</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Are you sure?</DialogTitle>
+                    <DialogDescription>
+                      Publish {article.title}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button>Close</Button>
+                    </DialogClose>
+                    <DialogClose asChild>
+                      <Button
+                        variant={"destructive"}
+                        onClick={() => {
+                          publish(article.id);
+                        }}
+                      >
+                        Publish
+                      </Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </form>
         </Form>
+        <div className="h-[500px] flex flex-col">
+          <div className="sticky w-full p-4 space-y-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                onChange={(e) => debouncedResults(e.target.value)}
+                placeholder="Search by username"
+                className="px-8"
+              />
+              <XIcon className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+          <Separator orientation="horizontal" />
+          <div className="p-4 space-y-4">
+            {users.map((user) => (
+              <div
+                key={user.id}
+                className="flex flex-row items-center justify-between whitespace-nowrap rounded-md text-sm font-medium bg-accent px-4 py-1"
+              >
+                <Avatar>
+                  <AvatarImage
+                    src={
+                      user.image
+                        ? "http://localhost:5000/api/assets/" + user.image
+                        : undefined
+                    }
+                    className="object-cover"
+                    alt="@avatar"
+                  />
+                  <AvatarFallback>{user.username.at(0)}</AvatarFallback>
+                </Avatar>
+                <div className="ml-2 grow spacy-y-4">
+                  <h4>{user.username}</h4>
+                </div>
+                <Button
+                  size={"sm"}
+                  onClick={() => {
+                    add_author(article.id, user.id).then((res) => {
+                      setUsers(users.filter((u) => u.id != user.id));
+                    });
+                  }}
+                >
+                  Add Collaborator
+                </Button>
+              </div>
+            ))}
+            {(isLoading || hasMore) && (
+              <div className="w-full h-20" ref={ref} />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
 export default ArticleSettingsTab;
-
-// <FormField
-//   control={UpdateArticleForm.control}
-//   name="scheduled"
-//   render={({ field }) => (
-//     <FormItem className="flex flex-col">
-//       <FormLabel>Schedule Publication</FormLabel>
-//       <Popover>
-//         <PopoverTrigger asChild>
-//           <FormControl>
-//             <Button
-//               variant={"outline"}
-//               className={cn(
-//                 "w-[240px] pl-3 text-left font-normal",
-//                 !field.value && "text-muted-foreground",
-//               )}
-//             >
-//               {field.value ? (
-//                 format(field.value, "PPP")
-//               ) : (
-//                 <span>Pick a date</span>
-//               )}
-//               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-//             </Button>
-//           </FormControl>
-//         </PopoverTrigger>
-//         <PopoverContent className="w-auto p-0" align="start">
-//           <Calendar
-//             className="rounded-md border bg-background"
-//             mode="single"
-//             selected={field.value}
-//             onSelect={field.onChange}
-//             disabled={(date) =>
-//               date > new Date("2100-01-01") || date < new Date()
-//             }
-//             initialFocus
-//           />
-//         </PopoverContent>
-//       </Popover>
-//       <FormDescription>
-//         Your date of birth is used to calculate your age.
-//       </FormDescription>
-//       <FormMessage />
-//     </FormItem>
-//   )}
-// />
-//
-//
-// <FormField
-//   control={UpdateArticleForm.control}
-//   name="tag_list"
-//   render={({ field }) => (
-//     <FormItem className="flex flex-col">
-//       <FormLabel>Tags</FormLabel>
-//       <FormControl>
-//         <div className="flex w-full gap-3">
-//           <div className="flex max-w-[450px] flex-wrap gap-2 rounded-md"></div>
-//         </div>
-//       </FormControl>
-//       <FormDescription>
-//         This is the article&apos;s language.
-//       </FormDescription>
-//       <FormMessage />
-//     </FormItem>
-//   )}
-// />
-//
-//
-// <FormField
-//   control={UpdateArticleForm.control}
-//   name="language"
-//   render={({ field }) => (
-//     <FormItem className="flex flex-col">
-//       <FormLabel>Language</FormLabel>
-//       <Popover>
-//         <PopoverTrigger asChild>
-//           <FormControl>
-//             <Button
-//               variant="outline"
-//               role="combobox"
-//               className={cn(
-//                 "w-[200px] justify-between",
-//                 !field.value && "text-muted-foreground",
-//               )}
-//             >
-//               {field.value
-//                 ? languages.find(
-//                   (language) => language.value === field.value,
-//                 )?.label
-//                 : "Select language"}
-//               <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-//             </Button>
-//           </FormControl>
-//         </PopoverTrigger>
-//         <PopoverContent className="w-[200px] p-0">
-//           <Command>
-//             <CommandInput placeholder="Search language..." />
-//             <CommandEmpty>No language found.</CommandEmpty>
-//             <CommandGroup>
-//               {languages.map((language) => (
-//                 <CommandItem
-//                   value={language.label}
-//                   key={language.value}
-//                   onSelect={() => {
-//                     UpdateArticleForm.setValue(
-//                       "language",
-//                       language.value,
-//                     );
-//                   }}
-//                 >
-//                   <CheckIcon
-//                     className={cn(
-//                       "mr-2 h-4 w-4",
-//                       language.value === field.value
-//                         ? "opacity-100"
-//                         : "opacity-0",
-//                     )}
-//                   />
-//                   {language.label}
-//                 </CommandItem>
-//               ))}
-//             </CommandGroup>
-//           </Command>
-//         </PopoverContent>
-//       </Popover>
-//       <FormDescription>
-//         This is the article&apos;s language.
-//       </FormDescription>
-//       <FormMessage />
-//     </FormItem>
-//   )}
-// />

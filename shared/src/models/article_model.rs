@@ -22,7 +22,7 @@ pub struct FullArticle {
     pub like_count: i32,
     pub comment_count: i32,
     pub content: Option<String>,
-    pub series: Option<Series>,
+    pub series: Option<Vec<Series>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,

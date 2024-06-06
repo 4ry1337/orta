@@ -14,11 +14,10 @@ import { CursorPaginationToUrlParams } from "@/lib/utils";
 
 export async function get_articles(option?: {
   query?: string;
-  usernames?: string[];
-  lists?: string[];
-  serieses?: string[];
-  not_lists?: string[];
-  not_serieses?: string[];
+  username?: string;
+  list_id?: string;
+  published?: boolean;
+  series_id?: string;
   cursor?: CursorPagination;
 }): Promise<ResultPaging<FullArticle>> {
   const url = new URLSearchParams();
@@ -28,35 +27,22 @@ export async function get_articles(option?: {
       url.append("query", option.query);
     }
 
-    if (option.usernames) {
-      option.usernames.map((username) => {
-        url.append("usernames", username);
-      });
+    if (option.username) {
+      url.append("username", option.username);
     }
 
-    if (option.lists) {
-      option.lists.map((list) => {
-        url.append("lists", list);
-      });
+    if (option.series_id) {
+      url.append("series_id", option.series_id);
     }
 
-    if (option.serieses) {
-      option.serieses.map((series) => {
-        url.append("serieses", series);
-      });
+    if (option.list_id) {
+      url.append("list_id", option.list_id);
     }
 
-    if (option.not_lists) {
-      option.not_lists.map((list) => {
-        url.append("not_lists", list);
-      });
+    if (option.published) {
+      url.append("published", option.published ? "true" : "false");
     }
 
-    if (option.not_serieses) {
-      option.not_serieses.map((series) => {
-        url.append("not_serieses", series);
-      });
-    }
     CursorPaginationToUrlParams(url, option.cursor);
   }
 
@@ -200,5 +186,50 @@ export async function unlike_article(article_id: string) {
       return null;
     }
     toast(await res.text());
+  });
+}
+
+export async function publish(article_id: string) {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}/publish`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        "Content-Type": "application/json",
+      },
+    },
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+    }
+    toast(await res.text());
+  });
+}
+
+export async function add_author(
+  article_id: string,
+  user_id: string,
+): Promise<string | null> {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/articles/${article_id}/authors`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id,
+      }),
+    },
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    const text = await res.text();
+    toast(text);
+    return text;
   });
 }

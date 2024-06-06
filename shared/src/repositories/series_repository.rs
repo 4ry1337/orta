@@ -172,17 +172,17 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
                 RETURNING *
             )
             INSERT INTO seriesarticle (series_id, article_id, "order")
-            VALUES ((SELECT id FROM s), $2, (
+            VALUES ((SELECT id FROM s), $2, COALESCE(((
                 SELECT max("order")
                 FROM seriesarticle
                 WHERE series_id = $1
-            ) + 100)
+            ) + 100), 0))
             "#n,
             series_id,
             article_id,
         )
         .execute(&mut **transaction)
-        .await;
+        .await?;
         Ok((series_id.to_string(), article_id.to_string()))
     }
 
@@ -228,7 +228,7 @@ impl SeriesRepository<Postgres, Error> for SeriesRepositoryImpl {
             article_id
         )
         .execute(&mut **transaction)
-        .await;
+        .await?;
         Ok((series_id.to_string(), article_id.to_string()))
     }
 }

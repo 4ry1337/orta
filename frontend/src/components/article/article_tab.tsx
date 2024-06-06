@@ -1,25 +1,25 @@
 "use client";
 
-import { get_articles } from "@/app/actions/article";
+import { get_articles, get_user_articles } from "@/app/actions/article";
 import ArticleList from "@/components/article/list/list";
 import { FullArticle } from "@/lib/types";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { HTMLAttributes, useState } from "react";
 
 interface ArticleTabProps extends HTMLAttributes<HTMLDivElement> {
-  usernames?: string[];
-  lists?: string[];
-  serieses?: string[];
-  not_lists?: string[];
-  not_serieses?: string[];
+  query?: string;
+  username?: string;
+  list_id?: string;
+  series_id?: string;
+  published?: boolean;
 }
 
 const ArticleTab = ({
-  usernames,
-  serieses,
-  lists,
-  not_serieses,
-  not_lists,
+  query,
+  published,
+  username,
+  series_id,
+  list_id,
 }: ArticleTabProps) => {
   const [articles, setArticles] = useState<FullArticle[]>([]);
 
@@ -37,11 +37,11 @@ const ArticleTab = ({
     onLoadMore: () => {
       setIsLoading(true);
       get_articles({
-        usernames,
-        lists,
-        serieses,
-        not_lists,
-        not_serieses,
+        query,
+        username,
+        published,
+        series_id,
+        list_id,
         cursor: {
           cursor,
           limit,

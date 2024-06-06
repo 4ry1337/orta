@@ -19,16 +19,27 @@ export async function get_user(username: string): Promise<FullUser> {
   });
 }
 
-export async function get_users(
-  cursor?: CursorPagination,
-): Promise<ResultPaging<FullUser>> {
-  return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users`, {
+export async function get_users(option?: {
+  query?: string;
+  cursor?: CursorPagination;
+}): Promise<ResultPaging<FullUser>> {
+  const url = new URLSearchParams();
+
+  if (option) {
+    if (option.query) {
+      url.append("query", option.query);
+    }
+
+    CursorPaginationToUrlParams(url, option.cursor);
+  }
+
+  return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users?${url}`, {
     headers: {
       Authorization: `Bearer ${sessionStorage.getItem("session")}`,
     },
   }).then(async (res) => {
     if (!res.ok) {
-      throw new Error(`${res.status} - ${await res.text()}`);
+      toast.error(`${res.status} - ${await res.text()}`);
     }
     return await res.json();
   });

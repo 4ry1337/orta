@@ -32,7 +32,7 @@ const ListPage = ({ params }: { params: IParams }) => {
         </div>
         <Separator className="w-full" orientation="horizontal" />
         <div className="p-4 space-y-4">
-          <ArticleTab lists={[list.id]} />
+          <ArticleTab list_id={list.id} />
         </div>
       </div>
       <Aside>

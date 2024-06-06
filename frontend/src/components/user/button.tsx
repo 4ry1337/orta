@@ -35,7 +35,11 @@ const UserButton = ({ className, user }: UserButtonProps) => {
           )}
         >
           <Avatar>
-            <AvatarImage src={user.image} alt="@avatar" />
+            <AvatarImage
+              src={"http://localhost:5000/api/assets/" + user.image}
+              className="object-cover"
+              alt="@avatar"
+            />
             <AvatarFallback>{user.username.at(0)}</AvatarFallback>
           </Avatar>
           <span className="ml-2 hidden xl:block">{user.username}</span>

@@ -23,15 +23,14 @@ where
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         query: Option<&str>,
-        usernames: Vec<String>,
-        list_id: Vec<String>,
-        series_id: Vec<String>,
-        not_list_id: Vec<String>,
-        not_series_id: Vec<String>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
         by_user: Option<&str>,
+        published: Option<bool>,
+        username: Option<&str>,
+        series_id: Option<&str>,
+        list_id: Option<&str>,
     ) -> Result<Vec<FullArticle>, E>;
     async fn find(
         transaction: &mut Transaction<'_, DB>,
@@ -102,15 +101,14 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
         query: Option<&str>,
-        usernames: Vec<String>,
-        list_id: Vec<String>,
-        series_id: Vec<String>,
-        not_list_id: Vec<String>,
-        not_series_id: Vec<String>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
         by_user: Option<&str>,
+        published: Option<bool>,
+        username: Option<&str>,
+        series_id: Option<&str>,
+        list_id: Option<&str>,
     ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
             FullArticle,
@@ -122,8 +120,7 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                     SELECT article_id, MAX(created_at) AS max_created_at
                     FROM articleversions
                     GROUP BY article_id
-                ) latest_av ON av.article_id = latest_av.article_id
-                    AND av.created_at = latest_av.max_created_at
+                ) latest_av ON av.article_id = latest_av.article_id AND av.created_at = latest_av.max_created_at
             ), followers AS (
                 SELECT
                     u.id,
@@ -148,23 +145,23 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             )
             SELECT
                 a.*,
-                lav.content AS "content: Option<String>",
+                lav.content as "content: Option<String>",
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT f.*) FILTER (WHERE f.id IS NOT NULL), NULL) as "users: Vec<FullUser>",
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>",
-                COALESCE(JSON_AGG(s) FILTER (WHERE s.id IS NOT NULL), null) as "series: Series",
                 CASE
-                    WHEN $5::text is NULL THEN '{}'
-                    ELSE ARRAY_REMOVE(ARRAY_AGG(l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
+                    WHEN $5::text is NULL then ARRAY[]::lists[]
+                    ELSE ARRAY_REMOVE(ARRAY_AGG(DISTINCT l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
                 END AS "lists: Vec<List>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.*) FILTER (WHERE s.id IS NOT NULL), null) as "series: Vec<Series>",
                 CASE
-                    WHEN $5 IS NULL THEN FALSE
+                    WHEN $5::text IS NULL THEN FALSE
                     WHEN li.user_id IS NOT NULL THEN TRUE
                     ELSE FALSE
                 END AS liked
             FROM articles a
             LEFT JOIN authors au ON a.id = au.article_id
+            LEFT JOIN followers f ON au.author_id = f.id
             LEFT JOIN likes li ON a.id = li.article_id AND li.user_id = $5
-            LEFT JOIN followers f ON f.id = au.author_id
             LEFT JOIN articletags at ON a.id = at.article_id
             LEFT JOIN tags t ON at.tag_slug = t.slug
             LEFT JOIN latest_articleversions lav ON a.id = lav.article_id
@@ -172,17 +169,17 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             LEFT JOIN lists l ON la.list_id = l.id AND l.user_id = $5
             LEFT JOIN seriesarticle sa ON a.id = sa.article_id
             LEFT JOIN series s ON sa.series_id = s.id
-            WHERE (($2::text IS NULL AND $3::timestamptz IS NULL) OR (a.created_at, a.id) < ($3, $2))
+            WHERE (($8::text IS NULL OR la.list_id = $8)
+                    AND ($9::text IS NULL OR s.id = $9))
+                AND ($6::bool IS NULL OR (CASE 
+                    WHEN $6 IS TRUE THEN a.published_at IS NOT NULL
+                    ELSE a.published_at IS NULL END))
+                AND (($2::text IS NULL AND $3::timestamptz IS NULL) OR (a.created_at, a.id) < ($3, $2))
                 AND (($4::text is NULL)
                     OR (to_tsvector(a.title || ' ' || COALESCE(a.description, '') || ' ' || COALESCE(lav.content, ''))
                         @@ websearch_to_tsquery($4)))
-                AND ($5::text IS NOT NULL OR l.user_id = $5)
-            GROUP BY a.id, lav.content, s.id, li.user_id
-            HAVING array_agg(f.username) @> $6
-                AND ($7::text[] = '{}' OR array_agg(sa.series_id) @> $7)
-                AND ($8::text[] = '{}' OR NOT array_agg(sa.series_id) @> $8)
-                AND ($9::text[] = '{}' OR array_agg(la.list_id) @> $9)
-                AND ($10::text[] = '{}' OR NOT array_agg(la.list_id) @> $10)
+            GROUP BY a.id, lav.content, s.id, li.user_id, sa.order
+            HAVING $7 = ANY(ARRAY_AGG(f.username))
             ORDER BY a.created_at DESC, a.id DESC
             LIMIT $1
             "#n,
@@ -191,11 +188,10 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             created_at,
             query,
             by_user,
-            &usernames,
-            &series_id,
-            &not_series_id,
-            &list_id,
-            &not_list_id,
+            published,
+            username,
+            list_id,
+            series_id,
         )
         .fetch_all(&mut **transaction)
         .await
@@ -248,7 +244,7 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                     WHEN $2::text is NULL then ARRAY[]::lists[]
                     ELSE ARRAY_REMOVE(ARRAY_AGG(DISTINCT l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
                 END AS "lists: Vec<List>",
-                COALESCE(JSON_AGG(s) FILTER (WHERE s.id IS NOT NULL), null) as "series: Series",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.*) FILTER (WHERE s.id IS NOT NULL), null) as "series: Vec<Series>",
                 CASE
                     WHEN $2::text IS NULL THEN FALSE
                     WHEN li.user_id IS NOT NULL THEN TRUE

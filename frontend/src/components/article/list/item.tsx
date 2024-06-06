@@ -49,12 +49,14 @@ const ArticleCard = ({
         </CardHeader>
         <CardContent>
           <div>{article.description}</div>
-          <small>{DisplayDate(article.created_at)}</small>
+          {article.published_at && (
+            <small>{DisplayDate(article.published_at)}</small>
+          )}
         </CardContent>
       </Link>
       <CardFooter className="justify-between ">
-        <div className="flex items-center justify-between">
-          <ScrollArea>
+        <ScrollArea>
+          <div className="flex flex-row items-center gap-4 justify-center">
             {article.users &&
               article.users.map((user) => {
                 return (
@@ -63,7 +65,11 @@ const ArticleCard = ({
                     className="inline-flex items-center justify-center"
                   >
                     <Avatar className="mr-2 w-7 h-7">
-                      <AvatarImage src={user.image} alt="@avatar" />
+                      <AvatarImage
+                        src={"http://localhost:5000/api/assets/" + user.image}
+                        className="object-cover"
+                        alt="@avatar"
+                      />
                       <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <Link
@@ -75,9 +81,9 @@ const ArticleCard = ({
                   </div>
                 );
               })}
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </div>
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
         <div className="inline-flex gap-2">
           {deletable && status == "authenticated" && (
             <Dialog>

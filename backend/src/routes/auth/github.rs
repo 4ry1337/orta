@@ -15,17 +15,7 @@ use serde_json::json;
 use time::Duration;
 use tracing::{error, warn};
 
-use crate::{
-    application::AppState,
-    configuration::CONFIG,
-    models::{account_model::CreateAccount, user_model::CreateUser},
-    repositories::{
-        account_repository::{AccountRepository, AccountRepositoryImpl},
-        user_repository::{UserRepository, UserRepositoryImpl},
-    },
-    services::auth::OAuthClient,
-    utils::jwt::{AccessToken, AccessTokenPayload, RefreshToken, RefreshTokenPayload, JWT},
-};
+use crate::application::AppState;
 
 use super::AuthRequest;
 
@@ -40,7 +30,6 @@ async fn login(State(appstate): State<Arc<AppState>>) -> Response {
         appstate.services.auth.github.authorization_url();
 
     // let () = appstate.controllers.auth
-    let cookie_max_age = Duration::minutes(CONFIG.cookie.auth.duration);
 
     let csrf_cookie: Cookie = Cookie::build((
         &CONFIG.cookie.auth.csrf_state_name,
@@ -49,7 +38,7 @@ async fn login(State(appstate): State<Arc<AppState>>) -> Response {
     .http_only(true)
     .path("/")
     .same_site(SameSite::Lax)
-    .max_age(cookie_max_age)
+    .max_age(Duration::minutes(CONFIG.cookie.auth.duration))
     .into();
 
     let code_verifier: Cookie = Cookie::build((
@@ -59,7 +48,7 @@ async fn login(State(appstate): State<Arc<AppState>>) -> Response {
     .http_only(true)
     .path("/")
     .same_site(SameSite::Lax)
-    .max_age(cookie_max_age)
+    .max_age(Duration::minutes(CONFIG.cookie.auth.duration))
     .into();
 
     let cookies = CookieJar::new().add(csrf_cookie).add(code_verifier);

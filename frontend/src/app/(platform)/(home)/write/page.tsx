@@ -27,7 +27,11 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CreateArticleSchema, CreateSeriesSchema } from "@/lib/definitions";
-import { create_article, get_articles } from "@/app/actions/article";
+import {
+  create_article,
+  get_articles,
+  get_user_articles,
+} from "@/app/actions/article";
 import { Pencil1Icon } from "@radix-ui/react-icons";
 import { Button } from "@/components/ui/button";
 import ArticleList from "@/components/article/list/list";
@@ -62,7 +66,7 @@ const WritePage = () => {
     onLoadMore: () => {
       setIsArticleLoading(true);
       get_articles({
-        usernames: [session!.username],
+        username: session!.username,
         cursor: {
           cursor: artcileCursor,
           limit,

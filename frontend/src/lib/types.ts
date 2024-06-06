@@ -92,7 +92,7 @@ export type FullArticle = Article & {
   users: FullUser[];
   tags: Tag[];
   lists: List[];
-  series?: Series;
+  series: Series[];
   liked: boolean;
 };
 

@@ -83,7 +83,7 @@ pub struct UserRepositoryImpl;
 impl UserRepository<Postgres, Error> for UserRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        _query: Option<&str>,
+        query: Option<&str>,
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
@@ -112,14 +112,15 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 END AS followed
             FROM users u
             LEFT JOIN follow f ON u.id = f.following_id AND f.follower_id = $4
-            WHERE (($2::timestamptz IS NULL AND $3::text IS NULL) OR (u.created_at, u.id) < ($2, $3))
+            WHERE ($5::text IS NULL OR u.username LIKE $5) AND (($2::timestamptz IS NULL AND $3::text IS NULL) OR (u.created_at, u.id) < ($2, $3))
             ORDER BY u.created_at DESC, u.id DESC 
             LIMIT $1
             "#,
             limit,
             created_at,
             id,
-            by_user
+            by_user,
+            query.map(|q| format!("%{}%", q))
         )
         .fetch_all(&mut **transaction)
         .await

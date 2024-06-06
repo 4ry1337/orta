@@ -5,13 +5,16 @@ import { z } from "zod";
 export async function upload_asset(
   values: z.infer<typeof UploadAssetFormSchema>,
 ): Promise<string | null> {
+  console.log(values);
   const formData = new FormData();
-  formData.append("asset", values.asset);
+  let file = values.files?.at(0);
+  if (!file) return null;
+  formData.append("asset", file, file.name);
   return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/assets`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${sessionStorage.getItem("session")}`,
-      "Content-Type": "multipart/form-data",
+      // redirect: "follow",
     },
     credentials: "include",
     body: formData,

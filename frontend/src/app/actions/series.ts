@@ -82,3 +82,53 @@ export async function delete_series(series_id: string) {
     toast(await res.text());
   });
 }
+
+export async function add_article_series(
+  series_id: string,
+  article_id: string,
+) {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/series/${series_id}/articles`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        article_id,
+      }),
+    },
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    toast(await res.text());
+  });
+}
+
+export async function remove_article_series(
+  series_id: string,
+  article_id: string,
+) {
+  return fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/series/${series_id}/articles`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        article_id,
+      }),
+    },
+  ).then(async (res) => {
+    if (!res.ok) {
+      toast.error(await res.text());
+      return null;
+    }
+    toast(await res.text());
+  });
+}

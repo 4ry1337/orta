@@ -291,7 +291,10 @@ impl From<&article_model::FullArticle> for FullArticle {
                 Some(lists) => lists.iter().map(|list| List::from(list)).collect(),
                 None => vec![],
             },
-            series: value.series.as_ref().map(|series| series.into()),
+            series: match &value.series {
+                Some(series) => series.iter().map(|series| Series::from(series)).collect(),
+                None => vec![],
+            },
             liked: value.liked,
         }
     }
@@ -330,7 +333,13 @@ impl From<&FullArticle> for article_model::FullArticle {
                     .map(|list| list_model::List::from(list))
                     .collect(),
             ),
-            series: value.series.as_ref().map(|series| series.into()),
+            series: Some(
+                value
+                    .series
+                    .iter()
+                    .map(|series| series_model::Series::from(series))
+                    .collect(),
+            ),
             liked: value.liked,
         }
     }

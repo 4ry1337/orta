@@ -35,11 +35,10 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct ArticlesQueryParams {
     query: Option<String>,
-    usernames: Option<Vec<String>>,
-    lists: Option<Vec<String>>,
-    serieses: Option<Vec<String>>,
-    not_lists: Option<Vec<String>>,
-    not_serieses: Option<Vec<String>>,
+    published: Option<bool>,
+    username: Option<String>,
+    series_id: Option<String>,
+    list_id: Option<String>,
 }
 
 pub async fn get_articles(
@@ -63,14 +62,13 @@ pub async fn get_articles(
         .max_decoding_message_size(50 * 1024 * 1024)
         .get_articles(GetArticlesRequest {
             query: query.query,
-            usernames: query.usernames.unwrap_or_default(),
-            list_id: query.lists.unwrap_or_default(),
-            series_id: query.serieses.unwrap_or_default(),
-            not_list_id: query.not_lists.unwrap_or_default(),
-            not_series_id: query.not_serieses.unwrap_or_default(),
             cursor: cursor.cursor,
             limit: cursor.limit,
             by_user,
+            published: query.published,
+            username: query.username,
+            list_id: query.list_id,
+            series_id: query.series_id,
         })
         .await
     {

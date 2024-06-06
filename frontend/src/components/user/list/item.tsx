@@ -1,6 +1,7 @@
 import { follow, unfollow } from "@/app/actions/user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useSession } from "@/context/session_context";
 import { FullUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -11,6 +12,7 @@ interface UserCardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const UserCard = ({ user, className, badge = false }: UserCardProps) => {
+  const { data } = useSession();
   const [followed, setFollowed] = useState(user.followed);
 
   if (badge) {
@@ -23,7 +25,11 @@ const UserCard = ({ user, className, badge = false }: UserCardProps) => {
       >
         <Link href={`/${user.username}`}>
           <Avatar className="w-12 h-12">
-            <AvatarImage src={user.image} alt="@avatar" />
+            <AvatarImage
+              src={"http://localhost:5000/api/assets/" + user.image}
+              className="object-cover"
+              alt="@avatar"
+            />
             <AvatarFallback>{user.username.at(0)}</AvatarFallback>
           </Avatar>
         </Link>
@@ -32,31 +38,36 @@ const UserCard = ({ user, className, badge = false }: UserCardProps) => {
             <div>{user.username}</div>
           </Link>
         </Button>
-        <span>·</span>
-        {followed ? (
-          <Button
-            className="px-0"
-            size={"sm"}
-            variant={"link"}
-            onClick={() => {
-              unfollow(user.username);
-              setFollowed(false);
-            }}
-          >
-            Following
-          </Button>
+        {!data || data?.user_id == user.id ? null : followed ? (
+          <>
+            <span>·</span>
+            <Button
+              className="px-0"
+              size={"sm"}
+              variant={"link"}
+              onClick={() => {
+                unfollow(user.username);
+                setFollowed(false);
+              }}
+            >
+              Following
+            </Button>
+          </>
         ) : (
-          <Button
-            className="px-0"
-            size={"sm"}
-            variant={"link"}
-            onClick={() => {
-              follow(user.username);
-              setFollowed(true);
-            }}
-          >
-            Follow
-          </Button>
+          <>
+            <span>·</span>
+            <Button
+              className="px-0"
+              size={"sm"}
+              variant={"link"}
+              onClick={() => {
+                follow(user.username);
+                setFollowed(true);
+              }}
+            >
+              Follow
+            </Button>
+          </>
         )}
       </div>
     );
@@ -74,14 +85,18 @@ const UserCard = ({ user, className, badge = false }: UserCardProps) => {
         className="flex items-center justify-center"
       >
         <Avatar>
-          <AvatarImage src={user.image} alt="@avatar" />
+          <AvatarImage
+            src={"http://localhost:5000/api/assets/" + user.image}
+            className="object-cover"
+            alt="@avatar"
+          />
           <AvatarFallback>{user.username.at(0)}</AvatarFallback>
         </Avatar>
         <div className="ml-2 grow spacy-y-4">
           <h4>{user.username}</h4>
         </div>
       </Link>
-      {followed ? (
+      {!data || data?.user_id == user.id ? null : followed ? (
         <Button
           onClick={() => {
             unfollow(user.username);

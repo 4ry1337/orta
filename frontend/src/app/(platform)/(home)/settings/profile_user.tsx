@@ -1,9 +1,13 @@
 "use client";
 
-import { UpdateUserFormSchema } from "@/lib/definitions";
-import { FullUser, User } from "@/lib/types";
+import {
+  UpdateArticleSchema,
+  UpdateUserFormSchema,
+  UploadAssetFormSchema,
+} from "@/lib/definitions";
+import { FullUser } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { HTMLAttributes, useTransition } from "react";
+import { HTMLAttributes, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -32,6 +36,16 @@ import {
 } from "@/components/ui/dialog";
 import { PlusIcon } from "@radix-ui/react-icons";
 import { cn } from "@/lib/utils";
+import { upload_asset } from "@/app/actions/asset";
+import { DropzoneOptions } from "react-dropzone";
+import {
+  FileInput,
+  FileUploader,
+  FileUploaderContent,
+  FileUploaderItem,
+} from "@/components/ui/file_upload";
+import Image from "next/image";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 interface ProfileFormProps extends HTMLAttributes<HTMLDivElement> {
   user: FullUser;
@@ -65,6 +79,36 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
       await update();
     });
   };
+  const [user_image, setuser_image] = useState(user.image);
+  const UploadAssetForm = useForm<z.infer<typeof UploadAssetFormSchema>>({
+    resolver: zodResolver(UploadAssetFormSchema),
+  });
+
+  const dropzone = {
+    accept: {
+      "image/*": [".jpg", ".jpeg", ".png"],
+    },
+    multiple: false,
+    maxFiles: 1,
+    maxSize: 8 * 1024 * 1024,
+  } satisfies DropzoneOptions;
+
+  const onUploadSubmit = async (
+    values: z.infer<typeof UploadAssetFormSchema>,
+  ) => {
+    // console.log(values);
+    startTransition(async () => {
+      const res = await upload_asset(values);
+      if (res) {
+        console.log(res);
+        setuser_image(res);
+        await update_user(user.username, {
+          image: res,
+        });
+        await update();
+      }
+    });
+  };
 
   return (
     <Form {...UpdateUserForm}>
@@ -75,7 +119,11 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
         <div className="flex flex-row gap-4 items-center">
           <div className="relative">
             <Avatar className="w-20 h-20">
-              <AvatarImage src={user.image} alt="@avatar" />
+              <AvatarImage
+                src={"http://localhost:5000/api/assets/" + user_image}
+                className="object-cover"
+                alt="@avatar"
+              />
               <AvatarFallback>{user.username.at(0)}</AvatarFallback>
             </Avatar>
             <Dialog>
@@ -91,6 +139,58 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
                 <DialogHeader>
                   <DialogTitle>Upload profile image</DialogTitle>
                 </DialogHeader>
+                <Form {...UploadAssetForm}>
+                  <form
+                    id="image"
+                    onSubmit={UploadAssetForm.handleSubmit(onUploadSubmit)}
+                  >
+                    <FormField
+                      control={UploadAssetForm.control}
+                      name="files"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FileUploader
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            dropzoneOptions={dropzone}
+                            reSelect
+                          >
+                            {field.value && field.value.length > 0 ? (
+                              <FileUploaderContent className="aspect-square">
+                                {field.value.map((file, i) => (
+                                  <FileUploaderItem
+                                    key={i}
+                                    index={i}
+                                    aria-roledescription={`file ${i + 1} containing ${file.name
+                                      }`}
+                                    className="w-full h-full"
+                                  >
+                                    <AspectRatio className="size-full">
+                                      <Image
+                                        src={URL.createObjectURL(file)}
+                                        alt={file.name}
+                                        className="object-cover rounded-md"
+                                        fill
+                                      />
+                                    </AspectRatio>
+                                  </FileUploaderItem>
+                                ))}
+                              </FileUploaderContent>
+                            ) : (
+                              <FileInput className="aspect-square border-dashed border">
+                                <div className="w-full h-full flex justify-center items-center">
+                                  <p className="text-gray-400">
+                                    Drop files here
+                                  </p>
+                                </div>
+                              </FileInput>
+                            )}
+                          </FileUploader>
+                        </FormItem>
+                      )}
+                    />
+                  </form>
+                </Form>
                 <DialogFooter>
                   <DialogClose asChild>
                     <Button type="button" variant="secondary">
@@ -98,7 +198,7 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
                     </Button>
                   </DialogClose>
                   <DialogClose asChild>
-                    <Button disabled={pending} type="submit">
+                    <Button disabled={pending} form="image" type="submit">
                       Upload
                     </Button>
                   </DialogClose>

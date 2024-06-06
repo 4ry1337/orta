@@ -2,14 +2,10 @@
 
 import { get_series } from "@/app/actions/series";
 import ArticleTab from "@/components/article/article_tab";
-import Aside from "@/components/aside";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/context/session_context";
 import { get_id } from "@/lib/utils";
-import { Share1Icon } from "@radix-ui/react-icons";
-import Link from "next/link";
 import React from "react";
 import useSWR from "swr";
 
@@ -34,7 +30,7 @@ const SeriesPage = ({ params }: { params: IParams }) => {
       </div>
       <Separator className="w-full" orientation="horizontal" />
       <div className="p-4 space-y-4">
-        <ArticleTab serieses={[series.id]} />
+        <ArticleTab series_id={series.id} />
       </div>
     </div>
   );

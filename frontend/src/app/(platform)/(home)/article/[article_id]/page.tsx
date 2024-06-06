@@ -1,6 +1,6 @@
 "use client";
 
-import { get_id } from "@/lib/utils";
+import { get_id, slugifier } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import useSWR from "swr";
 import {
@@ -31,12 +31,16 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import ListPopover from "@/components/list/list_popover";
 import { FullArticle, List } from "@/lib/types";
+import { useSession } from "@/context/session_context";
+import Link from "next/link";
 
 interface IParams {
   article_id: string;
 }
 
 const ArticlePage = ({ params }: { params: IParams }) => {
+  const { data } = useSession();
+
   const { isLoading } = useSWR(get_id(params.article_id), get_article, {
     onSuccess(data) {
       if (data) {
@@ -70,7 +74,17 @@ const ArticlePage = ({ params }: { params: IParams }) => {
         <h1 className="scroll-m-20 text-4xl text-center font-extrabold tracking-tight lg:text-5xl">
           {article.title}
         </h1>
-        {article.series && <h4>from {article.series.label}</h4>}
+        {article.series.length != 0 && (
+          <div className="flex justify-center">
+            <Button asChild variant={"link"}>
+              <Link
+                href={`/series/${slugifier(article.series[0].label)}-${article.series[0].id}`}
+              >
+                <h3>from {article.series[0].label}</h3>
+              </Link>
+            </Button>
+          </div>
+        )}
         <div className="">
           <ScrollArea>
             <div className="flex flex-row gap-4">
@@ -84,6 +98,7 @@ const ArticlePage = ({ params }: { params: IParams }) => {
             <div className="inline-flex gap-2 items-center">
               {article.liked ? (
                 <Button
+                  disabled={!data}
                   onClick={() => {
                     unlike_article(article.id);
                     setArticle({
@@ -99,6 +114,7 @@ const ArticlePage = ({ params }: { params: IParams }) => {
                 </Button>
               ) : (
                 <Button
+                  disabled={!data}
                   onClick={() => {
                     like_article(article.id);
                     setArticle({
@@ -116,14 +132,12 @@ const ArticlePage = ({ params }: { params: IParams }) => {
               <span className="w-4">{article.like_count}</span>
             </div>
             <div className="inline-flex gap-2 items-center">
-              <Button variant={"ghost"} size={"icon"}>
-                <ChatBubbleIcon className="w-6 h-6" />
-              </Button>
+              <ChatBubbleIcon className="w-6 h-6" />
               <span className="w-4">{article.comment_count}</span>
             </div>
           </div>
           <div className="inline-flex gap-4">
-            <ListPopover article={article} />
+            {data && <ListPopover article={article} />}
           </div>
         </div>
       </div>
@@ -137,8 +151,6 @@ const ArticlePage = ({ params }: { params: IParams }) => {
           </div>
         )}
       </div>
-      <Separator />
-      <div className="p-4"></div>
     </div>
   );
 };

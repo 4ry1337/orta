@@ -152,7 +152,7 @@ message FullArticle {
   repeated Tag tags = 10;
   optional string content = 11;
   optional string description = 12;
-  optional Series series = 13;
+  repeated Series series = 13;
   repeated List lists = 14;
   optional bool liked = 15;
 }
@@ -166,20 +166,19 @@ message ArticleVersion {
 }
 
 message GetArticlesRequest {
-  repeated string usernames = 1;
-  repeated string list_id = 2;
-  repeated string series_id = 3;
-  optional string cursor = 4;
-  int64 limit = 5;
-  optional string query = 6;
-  repeated string not_list_id = 7;
-  repeated string not_series_id = 8;
-  optional string by_user = 9; 
+  optional string query = 1;
+  int64 limit = 2;
+  optional string cursor = 3;
+  optional string by_user = 4; 
+  optional bool published = 5;
+  optional string username = 6; 
+  optional string series_id = 7; 
+  optional string list_id = 8; 
 }
 
 message GetArticlesResponse {
-  repeated FullArticle articles = 2;
-  optional string nextCursor = 3;
+  repeated FullArticle articles = 1;
+  optional string nextCursor = 2;
 }
 
 message GetArticleRequest {

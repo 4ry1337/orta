@@ -67,14 +67,13 @@ export const UpdateUserFormSchema = z.object({
     .max(30, {
       message: "Username must not be longer than 30 characters.",
     })
-    .trim(),
+    .trim()
+    .optional(),
   bio: z.string().max(160).optional(),
   image: z.string().url().optional(),
-  urls: z
-    .array(z.string().url({ message: "Please enter a valid URL." }))
-    .optional(),
+  urls: z.array(z.string().optional()).optional(),
 });
 
 export const UploadAssetFormSchema = z.object({
-  asset: z.instanceof(File),
+  files: z.array(z.instanceof(File)).nullable(),
 });
