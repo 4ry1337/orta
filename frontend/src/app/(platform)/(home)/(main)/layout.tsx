@@ -8,14 +8,14 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="flex">
       <div className="w-full">{children}</div>
-      <Aside>
-        <div className="flex p-4">
-          <h3>User</h3>
-        </div>
-        <UserTab />
-      </Aside>
     </div>
   );
 };
 
+// <Aside>
+//   <div className="flex p-4">
+//     <h3>User</h3>
+//   </div>
+//   <UserTab />
+// </Aside>
 export default MainLayout;

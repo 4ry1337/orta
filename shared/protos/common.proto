@@ -1,0 +1,208 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package common;
+
+message MessageResponse {
+  string message = 1;
+}
+
+enum Role {
+  USER = 0;
+  ADMIN = 1;
+  MANAGER = 2;
+}
+
+enum Visibility {
+  PRIVATE = 0;
+  PUBLIC = 1;
+  BYLINK = 2;
+}
+
+enum TagStatus {
+  APPROVED = 0;
+  BANNED = 1;
+  WAITING = 2;
+}
+
+enum CommentableType {
+  ARTICLE = 0;
+  LIST = 1;
+  SERIES = 2;
+}
+
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  optional google.protobuf.Timestamp email_verified = 4;
+  optional string image = 5;
+  Role role = 6;
+  string bio = 7;
+  repeated string urls = 8;
+  int32 follower_count = 9;
+  int32 following_count = 10;
+  google.protobuf.Timestamp created_at = 11;
+  optional google.protobuf.Timestamp approved_at = 12;
+  optional google.protobuf.Timestamp deleted_at = 13;
+}
+
+message FullUser {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  optional google.protobuf.Timestamp email_verified = 4;
+  optional string image = 5;
+  string bio = 7;
+  repeated string urls = 8;
+  int32 follower_count = 9;
+  int32 following_count = 10;
+  google.protobuf.Timestamp created_at = 11;
+  optional google.protobuf.Timestamp approved_at = 12;
+  optional google.protobuf.Timestamp deleted_at = 13;
+  optional bool followed = 14;
+}
+
+message FullUsers {
+  repeated FullUser users = 2;
+  optional string nextCursor = 3;
+}
+
+message Article {
+  string id = 1;
+  string title = 2;
+  int32 like_count = 4;
+  int32 comment_count = 5;
+  google.protobuf.Timestamp created_at = 6;
+  optional google.protobuf.Timestamp updated_at = 7;
+  optional google.protobuf.Timestamp published_at = 8;
+  optional string description = 9;
+  string content = 10;
+}
+
+message FullArticle {
+  string id = 1;
+  string title = 2;
+  int32 like_count = 4;
+  int32 comment_count = 5;
+  google.protobuf.Timestamp created_at = 6;
+  optional google.protobuf.Timestamp updated_at = 7;
+  optional google.protobuf.Timestamp published_at = 8;
+  repeated FullUser users = 9;
+  repeated Tag tags = 10;
+  string content = 11;
+  optional string description = 12;
+  repeated Series series = 13;
+  repeated List lists = 14;
+  optional bool liked = 15;
+  optional float order = 16;
+}
+
+message FullArticles {
+  repeated FullArticle articles = 1;
+  optional string nextCursor = 2;
+}
+
+message ArticleVersion {
+  string id = 1;
+  string article_id = 2;
+  optional string device_id = 3;
+  string content = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message ArticleVersions {
+  repeated ArticleVersion article_versions = 2;
+  optional string nextCursor = 3;
+}
+
+message List {
+  string id = 1;
+  string user_id = 2;
+  string label = 4;
+  optional string image = 5;
+  Visibility visibility = 6;
+  int32 article_count = 7;
+  google.protobuf.Timestamp created_at = 8;
+  optional google.protobuf.Timestamp updated_at = 9;
+}
+
+message Lists {
+  repeated List lists = 2;
+  optional string nextCursor = 3;
+}
+
+message FullList {
+  string id = 1;
+  FullUser user = 2;
+  string label = 4;
+  optional string image = 5;
+  Visibility visibility = 6;
+  int32 article_count = 7;
+  google.protobuf.Timestamp created_at = 8;
+  optional google.protobuf.Timestamp updated_at = 9;
+}
+
+message FullLists {
+  repeated FullList lists = 2;
+  optional string nextCursor = 3;
+}
+
+message Series {
+  string id = 1;
+  string user_id = 2;
+  string label = 4;
+  optional string image = 5;
+  int32 article_count = 6;
+  google.protobuf.Timestamp created_at = 7;
+  optional google.protobuf.Timestamp updated_at = 8;
+}
+
+message Serieses {
+  repeated Series series = 2;
+  optional string nextCursor = 3;
+}
+
+message Comment {
+  string id = 1;
+  string content = 2;
+  string commenter_id = 3;
+  string target_id = 4;
+  CommentableType type = 5;
+  google.protobuf.Timestamp created_at = 7;
+  optional google.protobuf.Timestamp updated_at = 8;
+}
+
+message FullComment {
+  string id = 1;
+  string content = 2;
+  string commenter_id = 3;
+  string target_id = 4;
+  CommentableType type = 5;
+  google.protobuf.Timestamp created_at = 7;
+  optional google.protobuf.Timestamp updated_at = 8;
+  string username = 9;
+  optional string image = 10;
+  bool followed = 11;
+}
+
+message FullComments {
+  repeated FullComment comments = 1;
+  optional string nextCursor = 2;
+}
+
+message Tag {
+  string label = 2;
+  string slug = 3;
+  int32 article_count = 4;
+  TagStatus tag_status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  optional google.protobuf.Timestamp updated_at = 7;
+}
+
+message Tags {
+  repeated Tag tags = 1;
+  optional string nextCursor = 2;
+}
+

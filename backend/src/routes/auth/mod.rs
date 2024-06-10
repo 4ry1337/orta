@@ -37,13 +37,6 @@ pub fn router(state: AppState) -> Router<AppState> {
         .merge(credential::router())
         .route("/auth/refresh", get(refresh))
         .route("/auth/signout", get(signout))
-        .route(
-            "/session",
-            get(get_session).layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth_middleware,
-            )),
-        )
 }
 
 //TODO: should i add secure?

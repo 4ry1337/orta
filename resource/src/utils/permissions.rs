@@ -26,7 +26,6 @@ pub async fn is_owner(
         ContentType::Article => {
             let article =
                 ArticleRepositoryImpl::find(transaction, target_id, Some(user_id)).await?;
-            //TODO: write better or create new function in article_repository
             if article
                 .users
                 .is_some_and(|authors| authors.iter().any(|v| v.id == user_id))
@@ -35,7 +34,8 @@ pub async fn is_owner(
             }
         }
         ContentType::Comment => {
-            let comment = CommentRepositoryImpl::find(transaction, target_id).await?;
+            let comment =
+                CommentRepositoryImpl::find(transaction, target_id, Some(user_id)).await?;
             if comment.commenter_id == user_id {
                 return Ok(true);
             }

@@ -79,7 +79,9 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
       await update();
     });
   };
+
   const [user_image, setuser_image] = useState(user.image);
+
   const UploadAssetForm = useForm<z.infer<typeof UploadAssetFormSchema>>({
     resolver: zodResolver(UploadAssetFormSchema),
   });
@@ -96,11 +98,9 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
   const onUploadSubmit = async (
     values: z.infer<typeof UploadAssetFormSchema>,
   ) => {
-    // console.log(values);
     startTransition(async () => {
       const res = await upload_asset(values);
       if (res) {
-        console.log(res);
         setuser_image(res);
         await update_user(user.username, {
           image: res,
@@ -120,7 +120,9 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
           <div className="relative">
             <Avatar className="w-20 h-20">
               <AvatarImage
-                src={"http://localhost:5000/api/assets/" + user_image}
+                src={
+                  user_image && "http://localhost:5000/api/assets/" + user_image
+                }
                 className="object-cover"
                 alt="@avatar"
               />

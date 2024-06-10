@@ -1,4 +1,4 @@
-use super::enums::Visibility;
+use super::{enums::Visibility, user_model::FullUser};
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Postgres;
@@ -45,6 +45,19 @@ impl<'r> sqlx::Decode<'r, Postgres> for List {
             updated_at,
         })
     }
+}
+
+#[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
+pub struct FullList {
+    pub id: String,
+    #[sqlx(flatten)]
+    pub user: FullUser,
+    pub label: String,
+    pub image: Option<String>,
+    pub visibility: Visibility,
+    pub article_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

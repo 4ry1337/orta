@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package user;
+
+import "common.proto";
+
+import "google/protobuf/timestamp.proto";
+
+message SearchRequest {
+  optional string query = 1;
+  int64 limit = 2;
+  optional string cursor = 3;
+  optional string by_user = 4;
+}
+
+message GetRequest {
+  string username = 1;
+  optional string by_user = 2;
+}
+
+message UpdateRequest {
+  string id = 1;
+  optional string username = 2;
+  optional string image = 3;
+  optional string bio = 4;
+  repeated string urls = 5;
+}
+
+message DeleteRequest {
+  string user_id = 1;
+  string id = 2;
+}
+
+message FollowRequest {
+  string user_id = 1;
+  string target = 2;
+}
+
+message UnfollowRequest {
+  string user_id = 1;
+  string target = 2;
+}
+
+message FollowersRequest {
+  string username = 1;
+  int64 limit = 2;
+  optional string cursor = 3;
+  optional string by_user = 4;
+}
+
+message FollowingRequest {
+  string username = 1;
+  int64 limit = 2;
+  optional string cursor = 3;
+  optional string by_user = 4;
+}
+
+message ArticlesRequest {
+  string username = 1; 
+  int64 limit = 2;
+  optional string cursor = 3;
+  optional string by_user = 4; 
+}
+
+message ListsRequest {
+  string username = 1; 
+  int64 limit = 2;
+  optional string cursor = 3;
+  optional string by_user = 4; 
+}
+
+message SeriesesRequest {
+  string username = 1; 
+  int64 limit = 2;
+  optional string cursor = 3;
+  optional string by_user = 4; 
+}
+
+message FeedRequest {
+  string user_id = 1; 
+  int64 limit = 2;
+  optional string cursor = 3;
+}
+
+service UserService {
+  rpc Search(SearchRequest) returns (common.FullUsers);
+  rpc Get(GetRequest) returns (common.FullUser);
+  rpc Feed(FeedRequest) returns (common.FullArticles);
+  rpc Drafts(ArticlesRequest) returns (common.FullArticles);
+  rpc Articles(ArticlesRequest) returns (common.FullArticles);
+  rpc Lists(ListsRequest) returns (common.Lists);
+  rpc Serieses(SeriesesRequest) returns (common.Serieses);
+  rpc Update(UpdateRequest) returns (common.User);
+  rpc Delete(DeleteRequest) returns (common.MessageResponse);
+  rpc Followers(FollowersRequest) returns (common.FullUsers);
+  rpc Following(FollowingRequest) returns (common.FullUsers);
+  rpc Follow(FollowRequest) returns (common.MessageResponse);
+  rpc Unfollow(UnfollowRequest) returns (common.MessageResponse);
+}

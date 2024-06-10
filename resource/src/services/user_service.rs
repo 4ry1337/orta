@@ -2,13 +2,16 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use shared::{
+    common::{
+        FullArticle, FullArticles, FullUser, FullUsers, List, Lists, MessageResponse, Series,
+        Serieses, User,
+    },
     models::user_model::UpdateUser,
     repositories::user_repository::{UserRepository, UserRepositoryImpl},
-    resource_proto::{
-        user_service_server::UserService, DeleteUserRequest, DeleteUserResponse, FollowUserRequest,
-        FollowUserResponse, FollowersRequest, FollowersResponse, FollowingRequest,
-        FollowingResponse, FullUser, GetUserRequest, GetUsersRequest, GetUsersResponse,
-        UnfollowUserRequest, UnfollowUserResponse, UpdateUserRequest, User,
+    user::{
+        user_service_server::UserService, ArticlesRequest, DeleteRequest, FeedRequest,
+        FollowRequest, FollowersRequest, FollowingRequest, GetRequest, ListsRequest, SearchRequest,
+        SeriesesRequest, UnfollowRequest, UpdateRequest,
     },
 };
 use tonic::{Request, Response, Status};
@@ -23,10 +26,7 @@ pub struct UserServiceImpl {
 
 #[tonic::async_trait]
 impl UserService for UserServiceImpl {
-    async fn get_users(
-        &self,
-        request: Request<GetUsersRequest>,
-    ) -> Result<Response<GetUsersResponse>, Status> {
+    async fn search(&self, request: Request<SearchRequest>) -> Result<Response<FullUsers>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -77,7 +77,7 @@ impl UserService for UserServiceImpl {
         let users = users.iter().map(|user| FullUser::from(user)).collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetUsersResponse { users, next_cursor })),
+            Ok(_) => Ok(Response::new(FullUsers { users, next_cursor })),
             Err(err) => {
                 error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -85,10 +85,7 @@ impl UserService for UserServiceImpl {
         }
     }
 
-    async fn get_user(
-        &self,
-        request: Request<GetUserRequest>,
-    ) -> Result<Response<FullUser>, Status> {
+    async fn get(&self, request: Request<GetRequest>) -> Result<Response<FullUser>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -127,10 +124,7 @@ impl UserService for UserServiceImpl {
         }
     }
 
-    async fn update_user(
-        &self,
-        request: Request<UpdateUserRequest>,
-    ) -> Result<Response<User>, Status> {
+    async fn update(&self, request: Request<UpdateRequest>) -> Result<Response<User>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -191,10 +185,10 @@ impl UserService for UserServiceImpl {
         }
     }
 
-    async fn delete_user(
+    async fn delete(
         &self,
-        request: Request<DeleteUserRequest>,
-    ) -> Result<Response<DeleteUserResponse>, Status> {
+        request: Request<DeleteRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -227,7 +221,7 @@ impl UserService for UserServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(DeleteUserResponse {
+            Ok(_) => Ok(Response::new(MessageResponse {
                 message: format!("Deleted user: {}", user.id),
             })),
             Err(err) => {
@@ -237,10 +231,10 @@ impl UserService for UserServiceImpl {
         }
     }
 
-    async fn follow_user(
+    async fn follow(
         &self,
-        request: Request<FollowUserRequest>,
-    ) -> Result<Response<FollowUserResponse>, Status> {
+        request: Request<FollowRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -267,7 +261,7 @@ impl UserService for UserServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(FollowUserResponse {
+            Ok(_) => Ok(Response::new(MessageResponse {
                 message: format!("User {} followed {}", user.0, user.1),
             })),
             Err(err) => {
@@ -277,10 +271,10 @@ impl UserService for UserServiceImpl {
         }
     }
 
-    async fn unfollow_user(
+    async fn unfollow(
         &self,
-        request: Request<UnfollowUserRequest>,
-    ) -> Result<Response<UnfollowUserResponse>, Status> {
+        request: Request<UnfollowRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -308,7 +302,7 @@ impl UserService for UserServiceImpl {
             };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(UnfollowUserResponse {
+            Ok(_) => Ok(Response::new(MessageResponse {
                 message: format!("User {} unfollowed {}", user.0, user.1),
             })),
             Err(err) => {
@@ -321,7 +315,7 @@ impl UserService for UserServiceImpl {
     async fn followers(
         &self,
         request: Request<FollowersRequest>,
-    ) -> Result<Response<FollowersResponse>, Status> {
+    ) -> Result<Response<FullUsers>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -372,7 +366,7 @@ impl UserService for UserServiceImpl {
         let users = users.iter().map(|user| FullUser::from(user)).collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(FollowersResponse { users, next_cursor })),
+            Ok(_) => Ok(Response::new(FullUsers { users, next_cursor })),
             Err(err) => {
                 error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -383,7 +377,7 @@ impl UserService for UserServiceImpl {
     async fn following(
         &self,
         request: Request<FollowingRequest>,
-    ) -> Result<Response<FollowingResponse>, Status> {
+    ) -> Result<Response<FullUsers>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -434,7 +428,332 @@ impl UserService for UserServiceImpl {
         let users = users.iter().map(|user| FullUser::from(user)).collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(FollowingResponse { users, next_cursor })),
+            Ok(_) => Ok(Response::new(FullUsers { users, next_cursor })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn articles(
+        &self,
+        request: Request<ArticlesRequest>,
+    ) -> Result<Response<FullArticles>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get User Articles Request {:?}", input);
+
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
+            }
+        };
+
+        let articles = match UserRepositoryImpl::find_articles(
+            &mut transaction,
+            input.limit,
+            id,
+            created_at,
+            input.by_user.as_deref(),
+            Some(true),
+            &input.username,
+        )
+        .await
+        {
+            Ok(articles) => articles,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let next_cursor = articles
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
+
+        let articles = articles
+            .iter()
+            .map(|article| FullArticle::from(article))
+            .collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(FullArticles {
+                articles,
+                next_cursor,
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn drafts(
+        &self,
+        request: Request<ArticlesRequest>,
+    ) -> Result<Response<FullArticles>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get Articles Request {:?}", input);
+
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
+            }
+        };
+
+        let articles = match UserRepositoryImpl::find_articles(
+            &mut transaction,
+            input.limit,
+            id,
+            created_at,
+            input.by_user.as_deref(),
+            Some(false),
+            &input.username,
+        )
+        .await
+        {
+            Ok(articles) => articles,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let next_cursor = articles
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
+
+        let articles = articles
+            .iter()
+            .map(|article| FullArticle::from(article))
+            .collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(FullArticles {
+                articles,
+                next_cursor,
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn serieses(
+        &self,
+        request: Request<SeriesesRequest>,
+    ) -> Result<Response<Serieses>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get User Serieses Request {:?}", input);
+
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
+            }
+        };
+
+        let serieses = match UserRepositoryImpl::find_series(
+            &mut transaction,
+            input.limit,
+            id,
+            created_at,
+            &input.username,
+        )
+        .await
+        {
+            Ok(serieses) => serieses,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let next_cursor = serieses
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
+
+        let serieses = serieses.iter().map(|series| Series::from(series)).collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(Serieses {
+                series: serieses,
+                next_cursor,
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn lists(&self, request: Request<ListsRequest>) -> Result<Response<Lists>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get Lists Request {:?}", input);
+
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
+            }
+        };
+
+        let lists = match UserRepositoryImpl::find_lists(
+            &mut transaction,
+            input.limit,
+            id,
+            created_at,
+            input.by_user.as_deref(),
+            &input.username,
+        )
+        .await
+        {
+            Ok(lists) => lists,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let next_cursor = lists
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
+
+        let lists = lists.iter().map(|list| List::from(list)).collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(Lists { lists, next_cursor })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn feed(&self, request: Request<FeedRequest>) -> Result<Response<FullArticles>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get Feed Request {:?}", input);
+
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
+            }
+        };
+
+        let articles = match UserRepositoryImpl::feed(
+            &mut transaction,
+            input.limit,
+            id,
+            created_at,
+            &input.user_id,
+        )
+        .await
+        {
+            Ok(articles) => articles,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let next_cursor = articles
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
+
+        let articles = articles
+            .iter()
+            .map(|article| FullArticle::from(article))
+            .collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(FullArticles {
+                articles,
+                next_cursor,
+            })),
             Err(err) => {
                 error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));

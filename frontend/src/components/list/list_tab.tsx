@@ -1,17 +1,12 @@
 "use client";
 
 import { List } from "@/lib/types";
-import { HTMLAttributes, useState } from "react";
+import { useState } from "react";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import ListList from "./list/list";
-import { get_lists } from "@/app/actions/list";
+import { get_user_lists } from "@/app/actions/user";
 
-interface ListTabProps extends HTMLAttributes<HTMLDivElement> {
-  user_id?: string;
-  query?: string;
-}
-
-const ListTab = ({ user_id, query: label }: ListTabProps) => {
+const ListTab = ({ username }: { username: string }) => {
   const [lists, setLists] = useState<List[]>([]);
 
   const [limit, setLimit] = useState(5);
@@ -27,12 +22,9 @@ const ListTab = ({ user_id, query: label }: ListTabProps) => {
     hasNextPage: hasMore,
     onLoadMore: () => {
       setIsLoading(true);
-      get_lists({
-        user_id,
-        cursor: {
-          cursor,
-          limit,
-        },
+      get_user_lists(username, {
+        cursor,
+        limit,
       }).then((data) => {
         setLists([...lists, ...data.items]);
         if (data.next_cursor !== null) {
@@ -46,10 +38,14 @@ const ListTab = ({ user_id, query: label }: ListTabProps) => {
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <ListList lists={lists} />
+    <>
+      {lists.length != 0 ? (
+        <ListList lists={lists} />
+      ) : (
+        <h4 className="text-center">No Lists</h4>
+      )}
       {(isLoading || hasMore) && <div className="w-full h-20" ref={ref} />}
-    </div>
+    </>
   );
 };
 

@@ -8,6 +8,7 @@ pub struct Article {
     pub title: String,
     pub description: Option<String>,
     pub like_count: i32,
+    pub content: String,
     pub comment_count: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
@@ -21,15 +22,16 @@ pub struct FullArticle {
     pub description: Option<String>,
     pub like_count: i32,
     pub comment_count: i32,
-    pub content: Option<String>,
-    pub series: Option<Vec<Series>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
+    pub content: String,
     pub users: Option<Vec<FullUser>>,
     pub lists: Option<Vec<List>>,
+    pub series: Option<Vec<Series>>,
     pub tags: Option<Vec<Tag>>,
     pub liked: Option<bool>,
+    pub order: Option<f32>,
 }
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]

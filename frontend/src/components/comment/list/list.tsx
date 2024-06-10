@@ -1,15 +1,15 @@
 import { HTMLAttributes } from "react";
 import CommentCard from "./item";
-import { Comment } from "@/lib/types";
+import { FullComment } from "@/lib/types";
 
 interface CommentListProps extends HTMLAttributes<HTMLDivElement> {
-  comments: Comment[];
+  comments: FullComment[];
   editable?: boolean;
   deletable?: boolean;
   onDelete?: (id: string) => void;
 }
 
-const ListList = ({ comments, ...props }: CommentListProps) => {
+const CommentList = ({ comments, ...props }: CommentListProps) => {
   return (
     <>
       {comments.map((comment) => (
@@ -19,4 +19,4 @@ const ListList = ({ comments, ...props }: CommentListProps) => {
   );
 };
 
-export default ListList;
+export default CommentList;

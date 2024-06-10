@@ -1,18 +1,12 @@
 "use client";
 
 import { Series } from "@/lib/types";
-import { HTMLAttributes, useState } from "react";
-import useSWR from "swr";
+import { useState } from "react";
 import SeriesList from "./series/list";
-import { get_serieses } from "@/app/actions/series";
 import useInfiniteScroll from "react-infinite-scroll-hook";
+import { get_user_serieses } from "@/app/actions/user";
 
-interface SeriesTabProps extends HTMLAttributes<HTMLDivElement> {
-  user_id?: string;
-  query?: string;
-}
-
-const SeriesTab = ({ user_id, query }: SeriesTabProps) => {
+const SeriesTab = ({ username }: { username: string }) => {
   const [serieses, setSerieses] = useState<Series[]>([]);
 
   const [limit, setLimit] = useState(5);
@@ -28,13 +22,9 @@ const SeriesTab = ({ user_id, query }: SeriesTabProps) => {
     hasNextPage: hasMore,
     onLoadMore: () => {
       setIsLoading(true);
-      get_serieses({
-        user_id,
-        query,
-        cursor: {
-          cursor,
-          limit,
-        },
+      get_user_serieses(username, {
+        cursor,
+        limit,
       }).then((data) => {
         setSerieses([...serieses, ...data.items]);
         if (data.next_cursor !== null) {
@@ -48,10 +38,16 @@ const SeriesTab = ({ user_id, query }: SeriesTabProps) => {
   });
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <SeriesList serieses={serieses} />
+    <>
+      {serieses.length != 0 && !hasMore ? (
+        <div className="grid grid-cols-2 gap-4">
+          <SeriesList serieses={serieses} />
+        </div>
+      ) : (
+        <h4 className="text-center">No Series</h4>
+      )}
       {(isLoading || hasMore) && <div className="w-full h-20" ref={ref} />}
-    </div>
+    </>
   );
 };
 

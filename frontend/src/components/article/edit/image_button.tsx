@@ -17,7 +17,7 @@ const ImageButton = ({ editor }: { editor: Editor }) => {
   const [link, setlink] = useState("");
   return (
     <Dialog>
-      <DialogTrigger>
+      <DialogTrigger asChild>
         <Button variant={"ghost"} size={"icon"}>
           <ImageIcon />
         </Button>

@@ -9,6 +9,7 @@ import { HTMLAttributes, useState } from "react";
 
 interface UserCardProps extends HTMLAttributes<HTMLDivElement> {
   user: FullUser;
+  badge?: boolean;
 }
 
 const UserCard = ({ user, className, badge = false }: UserCardProps) => {
@@ -26,7 +27,9 @@ const UserCard = ({ user, className, badge = false }: UserCardProps) => {
         <Link href={`/${user.username}`}>
           <Avatar className="w-12 h-12">
             <AvatarImage
-              src={"http://localhost:5000/api/assets/" + user.image}
+              src={
+                user.image && "http://localhost:5000/api/assets/" + user.image
+              }
               className="object-cover"
               alt="@avatar"
             />
@@ -86,7 +89,7 @@ const UserCard = ({ user, className, badge = false }: UserCardProps) => {
       >
         <Avatar>
           <AvatarImage
-            src={"http://localhost:5000/api/assets/" + user.image}
+            src={user.image && "http://localhost:5000/api/assets/" + user.image}
             className="object-cover"
             alt="@avatar"
           />

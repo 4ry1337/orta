@@ -14,6 +14,20 @@ pub struct Comment {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+#[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
+pub struct FullComment {
+    pub id: String,
+    pub content: String,
+    pub commenter_id: String,
+    pub username: String,
+    pub image: Option<String>,
+    pub followed: bool,
+    pub target_id: String,
+    pub r#type: CommentableType,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateComment {
     pub user_id: String,

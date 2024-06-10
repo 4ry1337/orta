@@ -1,19 +1,21 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Response,
     Extension, Json,
 };
 use axum_core::response::IntoResponse;
+use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
-    models::{enums::Visibility, list_model::List},
-    resource_proto::{
-        self, list_service_client::ListServiceClient, AddArticleListRequest, CreateListRequest,
-        DeleteListRequest, GetListRequest, GetListsRequest, RemoveArticleListRequest,
+    common,
+    list::{
+        list_service_client::ListServiceClient, AddArticleRequest, ArticlesRequest, CreateRequest,
+        DeleteRequest, GetRequest, RemoveArticleRequest, SearchRequest, UpdateRequest,
     },
-    utils::jwt::AccessTokenPayload,
+    models::{article_model::FullArticle, enums::Visibility, list_model::List},
+    utils::jwt::{AccessToken, AccessTokenPayload, JWT},
 };
 use tonic::transport::Channel;
 use tracing::{error, info};
@@ -29,25 +31,31 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct ListsQueryParams {
     query: Option<String>,
-    user_id: Option<String>,
 }
 
 pub async fn get_lists(
-    user: Option<Extension<AccessTokenPayload>>,
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     Query(query): Query<ListsQueryParams>,
     Query(cursor): Query<CursorPagination>,
     State(_state): State<AppState>,
 ) -> Response {
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
     info!("Get Lists Request {:?} {:?}", query, cursor);
 
     match ListServiceClient::new(channel)
-        .get_lists(GetListsRequest {
-            user_id: query.user_id,
+        .search(SearchRequest {
             query: query.query,
             cursor: cursor.cursor,
             limit: cursor.limit,
-            by_user: user.map(|u| u.user_id.clone()),
+            by_user,
         })
         .await
     {
@@ -72,11 +80,20 @@ pub async fn get_lists(
 }
 
 pub async fn get_list(
-    user: Option<Extension<AccessTokenPayload>>,
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     State(_state): State<AppState>,
     Path(path): Path<PathParams>,
 ) -> Response {
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
+
     let list_id = match path.list_id {
         Some(v) => v,
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
@@ -85,10 +102,7 @@ pub async fn get_list(
     info!("Get List Request {:?}", list_id);
 
     match ListServiceClient::new(channel)
-        .get_list(GetListRequest {
-            list_id,
-            by_user: user.map(|u| u.user_id.clone()),
-        })
+        .get(GetRequest { list_id, by_user })
         .await
     {
         Ok(res) => (StatusCode::OK, Json(json!(List::from(res.get_ref())))).into_response(),
@@ -97,6 +111,61 @@ pub async fn get_list(
             let message = err.message().to_string();
             let status_code = code_to_statudecode(err.code());
             (status_code, message).into_response()
+        }
+    }
+}
+
+pub async fn get_list_articles(
+    headers: HeaderMap,
+    Extension(channel): Extension<Channel>,
+    Query(cursor): Query<CursorPagination>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    info!("Get User Articles Request {:?}", params);
+
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
+
+    let list_id = match params.list_id {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    match ListServiceClient::new(channel)
+        .articles(ArticlesRequest {
+            cursor: cursor.cursor,
+            limit: cursor.limit,
+            list_id,
+            by_user,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<FullArticle> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res
+                        .articles
+                        .iter()
+                        .map(|article| FullArticle::from(article))
+                        .collect()
+                })),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
         }
     }
 }
@@ -117,11 +186,11 @@ pub async fn post_list(
     info!("Post List Request {:?} {:?}", user, payload);
 
     match ListServiceClient::new(channel)
-        .create_list(CreateListRequest {
+        .create(CreateRequest {
             user_id: user.user_id,
             label: payload.label,
             image: payload.image,
-            visibility: resource_proto::Visibility::from(payload.visibility) as i32,
+            visibility: common::Visibility::from(payload.visibility) as i32,
         })
         .await
     {
@@ -148,7 +217,7 @@ pub async fn delete_list(
     info!("Delete List Request {:?} {:?}", user, list_id);
 
     match ListServiceClient::new(channel)
-        .delete_list(DeleteListRequest {
+        .delete(DeleteRequest {
             user_id: user.user_id,
             list_id,
         })
@@ -185,13 +254,18 @@ pub async fn patch_list(
     info!("Patch List Request {:?} {:?} {:?}", user, list_id, payload);
 
     match ListServiceClient::new(channel)
-        .delete_list(DeleteListRequest {
+        .update(UpdateRequest {
+            label: payload.label,
+            image: payload.image,
+            visibility: payload
+                .visibility
+                .map(|visibility| common::Visibility::from(visibility) as i32),
             user_id: user.user_id,
             list_id,
         })
         .await
     {
-        Ok(res) => (StatusCode::OK, res.get_ref().message.to_owned()).into_response(),
+        Ok(res) => (StatusCode::OK, Json(json!(List::from(res.get_ref())))).into_response(),
         Err(err) => {
             error!("{:?}", err);
             let message = err.message().to_string();
@@ -224,7 +298,7 @@ pub async fn put_list_article(
     );
 
     match ListServiceClient::new(channel)
-        .add_article(AddArticleListRequest {
+        .add_article(AddArticleRequest {
             user_id: user.user_id,
             list_id,
             article_id: payload.article_id,
@@ -264,7 +338,7 @@ pub async fn delete_list_article(
     );
 
     match ListServiceClient::new(channel)
-        .remove_article(RemoveArticleListRequest {
+        .remove_article(RemoveArticleRequest {
             user_id: user.user_id,
             list_id,
             article_id: payload.article_id,

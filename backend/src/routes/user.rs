@@ -8,10 +8,16 @@ use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
-    models::user_model::{FullUser, User},
-    resource_proto::{
-        user_service_client::UserServiceClient, FollowUserRequest, FollowersRequest,
-        FollowingRequest, GetUserRequest, GetUsersRequest, UnfollowUserRequest, UpdateUserRequest,
+    models::{
+        article_model::FullArticle,
+        list_model::List,
+        series_model::Series,
+        user_model::{FullUser, User},
+    },
+    user::{
+        user_service_client::UserServiceClient, ArticlesRequest, FeedRequest, FollowRequest,
+        FollowersRequest, FollowingRequest, GetRequest, ListsRequest, SearchRequest,
+        SeriesesRequest, UnfollowRequest, UpdateRequest,
     },
     utils::jwt::{AccessToken, AccessTokenPayload, JWT},
 };
@@ -48,7 +54,7 @@ pub async fn get_users(
         })
         .flatten();
     match UserServiceClient::new(channel)
-        .get_users(GetUsersRequest {
+        .search(SearchRequest {
             query: query.query,
             limit: cursor.limit,
             cursor: cursor.cursor,
@@ -96,7 +102,7 @@ pub async fn get_user(
         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
     };
     match UserServiceClient::new(channel)
-        .get_user(GetUserRequest { username, by_user })
+        .get(GetRequest { username, by_user })
         .await
     {
         Ok(res) => (StatusCode::OK, Json(json!(FullUser::from(res.get_ref())))).into_response(),
@@ -109,6 +115,206 @@ pub async fn get_user(
     }
 }
 
+pub async fn get_user_articles(
+    headers: HeaderMap,
+    Extension(channel): Extension<Channel>,
+    Query(cursor): Query<CursorPagination>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    info!("Get User Articles Request {:?}", params);
+
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
+
+    let username = match params.username {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    match UserServiceClient::new(channel)
+        .articles(ArticlesRequest {
+            cursor: cursor.cursor,
+            limit: cursor.limit,
+            username,
+            by_user,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<FullArticle> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res
+                        .articles
+                        .iter()
+                        .map(|article| FullArticle::from(article))
+                        .collect()
+                })),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    }
+}
+
+pub async fn get_user_drafts(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    Query(cursor): Query<CursorPagination>,
+) -> Response {
+    info!("Get User Drafts Request {:?}", user);
+
+    match UserServiceClient::new(channel)
+        .drafts(ArticlesRequest {
+            cursor: cursor.cursor,
+            limit: cursor.limit,
+            username: user.username,
+            by_user: Some(user.user_id),
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<FullArticle> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res
+                        .articles
+                        .iter()
+                        .map(|article| FullArticle::from(article))
+                        .collect()
+                })),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    }
+}
+
+pub async fn get_user_lists(
+    headers: HeaderMap,
+    Extension(channel): Extension<Channel>,
+    Query(cursor): Query<CursorPagination>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    info!("Get User Lists Request {:?}", params);
+
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
+
+    let username = match params.username {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    match UserServiceClient::new(channel)
+        .lists(ListsRequest {
+            cursor: cursor.cursor,
+            limit: cursor.limit,
+            username,
+            by_user,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<List> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res.lists.iter().map(|list| List::from(list)).collect()
+                })),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    }
+}
+
+pub async fn get_user_serieses(
+    headers: HeaderMap,
+    Extension(channel): Extension<Channel>,
+    Query(cursor): Query<CursorPagination>,
+    Path(params): Path<PathParams>,
+) -> Response {
+    info!("Get User Serieses Request {:?}", params);
+
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
+
+    let username = match params.username {
+        Some(v) => v,
+        None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
+    };
+
+    match UserServiceClient::new(channel)
+        .serieses(SeriesesRequest {
+            cursor: cursor.cursor,
+            limit: cursor.limit,
+            username,
+            by_user,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<Series> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res
+                        .series
+                        .iter()
+                        .map(|series| Series::from(series))
+                        .collect()
+                })),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            error!("{:#?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            return (status_code, message).into_response();
+        }
+    }
+}
 // #[derive(Debug, Deserialize)]
 // pub struct CreateUserRequestBody {
 //     pub username: String,
@@ -151,7 +357,7 @@ pub async fn patch_user(
 ) -> Response {
     info!("Update Users Request {:?} {:?}", user.user_id, payload);
     match UserServiceClient::new(channel)
-        .update_user(UpdateUserRequest {
+        .update(UpdateRequest {
             id: user.user_id,
             username: payload.username,
             image: payload.image,
@@ -182,7 +388,7 @@ pub async fn follow(
     };
     info!("Follow User Request {:?} {:?}", user.user_id, username);
     match UserServiceClient::new(channel)
-        .follow_user(FollowUserRequest {
+        .follow(FollowRequest {
             user_id: user.user_id,
             target: username,
         })
@@ -210,7 +416,7 @@ pub async fn unfollow(
     };
     info!("Unfollow User Request {:?} {:?}", user.user_id, username);
     match UserServiceClient::new(channel)
-        .unfollow_user(UnfollowUserRequest {
+        .unfollow(UnfollowRequest {
             user_id: user.user_id,
             target: username,
         })
@@ -336,6 +542,42 @@ pub async fn get_following(
     }
 }
 
+pub async fn get_feed(
+    Extension(channel): Extension<Channel>,
+    Extension(user): Extension<AccessTokenPayload>,
+    Query(cursor): Query<CursorPagination>,
+) -> Response {
+    match UserServiceClient::new(channel)
+        .feed(FeedRequest {
+            cursor: cursor.cursor,
+            limit: cursor.limit,
+            user_id: user.user_id,
+        })
+        .await
+    {
+        Ok(res) => {
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<FullArticle> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res
+                        .articles
+                        .iter()
+                        .map(|article| FullArticle::from(article))
+                        .collect()
+                })),
+            )
+                .into_response()
+        }
+        Err(err) => {
+            error!("{:?}", err);
+            let message = err.message().to_string();
+            let status_code = code_to_statudecode(err.code());
+            (status_code, message).into_response()
+        }
+    }
+}
 // pub async fn delete_user(
 // State(_state): State<AppState>,
 //     Path(params): Path<PathParams>,

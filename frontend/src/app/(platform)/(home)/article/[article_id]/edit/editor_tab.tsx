@@ -7,17 +7,14 @@ import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
 import CharacterCount from "@tiptap/extension-character-count";
 import Placeholder from "@tiptap/extension-placeholder";
 import MenuBar from "@/components/article/edit/menubar";
-import { HocuspocusProvider } from "@hocuspocus/provider";
 import { cn } from "@/lib/utils";
 import { HTMLAttributes } from "react";
+import { useArticle } from "./page";
 
-interface EditorTabProps extends HTMLAttributes<HTMLDivElement> {
-  username: string;
-  provider: HocuspocusProvider;
-}
+interface EditorTabProps extends HTMLAttributes<HTMLDivElement> { }
 
-const EditorTab = ({ username, provider, className }: EditorTabProps) => {
-  const color = "#" + Math.floor(Math.random() * 16777215).toString(16);
+const EditorTab = ({ className, ...props }: EditorTabProps) => {
+  const { provider, session } = useArticle();
   const editor = useEditor({
     extensions: [
       ...default_extensions,
@@ -31,8 +28,8 @@ const EditorTab = ({ username, provider, className }: EditorTabProps) => {
       CollaborationCursor.configure({
         provider,
         user: {
-          name: username,
-          color: color,
+          name: session.username,
+          color: "#" + Math.floor(Math.random() * 16777215).toString(16),
         },
       }),
     ],

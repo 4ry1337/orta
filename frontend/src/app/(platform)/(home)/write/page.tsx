@@ -23,15 +23,11 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { z } from "zod";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CreateArticleSchema, CreateSeriesSchema } from "@/lib/definitions";
-import {
-  create_article,
-  get_articles,
-  get_user_articles,
-} from "@/app/actions/article";
+import { create_article } from "@/app/actions/article";
 import { Pencil1Icon } from "@radix-ui/react-icons";
 import { Button } from "@/components/ui/button";
 import ArticleList from "@/components/article/list/list";
@@ -40,11 +36,17 @@ import { FullArticle, Series } from "@/lib/types";
 import SeriesList from "@/components/series/series/list";
 import { create_series, get_serieses } from "@/app/actions/series";
 import { PlusIcon } from "lucide-react";
+import { get_user_drafts, get_user_serieses } from "@/app/actions/user";
+import debounce from "lodash.debounce";
+import { slugifier } from "@/lib/utils";
+import { redirect } from "next/navigation";
 
 const WritePage = () => {
   const { status, data: session } = useSession({
     authenticated: true,
   });
+
+  const [query, setQuery] = useState("");
   const [articles, setArticles] = useState<FullArticle[]>([]);
   const [serieses, setSerieses] = useState<Series[]>([]);
   const [limit, setLimit] = useState(5);
@@ -65,12 +67,9 @@ const WritePage = () => {
     hasNextPage: hasNextArticlePage,
     onLoadMore: () => {
       setIsArticleLoading(true);
-      get_articles({
-        username: session!.username,
-        cursor: {
-          cursor: artcileCursor,
-          limit,
-        },
+      get_user_drafts(query, {
+        cursor: artcileCursor,
+        limit,
       }).then((data) => {
         setArticles([...articles, ...data.items]);
         if (data.next_cursor !== null) {
@@ -83,17 +82,31 @@ const WritePage = () => {
     },
   });
 
+  const handleSearch = (value: string) => {
+    setQuery(value);
+    setArticles([]);
+    setArticleCursor(undefined);
+    setHasNextArticlePage(true);
+  };
+
+  const debouncedResults = useMemo(() => {
+    return debounce(handleSearch, 300);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      debouncedResults.cancel();
+    };
+  });
+
   const [seriesref] = useInfiniteScroll({
     loading: isSeriesesLoading,
     hasNextPage: hasNextSeriesesPage,
     onLoadMore: () => {
       setIsSeriesesLoading(true);
-      get_serieses({
-        user_id: session!.user_id,
-        cursor: {
-          cursor: seriesCursor,
-          limit,
-        },
+      get_user_serieses(session!.username, {
+        cursor: seriesCursor,
+        limit,
       }).then((data) => {
         setSerieses([...serieses, ...data.items]);
         if (data.next_cursor !== null) {
@@ -120,7 +133,7 @@ const WritePage = () => {
   ) => {
     startArticleTransition(async () => {
       const res = await create_article(values);
-      if (res) setArticles([res, ...articles]);
+      if (res) redirect(`/article/${slugifier(res.title)}-${res.id}/edit`);
     });
   };
 
@@ -136,9 +149,10 @@ const WritePage = () => {
   const onSeriesSubmit = async (values: z.infer<typeof CreateSeriesSchema>) => {
     startSeriesTransition(async () => {
       const res = await create_series(values);
-      if (res) setSerieses([res, ...serieses]);
+      if (res) redirect(`/series/${slugifier(res.label)}-${res.id}/edit`);
     });
   };
+
   if (status == "loading") {
     return <Skeleton className="h-screen" />;
   }
@@ -197,15 +211,13 @@ const WritePage = () => {
                   Cancel
                 </Button>
               </DialogClose>
-              <DialogClose asChild>
-                <Button
-                  disabled={articlePending}
-                  form="create_article"
-                  type="submit"
-                >
-                  Create Article
-                </Button>
-              </DialogClose>
+              <Button
+                disabled={articlePending}
+                form="create_article"
+                type="submit"
+              >
+                Create Article
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -266,11 +278,9 @@ const WritePage = () => {
                   Cancel
                 </Button>
               </DialogClose>
-              <DialogClose asChild>
-                <Button form="create_series" type="submit">
-                  Create
-                </Button>
-              </DialogClose>
+              <Button form="create_series" type="submit">
+                Create
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

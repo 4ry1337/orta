@@ -40,7 +40,9 @@ const User = ({ params }: { params: IParams }) => {
           <div className="flex flex-row gap-4">
             <Avatar className="w-20 h-20">
               <AvatarImage
-                src={"http://localhost:5000/api/assets/" + user.image}
+                src={
+                  user.image && "http://localhost:5000/api/assets/" + user.image
+                }
                 className="object-cover"
                 alt="@avatar"
               />
@@ -119,13 +121,13 @@ const User = ({ params }: { params: IParams }) => {
               </TabsTrigger>
             </TabsList>
             <TabsContent className="mt-4 space-y-4" value="article">
-              <ArticleTab published={true} username={user.username} />
+              <ArticleTab username={user.username} />
             </TabsContent>
-            <TabsContent className="mt-4" value="series">
-              <SeriesTab user_id={user.id} />
+            <TabsContent className="mt-4 space-y-4" value="series">
+              <SeriesTab username={user.username} />
             </TabsContent>
-            <TabsContent className="mt-4" value="lists">
-              <ListTab user_id={user.id} />
+            <TabsContent className="mt-4 space-y-4" value="lists">
+              <ListTab username={user.username} />
             </TabsContent>
           </Tabs>
         </div>
@@ -135,7 +137,9 @@ const User = ({ params }: { params: IParams }) => {
           <div className="flex flex-row items-center gap-4">
             <Avatar className="w-20 h-20">
               <AvatarImage
-                src={"http://localhost:5000/api/assets/" + user.image}
+                src={
+                  user.image && "http://localhost:5000/api/assets/" + user.image
+                }
                 className="object-cover"
                 alt="@avatar"
               />
@@ -189,7 +193,6 @@ const User = ({ params }: { params: IParams }) => {
               <Share1Icon />
             </Button>
           </div>
-          <div></div>
         </div>
       </Aside>
     </div>

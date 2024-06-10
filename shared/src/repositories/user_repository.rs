@@ -3,7 +3,11 @@ use chrono::{DateTime, Utc};
 use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::models::{
-    enums::Role,
+    article_model::FullArticle,
+    enums::{Role, Visibility},
+    list_model::List,
+    series_model::Series,
+    tag_model::Tag,
     user_model::{CreateUser, FullUser, UpdateUser, User},
 };
 
@@ -35,6 +39,30 @@ where
         account_id: &str,
     ) -> Result<User, E>;
     async fn find(transaction: &mut Transaction<'_, DB>, user_id: &str) -> Result<User, E>;
+    async fn find_articles(
+        transaction: &mut Transaction<'_, DB>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        by_user: Option<&str>,
+        published: Option<bool>,
+        username: &str,
+    ) -> Result<Vec<FullArticle>, E>;
+    async fn find_lists(
+        transaction: &mut Transaction<'_, DB>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        by_user: Option<&str>,
+        username: &str,
+    ) -> Result<Vec<List>, E>;
+    async fn find_series(
+        transaction: &mut Transaction<'_, DB>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        username: &str,
+    ) -> Result<Vec<Series>, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         new_user: &CreateUser,
@@ -74,6 +102,13 @@ where
         created_at: Option<DateTime<Utc>>,
         by_user: Option<&str>,
     ) -> Result<Vec<FullUser>, E>;
+    async fn feed(
+        transaction: &mut Transaction<'_, DB>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        user_id: &str,
+    ) -> Result<Vec<FullArticle>, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -112,7 +147,7 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
                 END AS followed
             FROM users u
             LEFT JOIN follow f ON u.id = f.following_id AND f.follower_id = $4
-            WHERE ($5::text IS NULL OR u.username LIKE $5) AND (($2::timestamptz IS NULL AND $3::text IS NULL) OR (u.created_at, u.id) < ($2, $3))
+            WHERE ($5::text IS NULL OR u.username ILIKE $5) AND (($2::timestamptz IS NULL AND $3::text IS NULL) OR (u.created_at, u.id) < ($2, $3))
             ORDER BY u.created_at DESC, u.id DESC 
             LIMIT $1
             "#,
@@ -252,6 +287,161 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             account_id
         )
         .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn find_articles(
+        transaction: &mut Transaction<'_, Postgres>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        by_user: Option<&str>,
+        published: Option<bool>,
+        username: &str,
+    ) -> Result<Vec<FullArticle>, Error> {
+        sqlx::query_as!(
+            FullArticle,
+            r#"
+            WITH followers AS (
+                SELECT
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.email_verified,
+                    u.image,
+                    u.bio,
+                    u.urls,
+                    u.follower_count,
+                    u.following_count,
+                    u.created_at,
+                    u.approved_at,
+                    u.deleted_at,
+                    CASE
+                        WHEN $4 IS NULL THEN FALSE
+                        WHEN f.follower_id IS NOT NULL THEN TRUE
+                        ELSE FALSE
+                    END AS followed
+                FROM users u
+                LEFT JOIN follow f ON u.id = f.following_id AND f.follower_id = $4
+            )
+            SELECT
+                a.*,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT f.*) FILTER (WHERE f.id IS NOT NULL), NULL) as "users: Vec<FullUser>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.*) FILTER (WHERE s.id IS NOT NULL), null) as "series: Vec<Series>",
+                CASE
+                    WHEN $4::text is NULL then ARRAY[]::lists[]
+                    ELSE ARRAY_REMOVE(ARRAY_AGG(DISTINCT l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
+                END AS "lists: Vec<List>",
+                CASE
+                    WHEN $4::text IS NULL THEN FALSE
+                    WHEN li.user_id IS NOT NULL THEN TRUE
+                    ELSE FALSE
+                END AS liked,
+                sa.order AS "order: Option<f32>"
+            FROM articles a
+            LEFT JOIN authors au ON a.id = au.article_id
+            LEFT JOIN followers f ON au.author_id = f.id
+            LEFT JOIN likes li ON a.id = li.article_id AND li.user_id = $4
+            LEFT JOIN articletags at ON a.id = at.article_id
+            LEFT JOIN tags t ON at.tag_slug = t.slug
+            LEFT JOIN listarticle la ON a.id = la.article_id
+            LEFT JOIN lists l ON la.list_id = l.id AND l.user_id = $4
+            LEFT JOIN seriesarticle sa ON a.id = sa.article_id
+            LEFT JOIN series s ON sa.series_id = s.id
+            WHERE ($5::bool IS NULL OR (
+                    CASE 
+                        WHEN $5 IS TRUE THEN a.published_at IS NOT NULL
+                        ELSE a.published_at IS NULL
+                    END)
+                ) AND (($2::TEXT IS NULL AND $3::TIMESTAMPTZ IS NULL) OR (a.created_at, a.id) < ($3, $2))
+            GROUP BY a.id, s.id, li.user_id, sa.order
+            HAVING $6 = ANY(ARRAY_AGG(f.username))
+            ORDER BY a.created_at DESC, a.id DESC
+            LIMIT $1
+            "#n,
+            limit,
+            id,
+            created_at,
+            by_user,
+            published,
+            username,
+        )
+        .fetch_all(&mut **transaction)
+        .await
+    }
+
+    async fn find_lists(
+        transaction: &mut Transaction<'_, Postgres>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        by_user: Option<&str>,
+        username: &str,
+    ) -> Result<Vec<List>, Error> {
+        sqlx::query_as!(
+            List,
+            r#"
+            SELECT
+                l.id,
+                l.user_id,
+                l.label,
+                l.image,
+                l.visibility AS "visibility: Visibility",
+                l.article_count,
+                l.created_at,
+                l.updated_at
+            FROM lists l
+            LEFT JOIN users u ON l.user_id = u.id
+            WHERE u.username = $5
+                AND (($4::text IS NOT NULL AND
+                    (l.user_id = $4 OR l.visibility in ('PUBLIC', 'BYLINK', 'PRIVATE')))
+                    OR ($4 IS NULL AND l.visibility = 'PUBLIC'))
+                AND (($2::TIMESTAMPTZ IS NULL AND $3::text IS NULL)
+                    OR (l.created_at, l.id) < ($2, $3))
+            GROUP BY l.id
+            ORDER BY l.created_at DESC, l.id DESC 
+            LIMIT $1
+            "#,
+            limit,
+            created_at,
+            id,
+            by_user,
+            username
+        )
+        .fetch_all(&mut **transaction)
+        .await
+    }
+
+    // AND (($5::text IS NOT NULL AND
+    //     (user_id = $5 OR visibility in ('PUBLIC', 'BYLINK', 'PRIVATE')))
+    //     OR ($5 IS NULL AND visibility = 'PUBLIC'))
+
+    async fn find_series(
+        transaction: &mut Transaction<'_, Postgres>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        username: &str,
+    ) -> Result<Vec<Series>, Error> {
+        sqlx::query_as!(
+            Series,
+            r#"
+            SELECT s.*
+            FROM series s
+            LEFT JOIN users u ON s.user_id = u.id
+            WHERE u.username = $4
+                AND (($2::timestamptz IS NULL AND $3::text IS NULL)
+                    OR (s.created_at, s.id) < ($2, $3))
+            ORDER BY s.created_at DESC, s.id DESC 
+            LIMIT $1
+            "#,
+            limit,
+            created_at,
+            id,
+            username,
+        )
+        .fetch_all(&mut **transaction)
         .await
     }
 
@@ -652,6 +842,81 @@ impl UserRepository<Postgres, Error> for UserRepositoryImpl {
             created_at,
             id,
             by_user
+        )
+        .fetch_all(&mut **transaction)
+        .await
+    }
+
+    async fn feed(
+        transaction: &mut Transaction<'_, Postgres>,
+        limit: i64,
+        id: Option<&str>,
+        created_at: Option<DateTime<Utc>>,
+        user_id: &str,
+    ) -> Result<Vec<FullArticle>, Error> {
+        sqlx::query_as!(
+            FullArticle,
+            r#"
+            WITH followers AS (
+                SELECT
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.email_verified,
+                    u.image,
+                    u.bio,
+                    u.urls,
+                    u.follower_count,
+                    u.following_count,
+                    u.created_at,
+                    u.approved_at,
+                    u.deleted_at,
+                    CASE
+                        WHEN $4::text IS NULL THEN FALSE
+                        WHEN f.follower_id IS NOT NULL THEN TRUE
+                        ELSE FALSE
+                    END AS followed
+                FROM users u
+                LEFT JOIN follow f ON u.id = f.following_id AND f.follower_id = $4
+            )
+            SELECT
+                a.*,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT f.*) FILTER (WHERE f.id IS NOT NULL), NULL) as "users: Vec<FullUser>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.*) FILTER (WHERE s.id IS NOT NULL), null) as "series: Vec<Series>",
+                CASE
+                    WHEN $4::text is NULL then ARRAY[]::lists[]
+                    ELSE ARRAY_REMOVE(ARRAY_AGG(DISTINCT l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
+                END AS "lists: Vec<List>",
+                CASE
+                    WHEN $4::text IS NULL THEN FALSE
+                    WHEN li.user_id IS NOT NULL THEN TRUE
+                    ELSE FALSE
+                END AS liked,
+                sa.order AS "order: Option<f32>"
+            FROM follow fo
+            LEFT JOIN authors aut ON fo.following_id = aut.author_id
+            LEFT JOIN articles a ON a.id = aut.article_id
+            LEFT JOIN authors au ON a.id = au.article_id
+            LEFT JOIN followers f ON au.author_id = f.id
+            LEFT JOIN likes li ON a.id = li.article_id AND li.user_id = $4
+            LEFT JOIN articletags at ON a.id = at.article_id
+            LEFT JOIN tags t ON at.tag_slug = t.slug
+            LEFT JOIN listarticle la ON a.id = la.article_id
+            LEFT JOIN lists l ON la.list_id = l.id AND l.user_id = $4
+            LEFT JOIN seriesarticle sa ON a.id = sa.article_id
+            LEFT JOIN series s ON sa.series_id = s.id
+            WHERE fo.follower_id = $4
+                AND a.published_at IS NOT NULL
+                    AND (($2::TEXT IS NULL AND $3::TIMESTAMPTZ IS NULL) OR (a.created_at, a.id) < ($3, $2))
+            GROUP BY a.id, s.id, li.user_id, sa.order
+            ORDER BY a.created_at DESC, a.id DESC
+            LIMIT $1
+            "#n,
+            limit,
+            id,
+            created_at,
+            user_id,
         )
         .fetch_all(&mut **transaction)
         .await

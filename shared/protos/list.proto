@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package list;
+
+import "google/protobuf/timestamp.proto";
+
+import "common.proto";
+
+message SearchRequest {
+  optional string query = 1;
+  optional string cursor = 2;
+  int64 limit = 3;
+  optional string by_user = 4; 
+}
+
+message GetRequest {
+  string list_id = 1;
+  optional string by_user = 2; 
+}
+
+message CreateRequest {
+  string user_id = 1;
+  string label = 2;
+  optional string image = 3;
+  common.Visibility visibility = 4;
+}
+
+message UpdateRequest {
+  string user_id = 1;
+  string list_id = 2;
+  optional string label = 3;
+  optional string image = 4;
+  optional common.Visibility visibility = 5;
+}
+
+message DeleteRequest {
+  string user_id = 1;
+  string list_id = 2;
+}
+
+message AddArticleRequest {
+  string user_id = 1;
+  string list_id = 2;
+  string article_id = 3;
+}
+
+message RemoveArticleRequest {
+  string user_id = 1;
+  string list_id = 2;
+  string article_id = 3;
+}
+
+message ArticlesRequest {
+  string list_id = 1; 
+  int64 limit = 2;
+  optional string cursor = 3;
+  optional string by_user = 4; 
+}
+
+service ListService {
+  rpc Search(SearchRequest) returns (common.Lists);
+  rpc Get(GetRequest) returns (common.List);
+  rpc Articles(ArticlesRequest) returns (common.FullArticles);
+  rpc Create(CreateRequest) returns (common.List);
+  rpc Update(UpdateRequest) returns (common.List);
+  rpc Delete(DeleteRequest) returns (common.MessageResponse);
+  rpc AddArticle(AddArticleRequest) returns (common.MessageResponse);
+  rpc RemoveArticle(RemoveArticleRequest) returns (common.MessageResponse);
+}

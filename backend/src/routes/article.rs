@@ -12,13 +12,12 @@ use axum_extra::{
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
-    models::article_model::{Article, ArticleVersion, FullArticle},
-    resource_proto::{
-        article_service_client::ArticleServiceClient, AddAuthorRequest, CreateArticleRequest,
-        DeleteArticleRequest, GetArticleRequest, GetArticlesRequest, GetHistoryRequest,
-        LikeArticleRequest, PublishArticleRequest, RemoveAuthorRequest, SaveArticleRequest,
-        UnlikeArticleRequest, UnpublishArticleRequest, UpdateArticleRequest,
+    article::{
+        article_service_client::ArticleServiceClient, AddAuthorRequest, CreateRequest,
+        DeleteRequest, EditRequest, GetRequest, HistoryRequest, LikeRequest, PublishRequest,
+        RemoveAuthorRequest, SearchRequest, SetTagsRequest, UnlikeRequest, UpdateRequest,
     },
+    models::article_model::{Article, ArticleVersion, FullArticle},
     utils::jwt::{AccessToken, AccessTokenPayload, JWT},
 };
 use tonic::{codec::CompressionEncoding, transport::Channel};
@@ -35,13 +34,9 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct ArticlesQueryParams {
     query: Option<String>,
-    published: Option<bool>,
-    username: Option<String>,
-    series_id: Option<String>,
-    list_id: Option<String>,
 }
 
-pub async fn get_articles(
+pub async fn search_articles(
     headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     Query(query): Query<ArticlesQueryParams>,
@@ -57,18 +52,15 @@ pub async fn get_articles(
                 .map(|token_payload| token_payload.payload.user_id.to_owned())
         })
         .flatten();
+
     match ArticleServiceClient::new(channel)
         .accept_compressed(CompressionEncoding::Gzip)
         .max_decoding_message_size(50 * 1024 * 1024)
-        .get_articles(GetArticlesRequest {
+        .search(SearchRequest {
             query: query.query,
             cursor: cursor.cursor,
             limit: cursor.limit,
             by_user,
-            published: query.published,
-            username: query.username,
-            list_id: query.list_id,
-            series_id: query.series_id,
         })
         .await
     {
@@ -115,8 +107,9 @@ pub async fn get_article(
                 .map(|token_payload| token_payload.payload.user_id.to_owned())
         })
         .flatten();
+
     match ArticleServiceClient::new(channel)
-        .get_article(GetArticleRequest {
+        .get(GetRequest {
             article_id,
             by_user,
         })
@@ -151,7 +144,7 @@ pub async fn post_article(
     info!("Post Articles Request {:?} {:?}", user, payload);
 
     match ArticleServiceClient::new(channel)
-        .create_article(CreateArticleRequest {
+        .create(CreateRequest {
             title: payload.title,
             description: payload.description,
             user_id: user.user_id,
@@ -193,7 +186,7 @@ pub async fn patch_article(
         user, article_id, payload
     );
     match ArticleServiceClient::new(channel)
-        .update_article(UpdateArticleRequest {
+        .update(UpdateRequest {
             title: payload.title,
             description: payload.description,
             user_id: user.user_id,
@@ -223,7 +216,7 @@ pub async fn delete_article(
     };
     info!("Delete Articles Request {:?} {:?}", user, article_id);
     match ArticleServiceClient::new(channel)
-        .delete_article(DeleteArticleRequest {
+        .delete(DeleteRequest {
             user_id: user.user_id,
             article_id,
         })
@@ -319,15 +312,15 @@ pub async fn delete_author(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct SaveArticleRequestBody {
+pub struct EditArticleRequestBody {
     pub content: String,
 }
 
-pub async fn save_article(
+pub async fn edit_article(
     Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
     Path(params): Path<PathParams>,
-    Json(payload): Json<SaveArticleRequestBody>,
+    Json(payload): Json<EditArticleRequestBody>,
 ) -> Response {
     let article_id = match params.article_id {
         Some(v) => v,
@@ -338,7 +331,7 @@ pub async fn save_article(
         user, article_id, payload
     );
     match ArticleServiceClient::new(channel)
-        .save(SaveArticleRequest {
+        .edit(EditRequest {
             user_id: user.user_id,
             article_id,
             device_id: None,
@@ -375,7 +368,7 @@ pub async fn get_history(
         user, article_id, cursor
     );
     match ArticleServiceClient::new(channel)
-        .get_history(GetHistoryRequest {
+        .history(HistoryRequest {
             user_id: user.user_id,
             article_id,
             query: None,
@@ -422,7 +415,7 @@ pub async fn like_article(
     info!("Like Articles Request {:?} {:?}", user.user_id, article_id);
 
     match ArticleServiceClient::new(channel)
-        .like_article(LikeArticleRequest {
+        .like(LikeRequest {
             user_id: user.user_id,
             article_id,
         })
@@ -455,7 +448,7 @@ pub async fn unlike_article(
     );
 
     match ArticleServiceClient::new(channel)
-        .unlike_article(UnlikeArticleRequest {
+        .unlike(UnlikeRequest {
             user_id: user.user_id,
             article_id,
         })
@@ -488,7 +481,7 @@ pub async fn publish(
     );
 
     match ArticleServiceClient::new(channel)
-        .publish_article(PublishArticleRequest {
+        .publish(PublishRequest {
             user_id: user.user_id,
             article_id,
         })
@@ -504,11 +497,17 @@ pub async fn publish(
     }
 }
 
-pub async fn unpublish(
+#[derive(Debug, Deserialize)]
+pub struct PutArticleTagsRequestBody {
+    pub tags: Vec<String>,
+}
+
+pub async fn put_article_tags(
     Extension(channel): Extension<Channel>,
     Extension(user): Extension<AccessTokenPayload>,
     State(_state): State<AppState>,
     Path(params): Path<PathParams>,
+    Json(payload): Json<PutArticleTagsRequestBody>,
 ) -> Response {
     let article_id = match params.article_id {
         Some(v) => v,
@@ -516,14 +515,15 @@ pub async fn unpublish(
     };
 
     info!(
-        "Unpublish Articles Request {:?} {:?}",
-        user.user_id, article_id
+        "Put Tags Articles Request {:?} {:?} {:?}",
+        user.user_id, article_id, payload
     );
 
     match ArticleServiceClient::new(channel)
-        .unpublish_article(UnpublishArticleRequest {
+        .set_tags(SetTagsRequest {
             user_id: user.user_id,
             article_id,
+            tags: payload.tags,
         })
         .await
     {

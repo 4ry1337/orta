@@ -1,9 +1,9 @@
+use crate::common::{
+    Article, ArticleVersion, Comment, CommentableType, FullArticle, FullComment, FullList,
+    FullUser, List, Role, Series, Tag, TagStatus, User, Visibility,
+};
 use crate::models::{
     article_model, comment_model, enums, list_model, series_model, tag_model, user_model,
-};
-use crate::resource_proto::{
-    Article, ArticleVersion, Comment, CommentableType, FullArticle, FullUser, List, Role, Series,
-    Tag, TagStatus, User, Visibility,
 };
 use chrono::{DateTime, Utc};
 
@@ -68,7 +68,6 @@ impl From<Role> for enums::Role {
         }
     }
 }
-
 impl From<enums::TagStatus> for TagStatus {
     fn from(value: enums::TagStatus) -> Self {
         match value {
@@ -215,6 +214,7 @@ impl From<&article_model::Article> for Article {
             id: value.id.clone(),
             title: value.title.clone(),
             description: value.description.clone(),
+            content: value.content.clone(),
             like_count: value.like_count,
             comment_count: value.comment_count,
             created_at: W(&value.created_at).into(),
@@ -230,6 +230,7 @@ impl From<&Article> for article_model::Article {
             id: value.id.clone(),
             title: value.title.clone(),
             description: value.description.clone(),
+            content: value.content.clone(),
             like_count: value.like_count,
             comment_count: value.comment_count,
             created_at: W(value.created_at.as_ref()).into(),
@@ -295,6 +296,7 @@ impl From<&article_model::FullArticle> for FullArticle {
                 Some(series) => series.iter().map(|series| Series::from(series)).collect(),
                 None => vec![],
             },
+            order: value.order,
             liked: value.liked,
         }
     }
@@ -340,6 +342,7 @@ impl From<&FullArticle> for article_model::FullArticle {
                     .map(|series| series_model::Series::from(series))
                     .collect(),
             ),
+            order: value.order,
             liked: value.liked,
         }
     }
@@ -375,9 +378,39 @@ impl From<&List> for list_model::List {
     }
 }
 
+impl From<&list_model::FullList> for FullList {
+    fn from(value: &list_model::FullList) -> Self {
+        FullList {
+            id: value.id.clone(),
+            user: Some(FullUser::from(&value.user)),
+            label: value.label.clone(),
+            image: value.image.clone(),
+            visibility: Visibility::from(value.visibility) as i32,
+            article_count: value.article_count,
+            created_at: W(&value.created_at).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
+impl From<&FullList> for list_model::FullList {
+    fn from(value: &FullList) -> Self {
+        list_model::FullList {
+            id: value.id.clone(),
+            label: value.label.clone(),
+            user: user_model::FullUser::from(&value.user.clone().unwrap()),
+            image: value.image.clone(),
+            visibility: enums::Visibility::from(value.visibility()),
+            article_count: value.article_count,
+            created_at: W(value.created_at.as_ref()).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
 impl From<&comment_model::Comment> for Comment {
     fn from(value: &comment_model::Comment) -> Self {
-        Comment {
+        Self {
             id: value.id.clone(),
             commenter_id: value.commenter_id.clone(),
             target_id: value.target_id.clone(),
@@ -399,6 +432,40 @@ impl From<&Comment> for comment_model::Comment {
             content: value.content.clone(),
             created_at: W(value.created_at.as_ref()).into(),
             updated_at: W(value.updated_at.as_ref()).into(),
+        }
+    }
+}
+
+impl From<&comment_model::FullComment> for FullComment {
+    fn from(value: &comment_model::FullComment) -> Self {
+        Self {
+            id: value.id.clone(),
+            commenter_id: value.commenter_id.clone(),
+            target_id: value.target_id.clone(),
+            r#type: CommentableType::from(value.r#type) as i32,
+            content: value.content.clone(),
+            created_at: W(&value.created_at).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+            username: value.username.clone(),
+            image: value.image.clone(),
+            followed: value.followed,
+        }
+    }
+}
+
+impl From<&FullComment> for comment_model::FullComment {
+    fn from(value: &FullComment) -> Self {
+        Self {
+            id: value.id.clone(),
+            commenter_id: value.commenter_id.clone(),
+            target_id: value.target_id.clone(),
+            r#type: value.r#type().into(),
+            content: value.content.clone(),
+            created_at: W(value.created_at.as_ref()).into(),
+            updated_at: W(value.updated_at.as_ref()).into(),
+            username: value.username.clone(),
+            image: value.image.clone(),
+            followed: value.followed,
         }
     }
 }

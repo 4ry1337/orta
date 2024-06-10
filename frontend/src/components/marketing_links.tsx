@@ -22,7 +22,7 @@ const marketing = [
 
 const MarketingLinks = () => {
   return (
-    <div className="inline-flex flex-wrap gap-4">
+    <div className="inline-flex p-4 pl-10 flex-wrap gap-4">
       {marketing.map((marketing_page) => {
         return (
           <Link

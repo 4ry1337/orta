@@ -1,29 +1,30 @@
 "use client";
 
-import { get_articles, get_user_articles } from "@/app/actions/article";
 import ArticleList from "@/components/article/list/list";
 import { FullArticle } from "@/lib/types";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { HTMLAttributes, useState } from "react";
+import { get_user_articles } from "@/app/actions/user";
+import { get_list_articles } from "@/app/actions/list";
+import { get_series_articles } from "@/app/actions/series";
+import { get_articles } from "@/app/actions/article";
 
 interface ArticleTabProps extends HTMLAttributes<HTMLDivElement> {
   query?: string;
   username?: string;
   list_id?: string;
   series_id?: string;
-  published?: boolean;
 }
 
 const ArticleTab = ({
   query,
-  published,
   username,
   series_id,
   list_id,
 }: ArticleTabProps) => {
   const [articles, setArticles] = useState<FullArticle[]>([]);
 
-  const [limit, setLimit] = useState(5);
+  const [limit, setLimit] = useState(10);
 
   const [cursor, setCursor] = useState<string | undefined>(undefined);
 
@@ -36,31 +37,67 @@ const ArticleTab = ({
     hasNextPage: hasMore,
     onLoadMore: () => {
       setIsLoading(true);
-      get_articles({
-        query,
-        username,
-        published,
-        series_id,
-        list_id,
-        cursor: {
+      if (username) {
+        get_user_articles(username, {
           cursor,
           limit,
-        },
-      }).then((data) => {
-        setArticles([...articles, ...data.items]);
-        if (data.next_cursor !== null) {
-          setCursor(data.next_cursor);
-        } else {
-          setHasMore(false);
-        }
-      });
+        }).then((data) => {
+          setArticles([...articles, ...data.items]);
+          if (data.next_cursor !== null) {
+            setCursor(data.next_cursor);
+          } else {
+            setHasMore(false);
+          }
+        });
+      } else if (list_id) {
+        get_list_articles(list_id, {
+          cursor,
+          limit,
+        }).then((data) => {
+          setArticles([...articles, ...data.items]);
+          if (data.next_cursor !== null) {
+            setCursor(data.next_cursor);
+          } else {
+            setHasMore(false);
+          }
+        });
+      } else if (series_id) {
+        get_series_articles(series_id, {
+          cursor,
+          limit,
+        }).then((data) => {
+          setArticles([...articles, ...data.items]);
+          if (data.next_cursor !== null) {
+            setCursor(data.next_cursor);
+          } else {
+            setHasMore(false);
+          }
+        });
+      } else {
+        get_articles(query, {
+          cursor,
+          limit,
+        }).then((data) => {
+          setArticles([...articles, ...data.items]);
+          if (data.next_cursor !== null) {
+            setCursor(data.next_cursor);
+          } else {
+            setHasMore(false);
+          }
+        });
+      }
+
       setIsLoading(false);
     },
   });
 
   return (
     <>
-      <ArticleList articles={articles} />
+      {articles.length != 0 ? (
+        <ArticleList articles={articles} />
+      ) : (
+        <h4 className="text-center">No Articles</h4>
+      )}
       {(isLoading || hasMore) && <div className="w-full h-20" ref={ref} />}
     </>
   );

@@ -4,6 +4,7 @@ CREATE TABLE Articles (
   description TEXT,
   like_count INTEGER NOT NULL DEFAULT 0,
   comment_count INTEGER NOT NULL DEFAULT 0,
+  content TEXT NOT NULL DEFAULT '',
   published_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   updated_at TIMESTAMPTZ
@@ -13,8 +14,9 @@ SELECT
   trigger_updated_at ('Articles');
 
 CREATE TABLE Authors (
-  author_id text references users (id) on delete set null on update cascade,
-  article_id text references articles (id) on delete cascade on update cascade,
+  author_id TEXT references users (id) on delete cascade on update cascade,
+  article_id TEXT references articles (id) on delete cascade on update cascade,
+  is_owner BOOL NOT NULL DEFAULT 'FALSE',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   PRIMARY KEY (author_id, article_id)
 );

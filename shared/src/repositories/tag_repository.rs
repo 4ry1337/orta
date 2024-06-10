@@ -16,8 +16,6 @@ where
         transaction: &mut Transaction<'_, DB>,
         query: Option<&str>,
         limit: i64,
-        user_id: Option<&str>,
-        article_id: Option<&str>,
         tag_status: Option<TagStatus>,
         slug: Option<&str>,
     ) -> Result<Vec<Tag>, E>;
@@ -39,8 +37,16 @@ where
     async fn remove_article_tags(
         transaction: &mut Transaction<'_, DB>,
         article_id: &str,
+    ) -> Result<String, E>;
+    async fn add_user_tags(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: &str,
         tag_slug: &str,
     ) -> Result<(String, String), E>;
+    async fn remove_user_tags(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: &str,
+    ) -> Result<String, E>;
 }
 
 #[derive(Debug, Clone)]
@@ -50,10 +56,8 @@ pub struct TagRepositoryImpl;
 impl TagRepository<Postgres, Error> for TagRepositoryImpl {
     async fn find_all(
         transaction: &mut Transaction<'_, Postgres>,
-        _query: Option<&str>,
+        query: Option<&str>,
         limit: i64,
-        user_id: Option<&str>,
-        article_id: Option<&str>,
         tag_status: Option<TagStatus>,
         slug: Option<&str>,
     ) -> Result<Vec<Tag>, Error> {
@@ -68,19 +72,16 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
                 t.created_at,
                 t.updated_at
             FROM tags t
-            LEFT JOIN interests i ON t.slug = i.tag_slug
-            LEFT JOIN articletags at ON t.slug = at.tag_slug
             WHERE tag_status = coalesce($2, tag_status)
                 AND (($3::text IS NULL) OR (slug > $3))
-                AND (($4::TEXT IS NULL OR i.tag_slug = $4) OR ($5::TEXT IS NULL OR i.tag_slug = $5))
+                AND (($4::text IS NULL) OR (label ILIKE $4))
             ORDER BY slug ASC
             LIMIT $1
             "#n,
             limit,
             tag_status as Option<TagStatus>,
             slug,
-            user_id,
-            article_id
+            query.map(|q| format!("%{}%", q))
         )
         .fetch_all(&mut **transaction)
         .await
@@ -118,6 +119,7 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
             r#"
             INSERT INTO tags (label, slug, tag_status)
             VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING
             RETURNING
                 label,
                 slug,
@@ -212,24 +214,79 @@ impl TagRepository<Postgres, Error> for TagRepositoryImpl {
         )
         .execute(&mut **transaction)
         .await;
+
         Ok((article_id.to_string(), tag_slug.to_string()))
     }
 
     async fn remove_article_tags(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: &str,
+    ) -> Result<String, Error> {
+        let _ = sqlx::query!(
+            r#"
+            WITH article_count_decrement AS (
+                UPDATE tags
+                SET article_count = article_count - 1
+                WHERE slug IN (
+                    SELECT tag_slug
+                    FROM articletags
+                    WHERE article_id = $1
+                )
+            )
+            DELETE FROM articletags
+            WHERE article_id = $1
+            "#n,
+            article_id,
+        )
+        .execute(&mut **transaction)
+        .await;
+
+        Ok(article_id.to_string())
+    }
+
+    async fn add_user_tags(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: &str,
         tag_slug: &str,
     ) -> Result<(String, String), Error> {
         let _ = sqlx::query!(
             r#"
-            DELETE FROM articletags
-            WHERE article_id = $1 AND tag_slug = $2
+            INSERT INTO interests (user_id, tag_slug)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
             "#n,
-            article_id,
+            user_id,
             tag_slug
         )
         .execute(&mut **transaction)
         .await;
-        Ok((article_id.to_string(), tag_slug.to_string()))
+
+        Ok((user_id.to_string(), tag_slug.to_string()))
+    }
+
+    async fn remove_user_tags(
+        transaction: &mut Transaction<'_, Postgres>,
+        user_id: &str,
+    ) -> Result<String, Error> {
+        let _ = sqlx::query!(
+            r#"
+            WITH article_count_decrement AS (
+                UPDATE tags
+                SET article_count = article_count - 1
+                WHERE slug IN (
+                    SELECT tag_slug
+                    FROM interests
+                    WHERE user_id = $1
+                )
+            )
+            DELETE FROM interests
+            WHERE user_id = $1
+            "#n,
+            user_id,
+        )
+        .execute(&mut **transaction)
+        .await;
+
+        Ok(user_id.to_string())
     }
 }

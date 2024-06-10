@@ -5,13 +5,12 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import Collaboration from "@tiptap/extension-collaboration";
 import React, { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
-import { HocuspocusProvider } from "@hocuspocus/provider";
+import { useArticle } from "./page";
 
-interface PreviewTabProps extends HTMLAttributes<HTMLDivElement> {
-  provider: HocuspocusProvider;
-}
+interface PreviewTabProps extends HTMLAttributes<HTMLDivElement> { }
 
-const PreviewTab = ({ provider, className }: PreviewTabProps) => {
+const PreviewTab = ({ className, ...props }: PreviewTabProps) => {
+  const { provider } = useArticle();
   const editor = useEditor({
     extensions: [
       ...default_extensions,
@@ -37,6 +36,7 @@ const PreviewTab = ({ provider, className }: PreviewTabProps) => {
         "prose prose-neutral mx-auto prose-sm sm:prose-base md:prose-lg lg:prose-xl dark:prose-invert",
         className,
       )}
+      {...props}
     >
       <EditorContent editor={editor} />
     </div>

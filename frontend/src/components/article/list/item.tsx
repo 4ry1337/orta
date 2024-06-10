@@ -38,12 +38,19 @@ const ArticleCard = ({
   article,
   editable = false,
   deletable = false,
+  onDelete,
   ...props
 }: ArticleCardProps) => {
   const { status } = useSession();
   return (
     <Card {...props}>
-      <Link href={`/article/${slugifier(article.title)}-${article.id}`}>
+      <Link
+        href={
+          editable
+            ? `/article/${slugifier(article.title)}-${article.id}/edit`
+            : `/article/${slugifier(article.title)}-${article.id}`
+        }
+      >
         <CardHeader>
           <CardTitle>{article.title}</CardTitle>
         </CardHeader>
@@ -66,7 +73,10 @@ const ArticleCard = ({
                   >
                     <Avatar className="mr-2 w-7 h-7">
                       <AvatarImage
-                        src={"http://localhost:5000/api/assets/" + user.image}
+                        src={
+                          user.image &&
+                          "http://localhost:5000/api/assets/" + user.image
+                        }
                         className="object-cover"
                         alt="@avatar"
                       />
@@ -106,7 +116,7 @@ const ArticleCard = ({
                       variant={"destructive"}
                       onClick={() => {
                         delete_article(article.id).then(() => {
-                          if (props.onDelete) props.onDelete(article.id);
+                          if (onDelete) onDelete(article.id);
                         });
                       }}
                     >
@@ -117,23 +127,27 @@ const ArticleCard = ({
               </DialogContent>
             </Dialog>
           )}
-          {editable && status == "authenticated" && (
-            <Button variant={"ghost"} asChild>
-              <Link
-                href={`/article/${slugifier(article.title)}-${article.id}/edit`}
-              >
-                Edit
-              </Link>
+          {status == "authenticated" && !editable && (
+            <ListPopover article={article} />
+          )}
+          {!editable && (
+            <Button variant={"ghost"} size={"icon"}>
+              <Share1Icon />
             </Button>
           )}
-          {status == "authenticated" && <ListPopover article={article} />}
-          <Button variant={"ghost"} size={"icon"}>
-            <Share1Icon />
-          </Button>
         </div>
       </CardFooter>
     </Card>
   );
 };
 
+// {editable && status == "authenticated" && (
+//   <Button variant={"ghost"} asChild>
+//     <Link
+//       href={`/article/${slugifier(article.title)}-${article.id}/edit`}
+//     >
+//       Edit
+//     </Link>
+//   </Button>
+// )}
 export default ArticleCard;

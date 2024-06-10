@@ -1,18 +1,23 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Extension, Json,
 };
+use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 use serde::Deserialize;
 use serde_json::json;
 use shared::{
-    models::{comment_model::Comment, enums::CommentableType},
-    resource_proto::{
-        self, comment_service_client::CommentServiceClient, CreateCommentRequest,
-        DeleteCommentRequest, GetCommentsRequest, UpdateCommentRequest,
+    comment::{
+        comment_service_client::CommentServiceClient, CreateRequest, DeleteRequest, GetAllRequest,
+        UpdateRequest,
     },
-    utils::jwt::AccessTokenPayload,
+    common,
+    models::{
+        comment_model::{Comment, FullComment},
+        enums::CommentableType,
+    },
+    utils::jwt::{AccessToken, AccessTokenPayload, JWT},
 };
 use tonic::transport::Channel;
 use tracing::{error, info};
@@ -27,28 +32,52 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct CommentsQueryParams {
-    id: String,
-    r#type: CommentableType,
-    user_id: Option<String>,
     query: Option<String>,
 }
 
 pub async fn get_comments(
+    headers: HeaderMap,
     Extension(channel): Extension<Channel>,
     State(_state): State<AppState>,
     Query(query): Query<CommentsQueryParams>,
     Query(cursor): Query<CursorPagination>,
+    Path(params): Path<PathParams>,
 ) -> Response {
+    let by_user = headers
+        .typed_get::<Authorization<Bearer>>()
+        .map(|token| {
+            AccessToken::validate(token.token())
+                .ok()
+                .map(|token_payload| token_payload.payload.user_id.to_owned())
+        })
+        .flatten();
+
+    let target_id;
+    let r#type: CommentableType;
+
+    if let Some(article_id) = params.article_id {
+        target_id = article_id;
+        r#type = CommentableType::Article;
+    } else if let Some(series_id) = params.series_id {
+        target_id = series_id;
+        r#type = CommentableType::Series;
+    } else if let Some(list_id) = params.list_id {
+        target_id = list_id;
+        r#type = CommentableType::List;
+    } else {
+        return (StatusCode::BAD_REQUEST).into_response();
+    }
+
     info!("Get Comments Request {:?} {:?}", query, cursor);
 
     match CommentServiceClient::new(channel)
-        .get_comments(GetCommentsRequest {
+        .get_all(GetAllRequest {
             query: query.query,
-            user_id: query.user_id,
-            target_id: query.id,
-            r#type: resource_proto::CommentableType::from(query.r#type) as i32,
+            target_id,
+            r#type: common::CommentableType::from(r#type) as i32,
             cursor: cursor.cursor,
             limit: cursor.limit,
+            by_user,
         })
         .await
     {
@@ -56,12 +85,12 @@ pub async fn get_comments(
             let res = res.get_ref();
             (
                 StatusCode::OK,
-                Json(json!(ResultPaging::<Comment> {
+                Json(json!(ResultPaging::<FullComment> {
                     next_cursor: res.next_cursor.to_owned(),
                     items: res
                         .comments
                         .iter()
-                        .map(|comment| Comment::from(comment))
+                        .map(|comment| FullComment::from(comment))
                         .collect()
                 })),
             )
@@ -76,17 +105,6 @@ pub async fn get_comments(
     }
 }
 
-// pub async fn get_comment(
-//     Extension(user): Extension<AccessTokenPayload>,
-//     State(state): State<AppState>,
-//     Path(params): Path<PathParams>,
-// ) -> Response {
-//     let comment_id = match params.comment_id {
-//         Some(v) => v,
-//         None => return (StatusCode::BAD_REQUEST, "Wrong parameters").into_response(),
-//     };
-// }
-
 #[derive(Debug, Deserialize)]
 pub struct PostCommentRequestBody {
     content: String,
@@ -97,15 +115,32 @@ pub async fn post_comment(
     Extension(user): Extension<AccessTokenPayload>,
     State(_state): State<AppState>,
     Query(query): Query<CommentsQueryParams>,
+    Path(params): Path<PathParams>,
     Json(payload): Json<PostCommentRequestBody>,
 ) -> Response {
+    let target_id;
+    let r#type: CommentableType;
+
+    if let Some(article_id) = params.article_id {
+        target_id = article_id;
+        r#type = CommentableType::Article;
+    } else if let Some(series_id) = params.series_id {
+        target_id = series_id;
+        r#type = CommentableType::Series;
+    } else if let Some(list_id) = params.list_id {
+        target_id = list_id;
+        r#type = CommentableType::List;
+    } else {
+        return (StatusCode::BAD_REQUEST).into_response();
+    }
+
     info!("Post Comment Request {:?} {:?} {:?}", user, query, payload);
 
     match CommentServiceClient::new(channel)
-        .create_comment(CreateCommentRequest {
+        .create(CreateRequest {
             user_id: user.user_id,
-            target_id: query.id,
-            r#type: resource_proto::CommentableType::from(query.r#type) as i32,
+            target_id,
+            r#type: common::CommentableType::from(r#type) as i32,
             content: payload.content,
         })
         .await
@@ -147,7 +182,7 @@ pub async fn patch_comment(
     );
 
     match CommentServiceClient::new(channel)
-        .update_comment(UpdateCommentRequest {
+        .update(UpdateRequest {
             comment_id,
             user_id: user.user_id,
             content: payload.content,
@@ -176,7 +211,7 @@ pub async fn delete_comment(
     };
     info!("Delete Comment Request {:?} {:?}", user, comment_id);
     match CommentServiceClient::new(channel)
-        .delete_comment(DeleteCommentRequest {
+        .delete(DeleteRequest {
             comment_id,
             user_id: user.user_id,
         })

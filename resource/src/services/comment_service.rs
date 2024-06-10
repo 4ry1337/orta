@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use shared::{
+    comment::{
+        comment_service_server::CommentService, CreateRequest, DeleteRequest, GetAllRequest,
+        GetRequest, UpdateRequest,
+    },
+    common::{Comment, FullComment, FullComments, MessageResponse},
     models::comment_model::{CreateComment, UpdateComment},
     repositories::comment_repository::{CommentRepository, CommentRepositoryImpl},
-    resource_proto::{
-        comment_service_server::CommentService, Comment, CreateCommentRequest,
-        DeleteCommentRequest, DeleteCommentResponse, GetCommentsRequest, GetCommentsResponse,
-        UpdateCommentRequest,
-    },
 };
 use tonic::{Request, Response, Status};
 use tracing::error;
@@ -27,10 +27,109 @@ pub struct CommentServiceImpl {
 
 #[tonic::async_trait]
 impl CommentService for CommentServiceImpl {
-    async fn create_comment(
+    async fn get_all(
         &self,
-        request: Request<CreateCommentRequest>,
-    ) -> Result<Response<Comment>, Status> {
+        request: Request<GetAllRequest>,
+    ) -> Result<Response<FullComments>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
+            }
+        };
+
+        let comments = match CommentRepositoryImpl::find_all(
+            &mut transaction,
+            input.query.as_deref(),
+            &input.target_id,
+            input.r#type().into(),
+            input.limit,
+            id,
+            created_at,
+            input.by_user.as_deref(),
+        )
+        .await
+        {
+            Ok(comments) => comments,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let next_cursor = comments
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
+
+        let comments = comments
+            .iter()
+            .map(|comment| FullComment::from(comment))
+            .collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(FullComments {
+                comments,
+                next_cursor,
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn get(&self, request: Request<GetRequest>) -> Result<Response<FullComment>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        let comment = match CommentRepositoryImpl::find(
+            &mut transaction,
+            &input.target_id,
+            input.by_user.as_deref(),
+        )
+        .await
+        {
+            Ok(comment) => comment,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(FullComment::from(&comment))),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn create(&self, request: Request<CreateRequest>) -> Result<Response<Comment>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -78,77 +177,7 @@ impl CommentService for CommentServiceImpl {
         }
     }
 
-    async fn get_comments(
-        &self,
-        request: Request<GetCommentsRequest>,
-    ) -> Result<Response<GetCommentsResponse>, Status> {
-        let mut transaction = match self.state.db.begin().await {
-            Ok(transaction) => transaction,
-            Err(err) => {
-                error!("{:?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
-
-        let input = request.get_ref();
-
-        let mut id = None;
-        let mut created_at = None;
-
-        if let Some(cursor_str) = &input.cursor {
-            (id, created_at) = match parse_cursor(cursor_str) {
-                Ok(parsed) => parsed,
-                Err(err) => {
-                    error!("Parse error {}", err);
-                    return Err(Status::invalid_argument("Invalid data"));
-                }
-            }
-        };
-
-        let comments = match CommentRepositoryImpl::find_all(
-            &mut transaction,
-            input.query.as_deref(),
-            &input.target_id,
-            input.r#type().into(),
-            input.limit,
-            id,
-            created_at,
-        )
-        .await
-        {
-            Ok(comments) => comments,
-            Err(err) => {
-                error!("{:?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        };
-
-        let next_cursor = comments
-            .iter()
-            .nth(input.limit as usize - 1)
-            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
-
-        let comments = comments
-            .iter()
-            .map(|comment| Comment::from(comment))
-            .collect();
-
-        match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetCommentsResponse {
-                comments,
-                next_cursor,
-            })),
-            Err(err) => {
-                error!("{:?}", err);
-                return Err(Status::internal("Something went wrong"));
-            }
-        }
-    }
-
-    async fn update_comment(
-        &self,
-        request: Request<UpdateCommentRequest>,
-    ) -> Result<Response<Comment>, Status> {
+    async fn update(&self, request: Request<UpdateRequest>) -> Result<Response<Comment>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -208,10 +237,10 @@ impl CommentService for CommentServiceImpl {
         }
     }
 
-    async fn delete_comment(
+    async fn delete(
         &self,
-        request: Request<DeleteCommentRequest>,
-    ) -> Result<Response<DeleteCommentResponse>, Status> {
+        request: Request<DeleteRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -255,7 +284,7 @@ impl CommentService for CommentServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(DeleteCommentResponse {
+            Ok(_) => Ok(Response::new(MessageResponse {
                 message: format!("Delete comment"),
             })),
             Err(err) => {

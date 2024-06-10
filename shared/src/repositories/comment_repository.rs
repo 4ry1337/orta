@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{Database, Error, Postgres, Transaction};
 
 use crate::models::{
-    comment_model::{Comment, CreateComment, UpdateComment},
+    comment_model::{Comment, CreateComment, FullComment, UpdateComment},
     enums::CommentableType,
 };
 
@@ -20,11 +20,13 @@ where
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
-    ) -> Result<Vec<Comment>, E>;
+        by_user: Option<&str>,
+    ) -> Result<Vec<FullComment>, E>;
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
         comment_id: &str,
-    ) -> Result<Comment, E>;
+        by_user: Option<&str>,
+    ) -> Result<FullComment, E>;
     async fn create(
         transaction: &mut Transaction<'_, DB>,
         create_comment: &CreateComment,
@@ -49,21 +51,48 @@ impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
         limit: i64,
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
-    ) -> Result<Vec<Comment>, Error> {
+        by_user: Option<&str>,
+    ) -> Result<Vec<FullComment>, Error> {
         sqlx::query_as!(
-            Comment,
+            FullComment,
             r#"
+            WITH followers AS (
+                SELECT
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.email_verified,
+                    u.image,
+                    u.bio,
+                    u.urls,
+                    u.follower_count,
+                    u.following_count,
+                    u.created_at,
+                    u.approved_at,
+                    u.deleted_at,
+                    CASE
+                        WHEN $6 IS NULL THEN FALSE
+                        WHEN f.follower_id IS NOT NULL THEN TRUE
+                        ELSE FALSE
+                    END AS followed
+                FROM users u
+                LEFT JOIN follow f ON u.id = f.following_id AND f.follower_id = $6
+            )
             SELECT
-                id,
-                content,
-                commenter_id,
-                target_id,
-                type as "type: CommentableType",
-                created_at,
-                updated_at
-            FROM comments
-            WHERE (target_id = $1 AND type = $2) AND (($4::timestamptz IS NULL AND $5::text IS NULL) OR (created_at, id) < ($4, $5))
-            ORDER BY created_at DESC, id DESC
+                c.id,
+                c.content,
+                c.commenter_id,
+                f.username,
+                f.image,
+                f.followed as "followed!: bool",
+                c.target_id,
+                c.type as "type: CommentableType",
+                c.created_at,
+                c.updated_at
+            FROM comments c
+            INNER JOIN followers f ON f.id = c.commenter_id
+            WHERE (c.target_id = $1 AND c.type = $2) AND (($4::timestamptz IS NULL AND $5::text IS NULL) OR (c.created_at, c.id) < ($4, $5))
+            ORDER BY c.created_at DESC, c.id DESC
             LIMIT $3
             "#n,
             target_id,
@@ -71,6 +100,7 @@ impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
             limit,
             created_at,
             id,
+            by_user,
         )
         .fetch_all(&mut **transaction)
         .await
@@ -79,22 +109,50 @@ impl CommentRepository<Postgres, Error> for CommentRepositoryImpl {
     async fn find(
         transaction: &mut Transaction<'_, Postgres>,
         comment_id: &str,
-    ) -> Result<Comment, Error> {
+        by_user: Option<&str>,
+    ) -> Result<FullComment, Error> {
         sqlx::query_as!(
-            Comment,
+            FullComment,
             r#"
+            WITH followers AS (
+                SELECT
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.email_verified,
+                    u.image,
+                    u.bio,
+                    u.urls,
+                    u.follower_count,
+                    u.following_count,
+                    u.created_at,
+                    u.approved_at,
+                    u.deleted_at,
+                    CASE
+                        WHEN $2 IS NULL THEN FALSE
+                        WHEN f.follower_id IS NOT NULL THEN TRUE
+                        ELSE FALSE
+                    END AS followed
+                FROM users u
+                LEFT JOIN follow f ON u.id = f.following_id AND f.follower_id = $2
+            )
             SELECT
-                id,
-                content,
-                commenter_id,
-                target_id,
-                type as "type: CommentableType",
-                created_at,
-                updated_at
-            FROM comments
-            WHERE id = $1
+                c.id,
+                c.content,
+                c.commenter_id,
+                f.username,
+                f.image,
+                f.followed as "followed!: bool",
+                c.target_id,
+                c.type as "type: CommentableType",
+                c.created_at,
+                c.updated_at
+            FROM comments c
+            INNER JOIN followers f ON f.id = c.commenter_id
+            WHERE c.id = $1
             "#n,
-            comment_id
+            comment_id,
+            by_user
         )
         .fetch_one(&mut **transaction)
         .await

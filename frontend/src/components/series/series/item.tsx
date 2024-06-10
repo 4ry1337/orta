@@ -100,9 +100,11 @@ const SeriesCard = ({
       </div>
       <div
         style={{
-          backgroundImage: `url(/placeholder.svg)`,
+          backgroundImage: series.image
+            ? `url(http://localhost:5000/api/assets/${series.image})`
+            : `url(/placeholder.svg)`,
         }}
-        className="bg-center"
+        className={cn(series.image ? "bg-contain" : "bg-center")}
       >
         <div className="w-full h-full flex items-center justify-center bg-black/50">
           <h1 className="text-card-foreground">{series.article_count}</h1>

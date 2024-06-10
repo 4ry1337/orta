@@ -16,10 +16,6 @@ pub trait ArticleRepository<DB, E>
 where
     DB: Database,
 {
-    async fn create(
-        transaction: &mut Transaction<'_, DB>,
-        create_article: &CreateArticle,
-    ) -> Result<Article, E>;
     async fn find_all(
         transaction: &mut Transaction<'_, DB>,
         query: Option<&str>,
@@ -28,15 +24,16 @@ where
         created_at: Option<DateTime<Utc>>,
         by_user: Option<&str>,
         published: Option<bool>,
-        username: Option<&str>,
-        series_id: Option<&str>,
-        list_id: Option<&str>,
     ) -> Result<Vec<FullArticle>, E>;
     async fn find(
         transaction: &mut Transaction<'_, DB>,
         article_id: &str,
         by_user: Option<&str>,
     ) -> Result<FullArticle, E>;
+    async fn create(
+        transaction: &mut Transaction<'_, DB>,
+        create_article: &CreateArticle,
+    ) -> Result<Article, E>;
     async fn update(
         transaction: &mut Transaction<'_, DB>,
         update_article: &UpdateArticle,
@@ -51,20 +48,8 @@ where
         article_id: &str,
         user_id: &str,
     ) -> Result<(String, String), E>;
-    async fn add_comment(
-        transaction: &mut Transaction<'_, DB>,
-        article_id: &str,
-    ) -> Result<Article, E>;
-    async fn remove_comment(
-        transaction: &mut Transaction<'_, DB>,
-        article_id: &str,
-    ) -> Result<Article, E>;
     async fn publish(transaction: &mut Transaction<'_, DB>, article_id: &str)
         -> Result<Article, E>;
-    async fn unpublish(
-        transaction: &mut Transaction<'_, DB>,
-        article_id: &str,
-    ) -> Result<Article, E>;
     async fn delete(transaction: &mut Transaction<'_, DB>, article_id: &str) -> Result<Article, E>;
     async fn add_author(
         transaction: &mut Transaction<'_, DB>,
@@ -74,10 +59,6 @@ where
         transaction: &mut Transaction<'_, DB>,
         delete_author: &DeleteAuthor,
     ) -> Result<(String, String), E>;
-    async fn versions(
-        transaction: &mut Transaction<'_, DB>,
-        article_id: &str,
-    ) -> Result<Option<i64>, E>;
     async fn history(
         transaction: &mut Transaction<'_, DB>,
         article_id: &str,
@@ -85,7 +66,11 @@ where
         id: Option<&str>,
         created_at: Option<DateTime<Utc>>,
     ) -> Result<Vec<ArticleVersion>, E>;
-    async fn save(
+    async fn version(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+    ) -> Result<ArticleVersion, E>;
+    async fn edit(
         transaction: &mut Transaction<'_, DB>,
         article_id: &str,
         content: &str,
@@ -106,22 +91,11 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         created_at: Option<DateTime<Utc>>,
         by_user: Option<&str>,
         published: Option<bool>,
-        username: Option<&str>,
-        series_id: Option<&str>,
-        list_id: Option<&str>,
     ) -> Result<Vec<FullArticle>, Error> {
         sqlx::query_as!(
             FullArticle,
             r#"
-            WITH latest_articleversions AS (
-                SELECT av.article_id, av.content
-                FROM articleversions av
-                INNER JOIN (
-                    SELECT article_id, MAX(created_at) AS max_created_at
-                    FROM articleversions
-                    GROUP BY article_id
-                ) latest_av ON av.article_id = latest_av.article_id AND av.created_at = latest_av.max_created_at
-            ), followers AS (
+            WITH followers AS (
                 SELECT
                     u.id,
                     u.username,
@@ -145,41 +119,39 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             )
             SELECT
                 a.*,
-                lav.content as "content: Option<String>",
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT f.*) FILTER (WHERE f.id IS NOT NULL), NULL) as "users: Vec<FullUser>",
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.*) FILTER (WHERE s.id IS NOT NULL), null) as "series: Vec<Series>",
                 CASE
                     WHEN $5::text is NULL then ARRAY[]::lists[]
                     ELSE ARRAY_REMOVE(ARRAY_AGG(DISTINCT l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
                 END AS "lists: Vec<List>",
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.*) FILTER (WHERE s.id IS NOT NULL), null) as "series: Vec<Series>",
                 CASE
                     WHEN $5::text IS NULL THEN FALSE
                     WHEN li.user_id IS NOT NULL THEN TRUE
                     ELSE FALSE
-                END AS liked
+                END AS liked,
+                sa.order AS "order: Option<f32>"
             FROM articles a
             LEFT JOIN authors au ON a.id = au.article_id
             LEFT JOIN followers f ON au.author_id = f.id
             LEFT JOIN likes li ON a.id = li.article_id AND li.user_id = $5
             LEFT JOIN articletags at ON a.id = at.article_id
             LEFT JOIN tags t ON at.tag_slug = t.slug
-            LEFT JOIN latest_articleversions lav ON a.id = lav.article_id
             LEFT JOIN listarticle la ON a.id = la.article_id
             LEFT JOIN lists l ON la.list_id = l.id AND l.user_id = $5
             LEFT JOIN seriesarticle sa ON a.id = sa.article_id
             LEFT JOIN series s ON sa.series_id = s.id
-            WHERE (($8::text IS NULL OR la.list_id = $8)
-                    AND ($9::text IS NULL OR s.id = $9))
-                AND ($6::bool IS NULL OR (CASE 
-                    WHEN $6 IS TRUE THEN a.published_at IS NOT NULL
-                    ELSE a.published_at IS NULL END))
-                AND (($2::text IS NULL AND $3::timestamptz IS NULL) OR (a.created_at, a.id) < ($3, $2))
-                AND (($4::text is NULL)
-                    OR (to_tsvector(a.title || ' ' || COALESCE(a.description, '') || ' ' || COALESCE(lav.content, ''))
+            WHERE ($6::bool IS NULL OR (
+                    CASE 
+                        WHEN $6 IS TRUE THEN a.published_at IS NOT NULL
+                        ELSE a.published_at IS NULL
+                    END)
+                ) AND (($2::TEXT IS NULL AND $3::TIMESTAMPTZ IS NULL) OR (a.created_at, a.id) < ($3, $2))
+                AND (($4::TEXT IS NULL)
+                    OR (to_tsvector(a.title || ' ' || COALESCE(a.description, '') || ' ' || COALESCE(a.content, ''))
                         @@ websearch_to_tsquery($4)))
-            GROUP BY a.id, lav.content, s.id, li.user_id, sa.order
-            HAVING $7 = ANY(ARRAY_AGG(f.username))
+            GROUP BY a.id, s.id, li.user_id, sa.order
             ORDER BY a.created_at DESC, a.id DESC
             LIMIT $1
             "#n,
@@ -189,9 +161,6 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             query,
             by_user,
             published,
-            username,
-            list_id,
-            series_id,
         )
         .fetch_all(&mut **transaction)
         .await
@@ -205,15 +174,7 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         sqlx::query_as!(
             FullArticle,
             r#"
-            WITH latest_articleversions AS (
-                SELECT av.article_id, av.content
-                FROM articleversions av
-                INNER JOIN (
-                    SELECT article_id, MAX(created_at) AS max_created_at
-                    FROM articleversions
-                    GROUP BY article_id
-                ) latest_av ON av.article_id = latest_av.article_id AND av.created_at = latest_av.max_created_at
-            ), followers AS (
+            WITH followers AS (
                 SELECT
                     u.id,
                     u.username,
@@ -228,7 +189,6 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                     u.approved_at,
                     u.deleted_at,
                     CASE
-                        WHEN $2 IS NULL THEN FALSE
                         WHEN f.follower_id IS NOT NULL THEN TRUE
                         ELSE FALSE
                     END AS followed
@@ -237,35 +197,33 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
             )
             SELECT
                 a.*,
-                lav.content as "content: Option<String>",
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT f.*) FILTER (WHERE f.id IS NOT NULL), NULL) as "users: Vec<FullUser>",
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.*) FILTER (WHERE t.slug IS NOT NULL), NULL) as "tags: Vec<Tag>",
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.*) FILTER (WHERE s.id IS NOT NULL), null) as "series: Vec<Series>",
                 CASE
                     WHEN $2::text is NULL then ARRAY[]::lists[]
                     ELSE ARRAY_REMOVE(ARRAY_AGG(DISTINCT l.*) FILTER (WHERE l.id IS NOT NULL), NULL)
                 END AS "lists: Vec<List>",
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.*) FILTER (WHERE s.id IS NOT NULL), null) as "series: Vec<Series>",
                 CASE
-                    WHEN $2::text IS NULL THEN FALSE
                     WHEN li.user_id IS NOT NULL THEN TRUE
                     ELSE FALSE
-                END AS liked
+                END AS liked,
+                sa.order AS "order: Option<f32>"
             FROM articles a
             LEFT JOIN likes li ON a.id = li.article_id AND li.user_id = $2
             LEFT JOIN authors au ON a.id = au.article_id
             LEFT JOIN followers f ON au.author_id = f.id
             LEFT JOIN articletags at ON a.id = at.article_id
             LEFT JOIN tags t ON at.tag_slug = t.slug
-            LEFT JOIN latest_articleversions lav ON a.id = lav.article_id
             LEFT JOIN seriesarticle sa ON a.id = sa.article_id
             LEFT JOIN series s ON sa.series_id = s.id
             LEFT JOIN listarticle la ON a.id = la.article_id
             LEFT JOIN lists l ON la.list_id = l.id AND l.user_id = $2
             WHERE a.id = $1
-            GROUP BY a.id, lav.content, li.user_id
+            GROUP BY a.id, li.user_id, sa.order
             "#n,
             article_id,
-            by_user
+            by_user,
         )
         .fetch_one(&mut **transaction)
         .await
@@ -283,11 +241,11 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
                 VALUES ($2, $3)
                 RETURNING *
             ), author AS (
-                INSERT INTO authors (author_id, article_id)
+                INSERT INTO authors (author_id, article_id, is_owner)
                 VALUES ($1, (
                     SELECT id AS article_id
                     FROM article
-                ))
+                ), true)
                 RETURNING *
             )
             SELECT *
@@ -381,22 +339,6 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         ))
     }
 
-    async fn versions(
-        transaction: &mut Transaction<'_, Postgres>,
-        article_id: &str,
-    ) -> Result<Option<i64>, Error> {
-        sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)
-            FROM articleversions
-            GROUP BY article_id = $1
-            "#,
-            article_id
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-
     async fn history(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: &str,
@@ -424,7 +366,26 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         .await
     }
 
-    async fn save(
+    async fn version(
+        transaction: &mut Transaction<'_, Postgres>,
+        article_id: &str,
+    ) -> Result<ArticleVersion, Error> {
+        sqlx::query_as!(
+            ArticleVersion,
+            r#"
+            SELECT *
+            FROM articleversions
+            WHERE article_id = $1
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#n,
+            article_id,
+        )
+        .fetch_one(&mut **transaction)
+        .await
+    }
+
+    async fn edit(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: &str,
         content: &str,
@@ -495,42 +456,6 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         Ok((user_id.to_string(), article_id.to_string()))
     }
 
-    async fn add_comment(
-        transaction: &mut Transaction<'_, Postgres>,
-        article_id: &str,
-    ) -> Result<Article, Error> {
-        sqlx::query_as!(
-            Article,
-            r#"
-            UPDATE articles
-            SET comment_count = comment_count + 1
-            WHERE id = $1
-            RETURNING *
-            "#n,
-            article_id,
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-
-    async fn remove_comment(
-        transaction: &mut Transaction<'_, Postgres>,
-        article_id: &str,
-    ) -> Result<Article, Error> {
-        sqlx::query_as!(
-            Article,
-            r#"
-            UPDATE articles
-            SET comment_count = comment_count - 1
-            WHERE id = $1
-            RETURNING *
-            "#n,
-            article_id,
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-
     async fn publish(
         transaction: &mut Transaction<'_, Postgres>,
         article_id: &str,
@@ -538,28 +463,19 @@ impl ArticleRepository<Postgres, Error> for ArticleRepositoryImpl {
         sqlx::query_as!(
             Article,
             r#"
+            WITH lav AS (
+                SELECT content
+                FROM articleversions
+                WHERE article_id = $1
+                ORDER BY created_at DESC
+                LIMIT 1
+            )
             UPDATE articles
-            SET published_at = now()
-            WHERE id = $1
-            RETURNING *
-            "#n,
-            article_id,
-        )
-        .fetch_one(&mut **transaction)
-        .await
-    }
-
-    async fn unpublish(
-        transaction: &mut Transaction<'_, Postgres>,
-        article_id: &str,
-    ) -> Result<Article, Error> {
-        sqlx::query_as!(
-            Article,
-            r#"
-            UPDATE articles
-            SET published_at = null
-            WHERE id = $1
-            RETURNING *
+            SET published_at = now(),
+                content = lav.content
+            FROM lav
+            WHERE articles.id = $1
+            RETURNING articles.*
             "#n,
             article_id,
         )

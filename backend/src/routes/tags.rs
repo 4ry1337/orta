@@ -8,22 +8,24 @@ use serde::Deserialize;
 use serde_json::json;
 
 use shared::{
+    common,
     models::{enums::TagStatus, tag_model::Tag},
-    resource_proto::{self, tag_service_client::TagServiceClient, GetTagsRequest},
+    tag::{tag_service_client::TagServiceClient, SearchRequest},
 };
 use tonic::transport::Channel;
 use tracing::{error, info};
 
 use crate::{
     application::AppState,
-    utils::{mapper::code_to_statudecode, params::CursorPagination},
+    utils::{
+        mapper::code_to_statudecode,
+        params::{CursorPagination, ResultPaging},
+    },
 };
 
 #[derive(Debug, Deserialize)]
 pub struct TagsQueryParams {
     query: Option<String>,
-    user_id: Option<String>,
-    article_id: Option<String>,
     tag_status: Option<TagStatus>,
 }
 
@@ -36,26 +38,26 @@ pub async fn get_tags(
     info!("Get Tags Request {:#?}", query);
 
     match TagServiceClient::new(channel)
-        .get_tags(GetTagsRequest {
+        .search(SearchRequest {
             query: query.query,
-            user_id: query.user_id,
-            article_id: query.article_id,
             tag_status: query
                 .tag_status
-                .map(|tag_status| resource_proto::TagStatus::from(tag_status) as i32),
+                .map(|tag_status| common::TagStatus::from(tag_status) as i32),
             limit: cursor.limit,
             cursor: cursor.cursor,
         })
         .await
     {
         Ok(res) => {
-            let tags: Vec<Tag> = res
-                .get_ref()
-                .tags
-                .iter()
-                .map(|tag| Tag::from(tag))
-                .collect();
-            (StatusCode::OK, Json(json!(tags))).into_response()
+            let res = res.get_ref();
+            (
+                StatusCode::OK,
+                Json(json!(ResultPaging::<Tag> {
+                    next_cursor: res.next_cursor.to_owned(),
+                    items: res.tags.iter().map(|tag| Tag::from(tag)).collect()
+                })),
+            )
+                .into_response()
         }
         Err(err) => {
             error!("{:#?}", err);

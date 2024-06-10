@@ -4,12 +4,13 @@ use std::{
 };
 
 use shared::{
+    article::article_service_server::ArticleServiceServer,
+    comment::comment_service_server::CommentServiceServer,
     configuration::{DatabaseSettings, Settings},
-    resource_proto::{
-        article_service_server::ArticleServiceServer, comment_service_server::CommentServiceServer,
-        list_service_server::ListServiceServer, series_service_server::SeriesServiceServer,
-        tag_service_server::TagServiceServer, user_service_server::UserServiceServer,
-    },
+    list::list_service_server::ListServiceServer,
+    series::series_service_server::SeriesServiceServer,
+    tag::tag_service_server::TagServiceServer,
+    user::user_service_server::UserServiceServer,
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tonic::transport::{server::Router, Server};

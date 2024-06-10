@@ -94,15 +94,12 @@ export async function signin(
 
 export async function get_session(): Promise<Session | null> {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/session`,
-      {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem("session")}`,
-          "Content-Type": "application/json",
-        },
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/me`, {
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("session")}`,
+        "Content-Type": "application/json",
       },
-    );
+    });
     if (!res.ok) {
       toast.error(await res.text());
       return null;

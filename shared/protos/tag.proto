@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package tag;
+
+import "google/protobuf/timestamp.proto";
+
+import "common.proto";
+
+message SearchRequest {
+  int64 limit = 1;
+  optional string query = 2;
+  optional common.TagStatus tag_status = 3;
+  optional string cursor = 4;
+}
+
+service TagService {
+  rpc Search(SearchRequest) returns (common.Tags);
+  // rpc GetTag(GetTagRequest) returns (GetTagResponse);
+  // rpc CreateTag(CreateTagRequest) returns (CreateTagResponse);
+  // rpc UpdateTag(UpdateTagRequest) returns (UpdateTagResponse);
+  // rpc DeleteTag(DeleteTagRequest) returns (DeleteTagResponse);
+}

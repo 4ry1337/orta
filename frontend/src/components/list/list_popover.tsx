@@ -45,6 +45,7 @@ import { z } from "zod";
 import { CreateListSchema } from "@/lib/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Checkbox } from "../ui/checkbox";
+import { get_user_lists } from "@/app/actions/user";
 
 const ListPopover = ({ article }: { article: FullArticle }) => {
   const { status, data } = useSession({
@@ -78,12 +79,9 @@ const ListPopover = ({ article }: { article: FullArticle }) => {
     hasNextPage: hasNextPage,
     onLoadMore: () => {
       setIsLoading(true);
-      get_lists({
-        user_id: data?.user_id,
-        cursor: {
-          cursor,
-          limit: 5,
-        },
+      get_user_lists(data!.username, {
+        cursor,
+        limit: 5,
       }).then((data) => {
         setLists([...lists, ...data.items]);
         if (data.next_cursor !== null) {

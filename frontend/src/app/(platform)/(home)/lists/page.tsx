@@ -1,6 +1,7 @@
 "use client";
 
 import { create_list, get_lists } from "@/app/actions/list";
+import { get_user_lists } from "@/app/actions/user";
 import ListList from "@/components/list/list/list";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,12 +78,9 @@ const ListsPage = () => {
     hasNextPage: hasMore,
     onLoadMore: () => {
       setIsLoading(true);
-      get_lists({
-        user_id: user!.user_id,
-        cursor: {
-          cursor,
-          limit,
-        },
+      get_user_lists(user!.username, {
+        cursor,
+        limit,
       }).then((data) => {
         setLists([...lists, ...data.items]);
         if (data.next_cursor !== null) {

@@ -45,15 +45,12 @@ const ListCard = ({
         <CardHeader>
           <CardTitle>{list.label}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <small>{DisplayDate(list.created_at)}</small>
-        </CardContent>
       </Link>
       <CardFooter className="justify-between">
-        <div className="">
-          <small className="text-muted-foreground">
-            {list.article_count} Articles
-          </small>
+        <div className="text-muted-foreground space-x-4">
+          <small>{DisplayDate(list.created_at)}</small>
+          <small>{list.article_count} Articles</small>
+          <small>{list.visibility}</small>
         </div>
         <div className="inline-flex gap-2">
           {deletable && status == "authenticated" && (
@@ -86,9 +83,11 @@ const ListCard = ({
               </DialogContent>
             </Dialog>
           )}
-          <Button variant={"ghost"} size={"icon"}>
-            <Share1Icon />
-          </Button>
+          {!editable && (
+            <Button variant={"ghost"} size={"icon"}>
+              <Share1Icon />
+            </Button>
+          )}
         </div>
       </CardFooter>
     </Card>

@@ -36,7 +36,9 @@ const UserButton = ({ className, user }: UserButtonProps) => {
         >
           <Avatar>
             <AvatarImage
-              src={"http://localhost:5000/api/assets/" + user.image}
+              src={
+                user.image && "http://localhost:5000/api/assets/" + user.image
+              }
               className="object-cover"
               alt="@avatar"
             />

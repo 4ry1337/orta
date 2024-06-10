@@ -19,7 +19,6 @@ export const SignUpFormSchema = z.object({
     })
     .trim(),
 });
-
 export const SignInFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email." }).trim(),
   password: z
@@ -47,12 +46,15 @@ export const SaveArticleSchema = z.object({
   content: z.string(),
 });
 
-// TODO: add images
 export const CreateSeriesSchema = z.object({
   label: z.string().trim(),
 });
-//
-// TODO: add images
+
+export const UpdateSeriesSchema = z.object({
+  label: z.string().trim().optional(),
+  image: z.string().url().optional(),
+});
+
 export const CreateListSchema = z.object({
   label: z.string().trim(),
   visibility: z.string().trim().optional(),
@@ -76,4 +78,8 @@ export const UpdateUserFormSchema = z.object({
 
 export const UploadAssetFormSchema = z.object({
   files: z.array(z.instanceof(File)).nullable(),
+});
+
+export const CreateCommentSchema = z.object({
+  content: z.string().min(1),
 });

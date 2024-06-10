@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use shared::{
+    common::{Tag, Tags},
     repositories::tag_repository::{TagRepository, TagRepositoryImpl},
-    resource_proto::{tag_service_server::TagService, GetTagsRequest, GetTagsResponse, Tag},
+    tag::{tag_service_server::TagService, SearchRequest},
 };
 use tonic::{Request, Response, Status};
 use tracing::{error, info};
@@ -16,10 +17,7 @@ pub struct TagServiceImpl {
 
 #[tonic::async_trait]
 impl TagService for TagServiceImpl {
-    async fn get_tags(
-        &self,
-        request: Request<GetTagsRequest>,
-    ) -> Result<Response<GetTagsResponse>, Status> {
+    async fn search(&self, request: Request<SearchRequest>) -> Result<Response<Tags>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -36,8 +34,6 @@ impl TagService for TagServiceImpl {
             &mut transaction,
             input.query.as_deref(),
             input.limit,
-            input.user_id.as_deref(),
-            input.article_id.as_deref(),
             input.tag_status.map(|_| input.tag_status().into()),
             input.cursor.as_deref(),
         )
@@ -57,7 +53,7 @@ impl TagService for TagServiceImpl {
         let tags = tags.iter().map(|tag| Tag::from(tag)).collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetTagsResponse { tags, next_cursor })),
+            Ok(_) => Ok(Response::new(Tags { tags, next_cursor })),
             Err(err) => {
                 error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));

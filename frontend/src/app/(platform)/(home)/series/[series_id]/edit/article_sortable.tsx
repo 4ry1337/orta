@@ -10,23 +10,33 @@ import {
 import { FullArticle } from "@/lib/types";
 import { HTMLAttributes } from "react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { useDraggable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Button } from "@/components/ui/button";
+import { remove_article_series } from "@/app/actions/series";
 
 interface ArticleCardProps extends HTMLAttributes<HTMLDivElement> {
+  series_id: string;
   article: FullArticle;
+  onDelete: (article_id: string) => void;
 }
 
-const ArticleDraggableCard = ({ article, ...props }: ArticleCardProps) => {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
-    id: article.id,
-    data: article,
-  });
+const ArticleSortableCard = ({
+  article,
+  series_id,
+  onDelete,
+  ...props
+}: ArticleCardProps) => {
+  const { setNodeRef, listeners, attributes, transform, transition } =
+    useSortable({
+      id: article.id,
+      data: article,
+    });
 
-  const style = transform
-    ? {
-      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    }
-    : undefined;
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <Card ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -40,8 +50,8 @@ const ArticleDraggableCard = ({ article, ...props }: ArticleCardProps) => {
         )}
       </CardContent>
       <CardFooter className="justify-between ">
-        <div className="flex items-center justify-between">
-          <ScrollArea>
+        <ScrollArea>
+          <div className="flex flex-row items-center gap-4 justify-center">
             {article.users &&
               article.users.map((user) => {
                 return (
@@ -51,24 +61,34 @@ const ArticleDraggableCard = ({ article, ...props }: ArticleCardProps) => {
                   >
                     <Avatar className="mr-2 w-7 h-7">
                       <AvatarImage
-                        src={"http://localhost:5000/api/assets/" + user.image}
+                        src={
+                          user.image &&
+                          "http://localhost:5000/api/assets/" + user.image
+                        }
                         className="object-cover"
                         alt="@avatar"
                       />
                       <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <div className="text-primary underline-offset-4 hover:underline">
-                      {user.username}
-                    </div>
+                    <div>{user.username}</div>
                   </div>
                 );
               })}
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </div>
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+        <Button
+          onClick={() => {
+            remove_article_series(series_id, article.id).then(() => {
+              onDelete(article.id);
+            });
+          }}
+        >
+          Remove
+        </Button>
       </CardFooter>
     </Card>
   );
 };
 
-export default ArticleDraggableCard;
+export default ArticleSortableCard;

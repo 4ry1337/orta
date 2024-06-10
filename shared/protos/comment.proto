@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package comment;
+
+import "common.proto";
+
+import "google/protobuf/timestamp.proto";
+
+message GetAllRequest {
+  optional string query = 1;
+  int64 limit = 2;
+  optional string cursor = 3;
+  string target_id = 4;
+  common.CommentableType type = 5;
+  optional string by_user = 6;
+}
+
+message GetRequest {
+  string target_id = 1;
+  optional string by_user = 2;
+}
+
+message CreateRequest {
+  string user_id = 1;
+  string target_id = 2;
+  string content = 3;
+  common.CommentableType type = 4;
+}
+
+message UpdateRequest {
+  string user_id = 1;
+  string comment_id = 2;
+  optional string content = 3;
+}
+
+message DeleteRequest {
+  string user_id = 1;
+  string comment_id = 2;
+}
+
+service CommentService {
+  rpc GetAll(GetAllRequest) returns (common.FullComments);
+  rpc Get(GetRequest) returns (common.FullComment);
+  rpc Create(CreateRequest) returns (common.Comment);
+  rpc Update(UpdateRequest) returns (common.Comment);
+  rpc Delete(DeleteRequest) returns (common.MessageResponse);
+}
+

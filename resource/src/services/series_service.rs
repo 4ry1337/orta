@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use shared::{
+    common::{FullArticle, FullArticles, MessageResponse, Series, Serieses},
     models::series_model::{CreateSeries, UpdateSeries},
     repositories::series_repository::{SeriesRepository, SeriesRepositoryImpl},
-    resource_proto::{
-        series_service_server::SeriesService, AddArticleSeriesRequest, AddArticleSeriesResponse,
-        CreateSeriesRequest, DeleteSeriesRequest, DeleteSeriesResponse, GetSeriesRequest,
-        GetSeriesesRequest, GetSeriesesResponse, RemoveArticleSeriesRequest,
-        RemoveArticleSeriesResponse, Series, UpdateSeriesRequest,
+    series::{
+        series_service_server::SeriesService, AddArticleRequest, ArticlesRequest, CreateRequest,
+        DeleteRequest, GetRequest, RemoveArticleRequest, ReorderArticleRequest, SearchRequest,
+        UpdateRequest,
     },
 };
 use tonic::{Request, Response, Status};
@@ -28,10 +28,7 @@ pub struct SeriesServiceImpl {
 
 #[tonic::async_trait]
 impl SeriesService for SeriesServiceImpl {
-    async fn get_serieses(
-        &self,
-        request: Request<GetSeriesesRequest>,
-    ) -> Result<Response<GetSeriesesResponse>, Status> {
+    async fn search(&self, request: Request<SearchRequest>) -> Result<Response<Serieses>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -56,13 +53,13 @@ impl SeriesService for SeriesServiceImpl {
                 }
             }
         };
+
         let serieses = match SeriesRepositoryImpl::find_all(
             &mut transaction,
             input.query.as_deref(),
             input.limit,
             id,
             created_at,
-            input.user_id.as_deref(),
         )
         .await
         {
@@ -81,7 +78,7 @@ impl SeriesService for SeriesServiceImpl {
         let serieses = serieses.iter().map(|series| Series::from(series)).collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetSeriesesResponse {
+            Ok(_) => Ok(Response::new(Serieses {
                 series: serieses,
                 next_cursor,
             })),
@@ -92,10 +89,7 @@ impl SeriesService for SeriesServiceImpl {
         }
     }
 
-    async fn get_series(
-        &self,
-        request: Request<GetSeriesRequest>,
-    ) -> Result<Response<Series>, Status> {
+    async fn get(&self, request: Request<GetRequest>) -> Result<Response<Series>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -142,10 +136,7 @@ impl SeriesService for SeriesServiceImpl {
         }
     }
 
-    async fn create_series(
-        &self,
-        request: Request<CreateSeriesRequest>,
-    ) -> Result<Response<Series>, Status> {
+    async fn create(&self, request: Request<CreateRequest>) -> Result<Response<Series>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -194,10 +185,7 @@ impl SeriesService for SeriesServiceImpl {
         }
     }
 
-    async fn update_series(
-        &self,
-        request: Request<UpdateSeriesRequest>,
-    ) -> Result<Response<Series>, Status> {
+    async fn update(&self, request: Request<UpdateRequest>) -> Result<Response<Series>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -265,10 +253,10 @@ impl SeriesService for SeriesServiceImpl {
         }
     }
 
-    async fn delete_series(
+    async fn delete(
         &self,
-        request: Request<DeleteSeriesRequest>,
-    ) -> Result<Response<DeleteSeriesResponse>, Status> {
+        request: Request<DeleteRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -312,8 +300,64 @@ impl SeriesService for SeriesServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(DeleteSeriesResponse {
+            Ok(_) => Ok(Response::new(MessageResponse {
                 message: format!("Deleted series: {}", series.id),
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn articles(
+        &self,
+        request: Request<ArticlesRequest>,
+    ) -> Result<Response<FullArticles>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get Series Articles Request {:?}", input);
+
+        let articles = match SeriesRepositoryImpl::find_articles(
+            &mut transaction,
+            input.limit,
+            input.order,
+            input.by_user.as_deref(),
+            &input.series_id,
+        )
+        .await
+        {
+            Ok(articles) => articles,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let next_cursor = articles
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}", item.order.unwrap()));
+
+        // println!("{:?}", )
+
+        let articles = articles
+            .iter()
+            .map(|article| FullArticle::from(article))
+            .collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(FullArticles {
+                articles,
+                next_cursor,
             })),
             Err(err) => {
                 error!("{:?}", err);
@@ -324,8 +368,8 @@ impl SeriesService for SeriesServiceImpl {
 
     async fn add_article(
         &self,
-        request: Request<AddArticleSeriesRequest>,
-    ) -> Result<Response<AddArticleSeriesResponse>, Status> {
+        request: Request<AddArticleRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -397,7 +441,7 @@ impl SeriesService for SeriesServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(()) => Ok(Response::new(AddArticleSeriesResponse {
+            Ok(()) => Ok(Response::new(MessageResponse {
                 message: format!("Article {} added to Series {}", reponse.1, reponse.0),
             })),
             Err(err) => {
@@ -409,8 +453,8 @@ impl SeriesService for SeriesServiceImpl {
 
     async fn remove_article(
         &self,
-        request: Request<RemoveArticleSeriesRequest>,
-    ) -> Result<Response<RemoveArticleSeriesResponse>, Status> {
+        request: Request<RemoveArticleRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -482,8 +526,94 @@ impl SeriesService for SeriesServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(()) => Ok(Response::new(RemoveArticleSeriesResponse {
+            Ok(()) => Ok(Response::new(MessageResponse {
                 message: format!("Article {} removed to Series {}", reponse.1, reponse.0),
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn reorder_article(
+        &self,
+        request: Request<ReorderArticleRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Remove Article from Series Request {:?}", input);
+
+        match is_owner(
+            &mut transaction,
+            ContentType::Series,
+            &input.user_id,
+            &input.series_id,
+        )
+        .await
+        {
+            Ok(is_owner) => {
+                if !is_owner {
+                    return Err(Status::permission_denied("Forbidden"));
+                }
+            }
+            Err(err) => {
+                error!("{:?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::unknown("Series not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        match is_owner(
+            &mut transaction,
+            ContentType::Article,
+            &input.user_id,
+            &input.article_id,
+        )
+        .await
+        {
+            Ok(is_owner) => {
+                if !is_owner {
+                    return Err(Status::permission_denied("Forbidden"));
+                }
+            }
+            Err(err) => {
+                error!("{:?}", err);
+                if let sqlx::error::Error::RowNotFound = err {
+                    return Err(Status::unknown("Article not found"));
+                }
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let reponse = match SeriesRepositoryImpl::reorder_article(
+            &mut transaction,
+            &input.series_id,
+            &input.article_id,
+            input.order,
+        )
+        .await
+        {
+            Ok(reponse) => reponse,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        match transaction.commit().await {
+            Ok(()) => Ok(Response::new(MessageResponse {
+                message: format!("Article {} reordered in Series {}", reponse.1, reponse.0),
             })),
             Err(err) => {
                 error!("{:?}", err);

@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
 use shared::{
+    common::{FullArticle, FullArticles, List, Lists, MessageResponse},
+    list::{
+        list_service_server::ListService, AddArticleRequest, ArticlesRequest, CreateRequest,
+        DeleteRequest, GetRequest, RemoveArticleRequest, SearchRequest, UpdateRequest,
+    },
     models::{
         enums::Visibility,
         list_model::{CreateList, UpdateList},
@@ -8,12 +13,6 @@ use shared::{
     repositories::{
         article_repository::{ArticleRepository, ArticleRepositoryImpl},
         list_repository::{ListRepository, ListRepositoryImpl},
-    },
-    resource_proto::{
-        list_service_server::ListService, AddArticleListRequest, AddArticleListResponse,
-        CreateListRequest, DeleteListRequest, DeleteListResponse, GetListRequest, GetListsRequest,
-        GetListsResponse, List, RemoveArticleListRequest, RemoveArticleListResponse,
-        UpdateListRequest,
     },
 };
 use tonic::{Request, Response, Status};
@@ -34,10 +33,7 @@ pub struct ListServiceImpl {
 
 #[tonic::async_trait]
 impl ListService for ListServiceImpl {
-    async fn get_lists(
-        &self,
-        request: Request<GetListsRequest>,
-    ) -> Result<Response<GetListsResponse>, Status> {
+    async fn search(&self, request: Request<SearchRequest>) -> Result<Response<Lists>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -69,7 +65,6 @@ impl ListService for ListServiceImpl {
             input.limit,
             id,
             created_at,
-            input.user_id.as_deref(),
             input.by_user.as_deref(),
         )
         .await
@@ -89,7 +84,7 @@ impl ListService for ListServiceImpl {
         let lists = lists.iter().map(|list| List::from(list)).collect();
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(GetListsResponse { lists, next_cursor })),
+            Ok(_) => Ok(Response::new(Lists { lists, next_cursor })),
             Err(err) => {
                 error!("{:?}", err);
                 return Err(Status::internal("Something went wrong"));
@@ -97,7 +92,7 @@ impl ListService for ListServiceImpl {
         }
     }
 
-    async fn get_list(&self, request: Request<GetListRequest>) -> Result<Response<List>, Status> {
+    async fn get(&self, request: Request<GetRequest>) -> Result<Response<List>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -136,10 +131,75 @@ impl ListService for ListServiceImpl {
         }
     }
 
-    async fn create_list(
+    async fn articles(
         &self,
-        request: Request<CreateListRequest>,
-    ) -> Result<Response<List>, Status> {
+        request: Request<ArticlesRequest>,
+    ) -> Result<Response<FullArticles>, Status> {
+        let mut transaction = match self.state.db.begin().await {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let input = request.get_ref();
+
+        info!("Get List Articles Request {:?}", input);
+
+        let mut id = None;
+        let mut created_at = None;
+
+        if let Some(cursor_str) = &input.cursor {
+            (id, created_at) = match parse_cursor(cursor_str) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    error!("Parse error {}", err);
+                    return Err(Status::invalid_argument("Invalid data"));
+                }
+            }
+        };
+
+        let articles = match ListRepositoryImpl::find_articles(
+            &mut transaction,
+            input.limit,
+            id,
+            created_at,
+            input.by_user.as_deref(),
+            &input.list_id,
+        )
+        .await
+        {
+            Ok(articles) => articles,
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        };
+
+        let next_cursor = articles
+            .iter()
+            .nth(input.limit as usize - 1)
+            .map(|item| format!("{}_{}", item.id, item.created_at.to_rfc3339()));
+
+        let articles = articles
+            .iter()
+            .map(|article| FullArticle::from(article))
+            .collect();
+
+        match transaction.commit().await {
+            Ok(_) => Ok(Response::new(FullArticles {
+                articles,
+                next_cursor,
+            })),
+            Err(err) => {
+                error!("{:?}", err);
+                return Err(Status::internal("Something went wrong"));
+            }
+        }
+    }
+
+    async fn create(&self, request: Request<CreateRequest>) -> Result<Response<List>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -158,7 +218,7 @@ impl ListService for ListServiceImpl {
                 user_id: input.user_id.to_owned(),
                 label: input.label.to_owned(),
                 image: input.image.to_owned(),
-                visibility: Visibility::Public,
+                visibility: Visibility::from(input.visibility()),
             },
         )
         .await
@@ -189,10 +249,7 @@ impl ListService for ListServiceImpl {
         }
     }
 
-    async fn update_list(
-        &self,
-        request: Request<UpdateListRequest>,
-    ) -> Result<Response<List>, Status> {
+    async fn update(&self, request: Request<UpdateRequest>) -> Result<Response<List>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -261,10 +318,10 @@ impl ListService for ListServiceImpl {
         }
     }
 
-    async fn delete_list(
+    async fn delete(
         &self,
-        request: Request<DeleteListRequest>,
-    ) -> Result<Response<DeleteListResponse>, Status> {
+        request: Request<DeleteRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -307,7 +364,7 @@ impl ListService for ListServiceImpl {
         };
 
         match transaction.commit().await {
-            Ok(_) => Ok(Response::new(DeleteListResponse {
+            Ok(_) => Ok(Response::new(MessageResponse {
                 message: format!("Deleted list: {}", list.id),
             })),
             Err(err) => {
@@ -319,8 +376,8 @@ impl ListService for ListServiceImpl {
 
     async fn add_article(
         &self,
-        request: Request<AddArticleListRequest>,
-    ) -> Result<Response<AddArticleListResponse>, Status> {
+        request: Request<AddArticleRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -379,7 +436,7 @@ impl ListService for ListServiceImpl {
             };
 
         match transaction.commit().await {
-            Ok(()) => Ok(Response::new(AddArticleListResponse {
+            Ok(()) => Ok(Response::new(MessageResponse {
                 message: format!("Article {} added to List {}", reponse.1, reponse.0),
             })),
             Err(err) => {
@@ -391,8 +448,8 @@ impl ListService for ListServiceImpl {
 
     async fn remove_article(
         &self,
-        request: Request<RemoveArticleListRequest>,
-    ) -> Result<Response<RemoveArticleListResponse>, Status> {
+        request: Request<RemoveArticleRequest>,
+    ) -> Result<Response<MessageResponse>, Status> {
         let mut transaction = match self.state.db.begin().await {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -451,7 +508,7 @@ impl ListService for ListServiceImpl {
             };
 
         match transaction.commit().await {
-            Ok(()) => Ok(Response::new(RemoveArticleListResponse {
+            Ok(()) => Ok(Response::new(MessageResponse {
                 message: format!("Article {} removed to List {}", reponse.1, reponse.0),
             })),
             Err(err) => {

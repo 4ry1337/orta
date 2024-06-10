@@ -7,6 +7,8 @@ use crate::{
         },
     },
 };
+use article::put_article_tags;
+use auth::get_session;
 use axum::{
     extract::DefaultBodyLimit,
     handler::Handler,
@@ -15,12 +17,16 @@ use axum::{
     Router,
 };
 use axum_prometheus::PrometheusMetricLayer;
+use list::get_list_articles;
+use series::{get_series_articles, patch_series_article};
+use tags::get_tags;
+use user::{get_user_articles, get_user_drafts};
 
 use self::{
     admin::health_checker,
     article::{
-        delete_article, delete_author, get_article, get_articles, get_history, like_article,
-        patch_article, post_article, publish, put_author, save_article, unlike_article, unpublish,
+        delete_article, delete_author, edit_article, get_article, get_history, like_article,
+        patch_article, post_article, publish, put_author, search_articles, unlike_article,
     },
     assets::{get_asset, post_asset},
     comment::{delete_comment, get_comments, patch_comment, post_comment},
@@ -32,7 +38,10 @@ use self::{
         delete_series, delete_series_article, get_series, get_serieses, patch_series, post_series,
         put_series_article,
     },
-    user::{follow, get_followers, get_following, get_user, get_users, patch_user, unfollow},
+    user::{
+        follow, get_feed, get_followers, get_following, get_user, get_user_lists,
+        get_user_serieses, get_users, patch_user, unfollow,
+    },
 };
 
 pub mod admin;
@@ -72,6 +81,18 @@ pub fn router(state: AppState) -> Router<AppState> {
                         .layer(middleware::from_fn(auth_middleware)),
                 )
                 .nest(
+                    "/me",
+                    Router::new()
+                        .route("/", get(get_session))
+                        .route("/feed", get(get_feed))
+                        .route("/drafts", get(get_user_drafts))
+                        .layer(middleware::from_fn_with_state(
+                            state.clone(),
+                            auth_middleware,
+                        ))
+                        .layer(middleware::from_fn(resource_service_middleware)),
+                )
+                .nest(
                     "/users",
                     Router::new()
                         .route("/", get(get_users))
@@ -87,6 +108,10 @@ pub fn router(state: AppState) -> Router<AppState> {
                                         ),
                                     )),
                                 )
+                                .route("/articles", get(get_user_articles))
+                                .route("/series", get(get_user_serieses))
+                                .route("/lists", get(get_user_lists))
+                                // .route("/interests", get(get_user_articles))
                                 .route(
                                     "/follow",
                                     put(follow).delete(unfollow).layer(
@@ -106,7 +131,7 @@ pub fn router(state: AppState) -> Router<AppState> {
                     Router::new()
                         .route(
                             "/",
-                            get(get_articles).post(post_article.layer(
+                            get(search_articles).post(post_article.layer(
                                 middleware::from_fn_with_state(state.clone(), auth_middleware),
                             )),
                         )
@@ -126,6 +151,28 @@ pub fn router(state: AppState) -> Router<AppState> {
                                                 auth_middleware,
                                             ),
                                         )),
+                                )
+                                .nest(
+                                    "/comments",
+                                    Router::new()
+                                        .route(
+                                            "/",
+                                            get(get_comments).post(post_comment.layer(
+                                                middleware::from_fn_with_state(
+                                                    state.clone(),
+                                                    auth_middleware,
+                                                ),
+                                            )),
+                                        )
+                                        .route(
+                                            "/:comment_id",
+                                            patch(patch_comment).delete(delete_comment).layer(
+                                                middleware::from_fn_with_state(
+                                                    state.clone(),
+                                                    auth_middleware,
+                                                ),
+                                            ),
+                                        ),
                                 )
                                 .route(
                                     "/like",
@@ -150,19 +197,15 @@ pub fn router(state: AppState) -> Router<AppState> {
                                         auth_middleware,
                                     )),
                                 )
-                                .route(
-                                    "/unpublish",
-                                    patch(unpublish).layer(middleware::from_fn_with_state(
-                                        state.clone(),
-                                        auth_middleware,
-                                    )),
-                                )
-                                .route(
+                                .nest(
                                     "/edit",
-                                    patch(save_article).layer(middleware::from_fn_with_state(
-                                        state.clone(),
-                                        auth_middleware,
-                                    )),
+                                    Router::new()
+                                        .route("/", patch(edit_article))
+                                        .route("/tags", put(put_article_tags))
+                                        .layer(middleware::from_fn_with_state(
+                                            state.clone(),
+                                            auth_middleware,
+                                        )),
                                 )
                                 .route(
                                     "/authors",
@@ -174,6 +217,12 @@ pub fn router(state: AppState) -> Router<AppState> {
                                     ),
                                 ),
                         )
+                        .layer(middleware::from_fn(resource_service_middleware)),
+                )
+                .nest(
+                    "/tags",
+                    Router::new()
+                        .route("/", get(get_tags))
                         .layer(middleware::from_fn(resource_service_middleware)),
                 )
                 .nest(
@@ -201,14 +250,37 @@ pub fn router(state: AppState) -> Router<AppState> {
                                             auth_middleware,
                                         ))),
                                 )
+                                .nest(
+                                    "/comments",
+                                    Router::new()
+                                        .route(
+                                            "/",
+                                            get(get_comments).post(post_comment.layer(
+                                                middleware::from_fn_with_state(
+                                                    state.clone(),
+                                                    auth_middleware,
+                                                ),
+                                            )),
+                                        )
+                                        .route(
+                                            "/:comment_id",
+                                            patch(patch_comment).delete(delete_comment).layer(
+                                                middleware::from_fn_with_state(
+                                                    state.clone(),
+                                                    auth_middleware,
+                                                ),
+                                            ),
+                                        ),
+                                )
                                 .route(
                                     "/articles",
-                                    put(put_list_article).delete(delete_list_article).layer(
-                                        middleware::from_fn_with_state(
+                                    get(get_list_articles)
+                                        .put(put_list_article)
+                                        .delete(delete_list_article)
+                                        .layer(middleware::from_fn_with_state(
                                             state.clone(),
                                             auth_middleware,
-                                        ),
-                                    ),
+                                        )),
                                 ),
                         )
                         .layer(middleware::from_fn(resource_service_middleware)),
@@ -239,32 +311,39 @@ pub fn router(state: AppState) -> Router<AppState> {
                                             ),
                                         )),
                                 )
+                                .nest(
+                                    "/comments",
+                                    Router::new()
+                                        .route(
+                                            "/",
+                                            get(get_comments).post(post_comment.layer(
+                                                middleware::from_fn_with_state(
+                                                    state.clone(),
+                                                    auth_middleware,
+                                                ),
+                                            )),
+                                        )
+                                        .route(
+                                            "/:comment_id",
+                                            patch(patch_comment).delete(delete_comment).layer(
+                                                middleware::from_fn_with_state(
+                                                    state.clone(),
+                                                    auth_middleware,
+                                                ),
+                                            ),
+                                        ),
+                                )
                                 .route(
                                     "/articles",
-                                    put(put_series_article).delete(delete_series_article).layer(
-                                        middleware::from_fn_with_state(
+                                    get(get_series_articles)
+                                        .put(put_series_article)
+                                        .patch(patch_series_article)
+                                        .delete(delete_series_article)
+                                        .layer(middleware::from_fn_with_state(
                                             state.clone(),
                                             auth_middleware,
-                                        ),
-                                    ),
+                                        )),
                                 ),
-                        )
-                        .layer(middleware::from_fn(resource_service_middleware)),
-                )
-                .nest(
-                    "/comments",
-                    Router::new()
-                        .route(
-                            "/",
-                            get(get_comments).post(post_comment.layer(
-                                middleware::from_fn_with_state(state.clone(), auth_middleware),
-                            )),
-                        )
-                        .route(
-                            "/:comment_id",
-                            patch(patch_comment).delete(delete_comment).layer(
-                                middleware::from_fn_with_state(state.clone(), auth_middleware),
-                            ),
                         )
                         .layer(middleware::from_fn(resource_service_middleware)),
                 ),

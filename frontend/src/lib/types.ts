@@ -69,6 +69,7 @@ export type Article = {
   created_at: string;
   updated_at?: string;
   published_at?: string;
+  order?: number;
 };
 
 export type ArticleVersion = {
@@ -93,7 +94,7 @@ export type FullArticle = Article & {
   tags: Tag[];
   lists: List[];
   series: Series[];
-  liked: boolean;
+  liked?: boolean;
 };
 
 export type List = {
@@ -120,6 +121,21 @@ export type Series = {
 
 export type Comment = {
   id: string;
+  content: string;
+  commenter_id: string;
   target_id: string;
-  user: FullUser;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type FullComment = {
+  id: string;
+  content: string;
+  commenter_id: string;
+  target_id: string;
+  created_at: string;
+  updated_at?: string;
+  image?: string;
+  followed: boolean;
+  username: string;
 };

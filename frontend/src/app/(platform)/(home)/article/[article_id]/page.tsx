@@ -21,8 +21,6 @@ import UserList from "@/components/user/list/list";
 import Preview from "@/components/article/preview";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
-  BookmarkFilledIcon,
-  BookmarkIcon,
   ChatBubbleIcon,
   HeartFilledIcon,
   HeartIcon,
@@ -30,21 +28,28 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import ListPopover from "@/components/list/list_popover";
-import { FullArticle, List } from "@/lib/types";
+import { FullArticle } from "@/lib/types";
 import { useSession } from "@/context/session_context";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArticleComments } from "@/components/comment/comment_tab";
 
 interface IParams {
   article_id: string;
 }
 
 const ArticlePage = ({ params }: { params: IParams }) => {
+  const router = useRouter();
   const { data } = useSession();
 
   const { isLoading } = useSWR(get_id(params.article_id), get_article, {
     onSuccess(data) {
       if (data) {
-        setArticle(data);
+        if (data.published_at == null) {
+          router.push(`/article/${slugifier(data.title)}-${data.id}/edit`);
+        } else {
+          setArticle(data);
+        }
       }
     },
   });
@@ -56,7 +61,7 @@ const ArticlePage = ({ params }: { params: IParams }) => {
   }
 
   return (
-    <div>
+    <div className="pb-40">
       <div className="pt-6 p-4 space-y-4">
         <div className="p-2">
           <Breadcrumb>
@@ -150,6 +155,10 @@ const ArticlePage = ({ params }: { params: IParams }) => {
             <h1 className="text-center">No content</h1>
           </div>
         )}
+      </div>
+      <Separator />
+      <div className="p-4 max-w-lg mx-auto space-y-4">
+        <ArticleComments article_id={article.id} />
       </div>
     </div>
   );
