@@ -2,7 +2,6 @@ import { Separator } from "@/components/ui/separator";
 import { HTMLAttributes } from "react";
 import ArticleForm from "./forms/article_form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import CollaboratorForm from "./forms/collaborator_form";
 import TagsForm from "./forms/tags_form";
 interface ArticleSettingsTabProps extends HTMLAttributes<HTMLDivElement> { }

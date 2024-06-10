@@ -68,10 +68,12 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
     mode: "onChange",
   });
 
-  const { fields, append, remove } = useFieldArray({
-    name: "urls",
-    control: UpdateUserForm.control,
-  });
+  // const { fields, append, remove } = useFieldArray<
+  //   z.infer<typeof UpdateUserFormSchema>
+  // >({
+  //   name: "urls",
+  //   control: UpdateUserForm.control,
+  // });
 
   const onSubmit = async (values: z.infer<typeof UpdateUserFormSchema>) => {
     startTransition(async () => {
@@ -241,38 +243,6 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
             </FormItem>
           )}
         />
-        <div>
-          {fields.map((field, index) => (
-            <FormField
-              control={UpdateUserForm.control}
-              key={field.id}
-              name={`urls.${index}`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className={cn(index !== 0 && "sr-only")}>
-                    URLs
-                  </FormLabel>
-                  <FormDescription className={cn(index !== 0 && "sr-only")}>
-                    Add links to your website, blog, or social media profiles.
-                  </FormDescription>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={() => append("")}
-          >
-            Add URL
-          </Button>
-        </div>
         <Button disabled={pending} type="submit">
           Update profile
         </Button>
@@ -281,4 +251,36 @@ const ProfileForm = ({ user }: ProfileFormProps) => {
   );
 };
 
+// <div>
+//   {fields.map((field, index) => (
+//     <FormField
+//       control={UpdateUserForm.control}
+//       key={field.id}
+//       name={`urls.${index}`}
+//       render={({ field }) => (
+//         <FormItem>
+//           <FormLabel className={cn(index !== 0 && "sr-only")}>
+//             URLs
+//           </FormLabel>
+//           <FormDescription className={cn(index !== 0 && "sr-only")}>
+//             Add links to your website, blog, or social media profiles.
+//           </FormDescription>
+//           <FormControl>
+//             <Input {...field} />
+//           </FormControl>
+//           <FormMessage />
+//         </FormItem>
+//       )}
+//     />
+//   ))}
+//   <Button
+//     type="button"
+//     variant="outline"
+//     size="sm"
+//     className="mt-2"
+//     onClick={() => append("")}
+//   >
+//     Add URL
+//   </Button>
+// </div>
 export default ProfileForm;

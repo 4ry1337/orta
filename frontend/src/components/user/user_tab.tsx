@@ -20,11 +20,9 @@ const UserTab = () => {
     hasNextPage: hasNextPage,
     onLoadMore: () => {
       setIsLoading(true);
-      get_users({
-        cursor: {
-          cursor,
-          limit,
-        },
+      get_users(undefined, {
+        cursor,
+        limit,
       }).then((data) => {
         setUsers([...users, ...data.items]);
         if (data.next_cursor !== null) {

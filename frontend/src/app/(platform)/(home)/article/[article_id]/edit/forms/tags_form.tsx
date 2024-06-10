@@ -10,7 +10,7 @@ import useInfiniteScroll from "react-infinite-scroll-hook";
 import { get_tags } from "@/app/actions/tags";
 import debounce from "lodash.debounce";
 import { useEffect, useMemo, useState } from "react";
-import { useArticle } from "../page";
+import { useArticle } from "@/context/article_context";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

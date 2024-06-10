@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { get_followers } from "@/app/actions/user";
 import UserList from "@/components/user/list/list";
+import { FullUser } from "@/lib/types";
 
 interface IParams {
   username: string;

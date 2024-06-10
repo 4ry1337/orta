@@ -9,7 +9,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import MenuBar from "@/components/article/edit/menubar";
 import { cn } from "@/lib/utils";
 import { HTMLAttributes } from "react";
-import { useArticle } from "./page";
+import { useArticle } from "@/context/article_context";
 
 interface EditorTabProps extends HTMLAttributes<HTMLDivElement> { }
 

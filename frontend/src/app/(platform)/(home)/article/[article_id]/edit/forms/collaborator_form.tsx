@@ -15,7 +15,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/components/ui/popover";
-import { useArticle } from "../page";
+import { useArticle } from "@/context/article_context";
 
 const CollaboratorForm = () => {
   const { article, update } = useArticle();

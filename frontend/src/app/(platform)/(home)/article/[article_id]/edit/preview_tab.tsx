@@ -5,7 +5,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import Collaboration from "@tiptap/extension-collaboration";
 import React, { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
-import { useArticle } from "./page";
+import { useArticle } from "@/context/article_context";
 
 interface PreviewTabProps extends HTMLAttributes<HTMLDivElement> { }
 

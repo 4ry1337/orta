@@ -18,7 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { useArticle } from "../page";
+import { useArticle } from "@/context/article_context";
 import {
   Dialog,
   DialogClose,
@@ -40,7 +40,6 @@ const ArticleForm = () => {
     defaultValues: {
       title: article.title,
       description: article.description ?? "",
-      tags: article.tags.map((tag) => tag.label),
     },
   });
 
