@@ -19,14 +19,10 @@ const ArticleSettingsTab = ({ }: ArticleSettingsTabProps) => {
       <Tabs defaultValue="article">
         <TabsList>
           <TabsTrigger value="article">Article</TabsTrigger>
-          <TabsTrigger value="tags">Tags</TabsTrigger>
           <TabsTrigger value="collaboration">Collaborator</TabsTrigger>
         </TabsList>
         <TabsContent value="article">
           <ArticleForm />
-        </TabsContent>
-        <TabsContent value="tags">
-          <TagsForm />
         </TabsContent>
         <TabsContent value="collaboration">
           <CollaboratorForm />

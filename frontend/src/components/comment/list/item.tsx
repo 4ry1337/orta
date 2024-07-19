@@ -34,7 +34,7 @@ const CommentCard = ({ comment, ...props }: CommentCardProps) => {
               />
               <AvatarFallback>{comment.username.at(0)}</AvatarFallback>
             </Avatar>
-            <span className="ml-2 hidden xl:block">{comment.username}</span>
+            <span className="ml-2">{comment.username}</span>
           </div>
         </CardTitle>
       </CardHeader>

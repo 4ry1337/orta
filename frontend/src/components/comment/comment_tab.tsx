@@ -373,9 +373,7 @@ export const SeriesComments = ({ series_id }: { series_id: string }) => {
                       />
                       <AvatarFallback>{session.username.at(0)}</AvatarFallback>
                     </Avatar>
-                    <span className="ml-2 hidden xl:block">
-                      {session.username}
-                    </span>
+                    <span className="ml-2">{session.username}</span>
                   </div>
                 </CardTitle>
               </CardHeader>
