@@ -1,32 +1,32 @@
-"use client";
+"use client"
 
-import { follow, get_user, unfollow } from "@/app/actions/user";
-import Aside from "@/components/aside";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSession } from "@/context/session_context";
-import { Share1Icon } from "@radix-ui/react-icons";
-import { VerifiedIcon } from "lucide-react";
-import Link from "next/link";
-import React from "react";
-import useSWR from "swr";
-import { Separator } from "@/components/ui/separator";
-import ArticleTab from "@/components/article/article_tab";
-import SeriesTab from "@/components/series/series_tab";
-import ListTab from "@/components/list/list_tab";
+import { follow, get_user, unfollow } from "@/app/actions/user"
+import Aside from "@/components/aside"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useSession } from "@/context/session_context"
+import { Share1Icon } from "@radix-ui/react-icons"
+import { VerifiedIcon } from "lucide-react"
+import Link from "next/link"
+import React from "react"
+import useSWR from "swr"
+import { Separator } from "@/components/ui/separator"
+import ArticleTab from "@/components/article/article_tab"
+import SeriesTab from "@/components/series/series_tab"
+import ListTab from "@/components/list/list_tab"
 
 interface IParams {
-  username: string;
+  username: string
 }
 
-const User = ({ params }: { params: IParams }) => {
-  const { data } = useSession();
+const User = ( { params }: { params: IParams } ) => {
+  const { data } = useSession()
 
-  const { data: user, mutate } = useSWR(params.username, get_user);
+  const { data: user, mutate } = useSWR( params.username, get_user )
 
-  if (!user) return <Skeleton className="w-full h-full" />;
+  if ( !user ) return <Skeleton className="w-full h-full" />
 
   return (
     <div className="flex">
@@ -46,7 +46,7 @@ const User = ({ params }: { params: IParams }) => {
                 className="object-cover"
                 alt="@avatar"
               />
-              <AvatarFallback>{user.username.at(0)}</AvatarFallback>
+              <AvatarFallback>{user.username.at( 0 )}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
               <div className="flex flex-row gap-1">
@@ -72,12 +72,12 @@ const User = ({ params }: { params: IParams }) => {
               user.followed ? (
                 <Button
                   onClick={() => {
-                    unfollow(user.username);
-                    mutate({
+                    unfollow( user.username )
+                    mutate( {
                       ...user,
                       followed: false,
                       follower_count: user.follower_count - 1,
-                    });
+                    } )
                   }}
                 >
                   Unfollow
@@ -85,12 +85,12 @@ const User = ({ params }: { params: IParams }) => {
               ) : (
                 <Button
                   onClick={() => {
-                    follow(user.username);
-                    mutate({
+                    follow( user.username )
+                    mutate( {
                       ...user,
                       followed: true,
                       follower_count: user.follower_count + 1,
-                    });
+                    } )
                   }}
                 >
                   Follow
@@ -143,7 +143,7 @@ const User = ({ params }: { params: IParams }) => {
                 className="object-cover"
                 alt="@avatar"
               />
-              <AvatarFallback>{user.username.at(0)}</AvatarFallback>
+              <AvatarFallback>{user.username.at( 0 )}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
               <div className="flex flex-row gap-1">
@@ -168,8 +168,8 @@ const User = ({ params }: { params: IParams }) => {
               user.followed ? (
                 <Button
                   onClick={() => {
-                    unfollow(user.username);
-                    mutate();
+                    unfollow( user.username )
+                    mutate()
                   }}
                 >
                   Unfollow
@@ -177,8 +177,8 @@ const User = ({ params }: { params: IParams }) => {
               ) : (
                 <Button
                   onClick={() => {
-                    follow(user.username);
-                    mutate();
+                    follow( user.username )
+                    mutate()
                   }}
                 >
                   Follow
@@ -196,8 +196,8 @@ const User = ({ params }: { params: IParams }) => {
         </div>
       </Aside>
     </div>
-  );
-};
+  )
+}
 
 // <div className="flex flex-col items-start">
 //   {user.urls.map((url) => (
@@ -207,4 +207,4 @@ const User = ({ params }: { params: IParams }) => {
 //   ))}
 // </div>
 
-export default User;
+export default User

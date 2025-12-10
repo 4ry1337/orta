@@ -141,10 +141,12 @@ pub fn router(state: AppState) -> Router<AppState> {
                                 .route(
                                     "/",
                                     get(get_article)
-                                        .patch(patch_article.layer(middleware::from_fn_with_state(
-                                            state.clone(),
-                                            auth_middleware,
-                                        )))
+                                        .patch(patch_article.layer(
+                                            middleware::from_fn_with_state(
+                                                state.clone(),
+                                                auth_middleware,
+                                            ),
+                                        ))
                                         .delete(delete_article.layer(
                                             middleware::from_fn_with_state(
                                                 state.clone(),
@@ -245,10 +247,12 @@ pub fn router(state: AppState) -> Router<AppState> {
                                             state.clone(),
                                             auth_middleware,
                                         )))
-                                        .delete(delete_list.layer(middleware::from_fn_with_state(
-                                            state.clone(),
-                                            auth_middleware,
-                                        ))),
+                                        .delete(delete_list.layer(
+                                            middleware::from_fn_with_state(
+                                                state.clone(),
+                                                auth_middleware,
+                                            ),
+                                        )),
                                 )
                                 .nest(
                                     "/comments",
